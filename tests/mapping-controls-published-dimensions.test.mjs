@@ -6,11 +6,12 @@ const mapper = await readFile(new URL("../app/plot-mapper.tsx", import.meta.url)
 const publicHtml = await readFile(new URL("../public/project/index.html", import.meta.url), "utf8");
 
 test("Mapping Controls writes explicit per-side display overrides when measurements are edited", () => {
-  assert.match(mapper, /const sideWasEdited =/);
-  assert.match(mapper, /controlsWorkspace && Boolean\(existing\)/);
-  for (const role of ["front", "back", "depth", "depth2"]) {
-    assert.match(mapper, new RegExp(role + "Label:.*manualDisplayLabel\\("));
-  }
+  assert.match(mapper, /syncManualDimensionLabel\(value, previousValue, label, dimensionUnit, existing\?\.dimensionUnit\)/);
+  assert.match(mapper, /const anySideEdited = controlsWorkspace && nextLabels\.some/);
+  assert.match(mapper, /frontLabel: nextLabels\[0\]/);
+  assert.match(mapper, /backLabel: nextLabels\[1\]/);
+  assert.match(mapper, /depthLabel: nextLabels\[2\]/);
+  assert.match(mapper, /depth2Label:.*nextLabels\[3\]/);
   assert.match(mapper, /sideDimensions: anySideEdited \? null/);
   assert.match(mapper, /frontEdgeIndex: edgeValue/);
   assert.match(mapper, /polygon: JSON\.stringify\(points\)/);
