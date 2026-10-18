@@ -25,3 +25,11 @@ test("manual unit changes and clearing stale numeric labels", () => {
   assert.equal(reconcile(9, 29, "29 ft", "m", "ft"), "9 m");
   assert.equal(reconcile(null, 29, "33 ft", "ft", "ft"), null);
 });
+
+test("decimal feet inputs are exact and must not retain near-but-wrong labels", () => {
+  assert.equal(reconcile(29.1, 29.1, "29.11 ft", "ft", "ft"), "29.1 ft");
+  assert.equal(reconcile(29.1, 29.1, "29.11'", "ft", "ft"), "29.1 ft");
+  assert.equal(reconcile(29.1, 29.1, "29'-11\"", "ft", "ft"), "29.1 ft");
+  assert.equal(reconcile(29.11, 29.11, "29.1 ft", "ft", "ft"), "29.11 ft");
+  assert.equal(reconcile(33.6667, 33.6667, "33'-8\"", "ft", "ft"), "33'-8\"");
+});
