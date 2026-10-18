@@ -69,9 +69,9 @@ test("vertex priority remains available for intentionally shared corners", () =>
   closePoint(edge.point, [0.307, 0.5]);
 });
 
-test("snap radius uses screen pixels at 2000 percent zoom on a non-square image", () => {
-  const width = 20000;
-  const height = 10000;
+test("snap radius uses screen pixels at 5000 percent zoom on a non-square image", () => {
+  const width = 50000;
+  const height = 25000;
   const nearby = snapPoint([0.4, 0.5 - 5 / height], [savedPlot], width, height, { enabled: true });
   assert.equal(nearby.kind, "edge");
   closePoint(nearby.point, [0.4, 0.5]);
@@ -83,9 +83,9 @@ test("snap radius uses screen pixels at 2000 percent zoom on a non-square image"
 });
 
 test("quarter-turn views retain the same screen distance after source axes are swapped", () => {
-  // A 20000 x 10000 source renders in a 10000 x 20000 quarter-turn viewport.
+  // A 50000 x 25000 source renders in a 25000 x 50000 quarter-turn viewport.
   // Its source dimensions must be recovered from viewport height and width.
-  const viewport = { width: 10000, height: 20000 };
+  const viewport = { width: 25000, height: 50000 };
   const sourceWidth = viewport.height;
   const sourceHeight = viewport.width;
   const nearby = snapPoint([0.4, 0.5 - 4 / sourceHeight], [savedPlot], sourceWidth, sourceHeight, { enabled: true });
