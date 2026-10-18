@@ -31,7 +31,7 @@ test("only mapped plot number text consumes the adaptive label style", () => {
   );
 });
 
-test("the fixed screen target remains constant through the full 1x-20x mapper range", () => {
+test("the fixed screen target remains constant through the full 1x-50x mapper range", () => {
   const fontMatch = mapper.match(/const MAPPER_LABEL_SCREEN_FONT_PX = ([0-9.]+);/);
   const strokeMatch = mapper.match(/const MAPPER_LABEL_SCREEN_STROKE_PX = ([0-9.]+);/);
   assert.ok(fontMatch && strokeMatch);
@@ -39,7 +39,7 @@ test("the fixed screen target remains constant through the full 1x-20x mapper ra
   const targetFont = Number(fontMatch[1]);
   const targetStroke = Number(strokeMatch[1]);
 
-  for (const zoom of [1, 1.5, 4, 8, 12, 18, 20]) {
+  for (const zoom of [1, 1.5, 4, 8, 12, 18, 20, 35, 50]) {
     const sourceFont = targetFont / zoom;
     const sourceStroke = targetStroke / zoom;
     assert.ok(Math.abs(sourceFont * zoom - targetFont) < 1e-9);
@@ -48,7 +48,7 @@ test("the fixed screen target remains constant through the full 1x-20x mapper ra
 });
 
 test("mapper zoom geometry remains linear and saved polygon logic is untouched", () => {
-  assert.match(mapper, /const MAX_MAPPER_ZOOM = 20;/);
+  assert.match(mapper, /const MAX_MAPPER_ZOOM = 50;/);
   assert.match(
     mapper,
     /`min\(\$\{zoom \* 100\}%, \$\{\(zoom \* 58 \* visualAspect\)\.toFixed\(4\)\}vh\)`/,
@@ -78,7 +78,7 @@ test("semantic side overlay keeps a large touch target without covering the mast
   assert.doesNotMatch(mapper, /strokeWidth=\{selected \? 18 : role \? 13 : 11\}/);
 });
 
-test("semantic F B D1 D2 badges remain screen-stable at 2000 percent zoom", () => {
+test("semantic F B D1 D2 badges remain screen-stable at 5000 percent zoom", () => {
   assert.match(mapper, /strokeWidth=\{2\.4 \/ Math\.max\(1, zoom\)\}/);
   assert.match(mapper, /fontSize=\{19 \/ Math\.max\(1, zoom\)\}/);
   assert.doesNotMatch(mapper, /strokeWidth=\{5\}[\s\S]*semantic-badge/);
