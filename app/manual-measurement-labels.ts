@@ -41,7 +41,12 @@ export function syncManualDimensionLabel(
 
   const previousUnitChanged = Boolean(previousUnit) && previousUnit !== unit;
   const parsed = label ? existingLabelLength(label, unit) : null;
-  const tolerance = unit === "ft" ? 0.015 : 0.005;
+  // Compare at sub-thousandth-of-an-inch precision, not at a broad
+  // display tolerance: 29.10 ft and 29.11 ft differ by 0.12 inches and
+  // MUST NOT be treated as the same manually entered dimension.
+  // A 4-decimal canonical value (e.g. 33.6667) may still preserve its
+  // mathematically equivalent original 33'-8" exact label.
+  const tolerance = 0.0001;
   if (
     label &&
     !previousUnitChanged &&
