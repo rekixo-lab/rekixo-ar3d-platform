@@ -3860,13 +3860,13 @@ export default function PlotMapper({
     // Manual Mapping Controls corrections must supersede older imported
     // display labels without changing the road-facing Front edge or polygon.
     const unitChanged = Boolean(existing?.dimensionUnit) && existing?.dimensionUnit !== dimensionUnit;
-    const sideWasEdited = (previous: number | null | undefined, next: number | null) =>
+    const sideWasEdited = (previous: number | null | undefined, next: number | null, originalLabel: string | null | undefined) =>
       controlsWorkspace && Boolean(existing) &&
-      (previous !== next || (next !== null && unitChanged));
-    const frontEdited = sideWasEdited(existing?.front, frontValue);
-    const backEdited = sideWasEdited(existing?.back, backValue);
-    const depthEdited = sideWasEdited(existing?.depth, depthValue);
-    const depth2Edited = sideWasEdited(existing?.depth2, depth2Value);
+      ((previous ?? null) !== next || (next !== null && (unitChanged || !String(originalLabel || "").trim())));
+    const frontEdited = sideWasEdited(existing?.front, frontValue, existing?.frontLabel);
+    const backEdited = sideWasEdited(existing?.back, backValue, existing?.backLabel);
+    const depthEdited = sideWasEdited(existing?.depth, depthValue, existing?.depthLabel);
+    const depth2Edited = sideWasEdited(existing?.depth2, depth2Value, existing?.depth2Label);
     const anySideEdited = frontEdited || backEdited || depthEdited || depth2Edited;
     const manualDisplayLabel = (
       edited: boolean,
