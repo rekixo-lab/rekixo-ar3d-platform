@@ -257,7 +257,7 @@ type PendingHandleFrame = {
 };
 
 const COMPLETED_PROJECT_ID = "tiyansh-prime-square";
-const MAX_MAPPER_ZOOM = 20;
+const MAX_MAPPER_ZOOM = 50;
 const MAPPER_LABEL_SCREEN_FONT_PX = 14;
 const MAPPER_LABEL_SCREEN_STROKE_PX = 2.4;
 const MAX_MAPPING_DIMENSION = 4096;
@@ -504,7 +504,7 @@ function semanticRoleMeasureGuide(
   );
   // Keep measurement guides visibly separated from the polygon boundary.
   // Values are normalized to plot size, so the spacing stays useful at 100%
-  // and at the 2000% precision zoom without mutating stored geometry.
+  // and at the 5000% precision zoom without mutating stored geometry.
   const inwardOffset = Math.min(0.052, Math.max(0.012, diagonal * 0.09));
   const halfGuide = Math.min(
     diagonal * 0.28,
@@ -515,7 +515,7 @@ function semanticRoleMeasureGuide(
     midpoint[1] + inward[1] * inwardOffset,
   ];
   // Keep the text just above its own guide line. The gap is counter-scaled
-  // with mapper zoom, exactly like the text size, so 2000% precision mode does
+  // with mapper zoom, exactly like the text size, so 5000% precision mode does
   // not visually throw Front/Back/Depth labels far away from their lines.
   const labelGap = 0.013 / Math.max(1, zoomLevel);
   const label: MapperPoint = [
@@ -4254,7 +4254,7 @@ export default function PlotMapper({
 
   // REKIXO_MAPPER_ZOOM_STABLE_LABELS_V1
   // The whole SVG scales linearly with mapper zoom. Counter-scale ONLY the
-  // assistive mapped-plot labels so 2000% zoom cannot turn "29" into a giant
+  // assistive mapped-plot labels so 5000% zoom cannot turn "29" into a giant
   // overlay that hides adjacent plot boundaries. Geometry itself stays untouched.
   const mappedPlotLabelZoom = Math.max(1, zoom);
   const mappedPlotLabelStyle = {
@@ -5323,7 +5323,7 @@ export default function PlotMapper({
                           Keep a generous invisible hit target for Android accuracy, but
                           render the visible semantic guide as a thin dashed line. This
                           prevents Front/Back/Depth overlays from hiding the actual
-                          masterplan boundary at 2000% zoom.
+                          masterplan boundary at 5000% zoom.
                         */}
                         <line
                           className="semantic-edge-hit-target"
@@ -5459,7 +5459,7 @@ export default function PlotMapper({
                     transform: `translate(-50%, -50%) rotate(${-rotationDegrees}deg)`,
                     // Keep the draggable hit target large for touch accuracy, while
                     // shrinking only the visible numbered badge as zoom increases.
-                    // At 2000% the badge is 25% of its normal size (75% smaller).
+                    // At 5000% the badge is 25% of its normal size (75% smaller).
                     "--mapper-corner-visual-scale": String(
                       Math.max(
                         0.25,
