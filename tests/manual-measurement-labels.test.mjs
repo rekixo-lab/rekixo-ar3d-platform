@@ -8,7 +8,7 @@ const src = await readFile(new URL("../app/manual-measurement-labels.ts", import
 const runtime = ts.transpileModule(src, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
 }).outputText.replace(/export\s+function/g, "function");
-const reconcile = runInNewContext(runtime + "\nsyncManualDimensionLabel", {});
+const reconcile = runInNewContext(runtime + "\nsyncManualDimensionLabel", { exports: {} });
 
 test("repair stale front/back labels even if numeric values were previously saved", () => {
   assert.equal(reconcile(29, 29, "33'-8\"", "ft", "ft"), "29 ft");
