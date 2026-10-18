@@ -10,6 +10,7 @@ import {
   FileText,
   Hand,
   ImagePlus,
+  Magnet,
   Maximize2,
   MousePointer2,
   Pencil,
@@ -256,7 +257,7 @@ type PendingHandleFrame = {
 };
 
 const COMPLETED_PROJECT_ID = "tiyansh-prime-square";
-const MAX_MAPPER_ZOOM = 18;
+const MAX_MAPPER_ZOOM = 50;
 const MAPPER_LABEL_SCREEN_FONT_PX = 14;
 const MAPPER_LABEL_SCREEN_STROKE_PX = 2.4;
 const MAX_MAPPING_DIMENSION = 4096;
@@ -503,7 +504,7 @@ function semanticRoleMeasureGuide(
   );
   // Keep measurement guides visibly separated from the polygon boundary.
   // Values are normalized to plot size, so the spacing stays useful at 100%
-  // and at the 1800% precision zoom without mutating stored geometry.
+  // and at the 5000% precision zoom without mutating stored geometry.
   const inwardOffset = Math.min(0.052, Math.max(0.012, diagonal * 0.09));
   const halfGuide = Math.min(
     diagonal * 0.28,
@@ -514,7 +515,7 @@ function semanticRoleMeasureGuide(
     midpoint[1] + inward[1] * inwardOffset,
   ];
   // Keep the text just above its own guide line. The gap is counter-scaled
-  // with mapper zoom, exactly like the text size, so 1800% precision mode does
+  // with mapper zoom, exactly like the text size, so 5000% precision mode does
   // not visually throw Front/Back/Depth labels far away from their lines.
   const labelGap = 0.013 / Math.max(1, zoomLevel);
   const label: MapperPoint = [
@@ -1137,6 +1138,7 @@ export default function PlotMapper({
   // persistent plot geometry always remains in the original masterplan coordinate space.
   const [rotation, setRotation] = useState<0 | 1 | 2 | 3>(0);
   const [toolMode, setToolMode] = useState<"pan" | "select">("pan");
+  const [snapEnabled, setSnapEnabled] = useState(false);
 
   // Primary precision image mapper.
   const [plotId, setPlotId] = useState("1");
@@ -3431,16 +3433,12 @@ export default function PlotMapper({
     const box = wrap.getBoundingClientRect();
     const sourceRenderedWidth = rotation === 1 || rotation === 3 ? box.height : box.width;
     const sourceRenderedHeight = rotation === 1 || rotation === 3 ? box.width : box.height;
-    const snapThresholdPx = Math.max(
-      8,
-      Math.min(18, 18 / Math.sqrt(Math.max(1, zoomRef.current))),
-    );
     return snapPoint(
       raw,
       mappedPolygons,
       sourceRenderedWidth,
       sourceRenderedHeight,
-      snapThresholdPx,
+      { enabled: snapEnabled },
     ).point;
   }
 
@@ -4256,7 +4254,7 @@ export default function PlotMapper({
 
   // REKIXO_MAPPER_ZOOM_STABLE_LABELS_V1
   // The whole SVG scales linearly with mapper zoom. Counter-scale ONLY the
-  // assistive mapped-plot labels so 1800% zoom cannot turn "29" into a giant
+  // assistive mapped-plot labels so 5000% zoom cannot turn "29" into a giant
   // overlay that hides adjacent plot boundaries. Geometry itself stays untouched.
   const mappedPlotLabelZoom = Math.max(1, zoom);
   const mappedPlotLabelStyle = {
@@ -4316,7 +4314,7 @@ export default function PlotMapper({
                 onClick={completeIrregularBoundary}
               ><CheckCircle2 />Boundary complete</button>}
             </div>
-            <small className="mapper-help">4-corner plot: Tap 1 + Tap 2 road-facing Front boundary ke dono endpoints par karein, phir same direction me clockwise baki 2 corners tap karein. Rekixo automatically Front → Depth A → Back → Depth B bind karega. Existing vertex/edge auto-snap hota hai.</small>
+            <small className="mapper-help">4-corner plot: Tap 1 + Tap 2 road-facing Front boundary ke dono endpoints par karein, phir same direction me clockwise baki 2 corners tap karein. Rekixo automatically Front → Depth A → Back → Depth B bind karega. Snap OFF mein exact click/drag position rahegi. Shared boundary milane ke liye toolbar se Snap ON karein.</small>
           </> : <>
             <div className="mapper-fields guided-fields">
               <label><span>Plot number</span><input value={plotId} readOnly={Boolean(currentPlot)} onChange={(event) => setPlotId(event.target.value)} /></label>
@@ -4821,6 +4819,18 @@ export default function PlotMapper({
             {!completedProject && (
               <button
                 type="button"
+                className={snapEnabled ? "active" : ""}
+                aria-label="Snap to saved boundaries"
+                aria-pressed={snapEnabled}
+                title={snapEnabled
+                  ? "Snap ON: align to saved corners/edges within 6 screen pixels. Turn OFF for exact placement."
+                  : "Snap OFF: keep exact click/drag position. Turn ON to align a shared boundary."}
+                onClick={() => setSnapEnabled((current) => !current)}
+              ><Magnet />Snap {snapEnabled ? "ON" : "OFF"}</button>
+            )}
+            {!completedProject && (
+              <button
+                type="button"
                 className="primary mapper-focus-confirm mapper-focus-primary-action"
                 disabled={busy || !shapeReady}
                 onClick={confirmPlot}
@@ -5313,7 +5323,7 @@ export default function PlotMapper({
                           Keep a generous invisible hit target for Android accuracy, but
                           render the visible semantic guide as a thin dashed line. This
                           prevents Front/Back/Depth overlays from hiding the actual
-                          masterplan boundary at 1800% zoom.
+                          masterplan boundary at 5000% zoom.
                         */}
                         <line
                           className="semantic-edge-hit-target"
@@ -5449,7 +5459,7 @@ export default function PlotMapper({
                     transform: `translate(-50%, -50%) rotate(${-rotationDegrees}deg)`,
                     // Keep the draggable hit target large for touch accuracy, while
                     // shrinking only the visible numbered badge as zoom increases.
-                    // At 1800% the badge is 25% of its normal size (75% smaller).
+                    // At 5000% the badge is 25% of its normal size (75% smaller).
                     "--mapper-corner-visual-scale": String(
                       Math.max(
                         0.25,

@@ -244,9 +244,32 @@ try {
     assert.equal(await page.locator("#countSold").textContent(), "1", target.name + " sold refresh");
     assert.equal(await page.locator("#countBooked").textContent(), "0", target.name + " booked refresh");
 
-    // The floating #view3d badge can cover the polygon center at some
-    // viewport sizes. Click inside the exposed top-left area of the plot.
-    await page.locator('.plot[data-plot-id="P-1"]').click({ position: { x: 12, y: 12 } });
+    // Probe real browser hit-testing before clicking: on some viewports the
+    // polygon's bounding rectangle includes space outside the SVG polygon or
+    // behind a floating control. Never force a click or bypass pointer routing.
+    const plot = page.locator('.plot[data-plot-id="P-1"]');
+    const hitPoint = await plot.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      const svg = element.ownerSVGElement;
+      if (!svg || !box.width || !box.height) return null;
+      const candidates = [
+        [0.5, 0.5], [0.25, 0.25], [0.75, 0.25],
+        [0.25, 0.5], [0.75, 0.5], [0.5, 0.25],
+        [0.25, 0.75], [0.75, 0.75], [0.5, 0.75],
+      ];
+      for (const [fx, fy] of candidates) {
+        const x = box.left + box.width * fx;
+        const y = box.top + box.height * fy;
+        if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) continue;
+        const hit = document.elementFromPoint(x, y);
+        if (hit === element || (hit instanceof Element && element.contains(hit))) {
+          return { x: box.width * fx, y: box.height * fy };
+        }
+      }
+      return null;
+    });
+    assert.ok(hitPoint, target.name + " polygon needs a visible hittable point");
+    await plot.click({ position: hitPoint });
     await page.locator("#drawer.open").waitFor({ state: "visible" });
     const drawerBox = await page.locator("#drawer").boundingBox();
     assert.ok(drawerBox, target.name + " plot drawer should have a box");

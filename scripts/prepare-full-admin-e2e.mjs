@@ -82,6 +82,10 @@ INSERT INTO plots (
   'e2e-phase11','P-1',1000,92.903,111.111,'20 x 50 ft','30 ft road',
   20,50,20,50,'ft',
   '','available','Phase 11 browser fixture',0,1,'2026-09-24T00:00:00.000Z'
+), (
+  'e2e-phase11','P-2',1000,92.903,111.111,'20 x 50 ft','30 ft road',
+  20,50,20,50,'ft',
+  '','available','Adjacent-boundary browser fixture',0,1,'2026-09-24T00:00:00.000Z'
 );
 
 INSERT INTO settings (project_id,key,value,updated_at) VALUES

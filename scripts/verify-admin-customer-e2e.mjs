@@ -52,6 +52,137 @@ async function chooseProject(page) {
   });
 }
 
+async function adjacentBoundaryJourney(page, context, firstPlot) {
+  const originalPolygon = JSON.parse(firstPlot.polygon);
+  const [[left, edgeY], [right]] = originalPolygon;
+  const svg = page.locator(".mapper-image-wrap svg").first();
+  const handles = page.locator(".mapper-point-handle");
+  const snap = page.getByRole("button", { name: "Snap to saved boundaries", exact: true });
+  await page.locator(".mapper-v4-current select").selectOption("P-2");
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  await page.getByRole("button", { name: "4-corner plot" }).click();
+  assert.equal(await snap.getAttribute("aria-pressed"), "false", "snapping starts OFF");
+
+  async function imageBox() {
+    await svg.scrollIntoViewIfNeeded();
+    const box = await svg.boundingBox();
+    assert.ok(box && box.width > 40 && box.height > 40, "adjacent mapper SVG visible");
+    return box;
+  }
+
+  async function expectCorner(expected, message) {
+    await page.waitForFunction(() => document.querySelectorAll(".mapper-point-handle").length === 1);
+    const point = await handles.first().evaluate((handle) => [
+      parseFloat(handle.style.left) / 100,
+      parseFloat(handle.style.top) / 100,
+    ]);
+    const box = await svg.boundingBox();
+    assert.ok(box, "mapper bounds available for corner assertion");
+    assert.ok(Math.abs(point[0] - expected[0]) * box.width < 0.1, `${message}: exact X`);
+    assert.ok(Math.abs(point[1] - expected[1]) * box.height < 0.1, `${message}: exact Y`);
+  }
+
+  async function clickNearEdge() {
+    const box = await imageBox();
+    const point = [(left + right) / 2, edgeY - 4 / box.height];
+    await page.mouse.click(box.x + point[0] * box.width, box.y + point[1] * box.height);
+    return point;
+  }
+
+  async function dragNearEdge() {
+    const handle = await handles.first().boundingBox();
+    assert.ok(handle, "corner drag handle visible");
+    const box = await svg.boundingBox();
+    assert.ok(box, "mapper bounds available for drag");
+    const point = [left + (right - left) * 0.65, edgeY - 4 / box.height];
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + point[0] * box.width, box.y + point[1] * box.height, { steps: 4 });
+    await page.mouse.up();
+    return point;
+  }
+
+  async function clearDraft() {
+    await page.locator(".mapper-v4-toolbar .mapper-focus-actions").getByRole("button", { name: "Clear", exact: true }).click();
+    await page.waitForFunction(() => document.querySelectorAll(".mapper-point-handle").length === 0);
+  }
+
+  const freeClick = await clickNearEdge();
+  await expectCorner(freeClick, "Snap OFF click stays four pixels above saved boundary");
+  const freeDrag = await dragNearEdge();
+  await expectCorner(freeDrag, "Snap OFF drag stays four pixels above saved boundary");
+  await page.screenshot({ path: path.join(artifactDir, "admin-adjacent-snap-off.png"), fullPage: true });
+  await clearDraft();
+
+  await snap.click();
+  assert.equal(await snap.getAttribute("aria-pressed"), "true");
+  const snappedClick = await clickNearEdge();
+  await expectCorner([snappedClick[0], edgeY], "Snap ON click aligns to saved boundary");
+  const snappedDrag = await dragNearEdge();
+  await expectCorner([snappedDrag[0], edgeY], "Snap ON drag aligns to saved boundary");
+  await page.screenshot({ path: path.join(artifactDir, "admin-adjacent-snap-on.png"), fullPage: true });
+  await clearDraft();
+  await snap.click();
+  assert.equal(await snap.getAttribute("aria-pressed"), "false");
+
+  // Save a real adjacent plot with a narrow deliberate gap, then verify the
+  // source coordinates through the API before the existing publish journey.
+  const box = await imageBox();
+  const lowerY = edgeY - 4 / box.height;
+  const upperY = Math.max(0.04, edgeY - 0.12);
+  const adjacent = [[left, lowerY], [right, lowerY], [right, upperY], [left, upperY]];
+  for (let index = 0; index < adjacent.length; index += 1) {
+    const [x, y] = adjacent[index];
+    // Dispatch through the SVG's real pointer handlers in this persistence
+    // subcase. Earlier free/snap journeys exercise physical mouse input; here
+    // we isolate state/save logic from overlapping existing-plot hit targets.
+    await svg.evaluate((element, xy) => {
+      const rect = element.getBoundingClientRect();
+      const clientX = rect.left + xy[0] * rect.width;
+      const clientY = rect.top + xy[1] * rect.height;
+      const args = { bubbles: true, cancelable: true, pointerId: 1, pointerType: "mouse", clientX, clientY };
+      element.dispatchEvent(new PointerEvent("pointerdown", args));
+      element.dispatchEvent(new PointerEvent("pointerup", args));
+    }, [x, y]);
+    await page.waitForFunction(
+      (count) => document.querySelectorAll(".mapper-point-handle").length === count,
+      index + 1,
+    );
+  }
+  await page.waitForFunction(() => {
+    const button = document.querySelector("button.mapper-focus-confirm");
+    return button instanceof HTMLButtonElement && !button.disabled;
+  });
+  await page.locator("button.mapper-focus-confirm").click();
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll(".mapper-review-list article")].some(
+      (row) => row.textContent?.includes("P-2") && row.classList.contains("mapped"),
+    ),
+  );
+  const verify = await context.request.get(
+    `${base}/api/super-mapper?projectId=${encodeURIComponent(projectId)}&verify=${Date.now()}`,
+  );
+  assert.equal(verify.ok(), true);
+  const state = await verify.json();
+  assert.equal(state.plots.find((plot) => plot.id === "P-1")?.polygon, firstPlot.polygon, "adjacent mapping leaves existing boundary unchanged");
+  const saved = JSON.parse(state.plots.find((plot) => plot.id === "P-2")?.polygon || "[]");
+  assert.equal(saved.length, 4, "adjacent plot persisted");
+  for (let index = 0; index < adjacent.length; index += 1) {
+    assert.ok(Math.abs(saved[index][0] - adjacent[index][0]) * box.width < 0.1, `saved adjacent corner ${index + 1} X`);
+    assert.ok(Math.abs(saved[index][1] - adjacent[index][1]) * box.height < 0.1, `saved adjacent corner ${index + 1} Y keeps deliberate gap`);
+  }
+
+  const zoom = page.getByRole("slider", { name: "Zoom level" });
+  assert.equal(await zoom.getAttribute("max"), "50", "mapper allows 5000% zoom");
+  await zoom.focus();
+  await zoom.press("End");
+  await page.waitForFunction(() => document.querySelector('input[aria-label="Zoom level"]')?.getAttribute("aria-valuetext") === "5000%");
+  assert.equal(await page.getByRole("button", { name: "Zoom in", exact: true }).isDisabled(), true);
+  await zoom.press("Home");
+  await page.waitForFunction(() => document.querySelector('input[aria-label="Zoom level"]')?.getAttribute("aria-valuetext") === "100%");
+  console.log("PASS adjacent plot click/drag OFF precision → ON alignment → persisted gap → 5000% zoom");
+}
+
 async function adminJourney(browser) {
   assert.ok(auth?.email && auth?.password, "ephemeral E2E credentials missing");
   const errors = [];
@@ -133,6 +264,8 @@ async function adminJourney(browser) {
   );
   assert.match(String(saved.edgeSemantics || ""), /"front":\[0\]/);
 
+  await adjacentBoundaryJourney(page, context, saved);
+
   const previewPromise = context.waitForEvent("page");
   await page.getByRole("link", { name: "Authenticated preview" }).first().click();
   const preview = await previewPromise;
@@ -204,7 +337,8 @@ async function customerJourney(browser) {
     const plot = frame.locator('.plot[data-plot-id="P-1"]');
     await plot.waitFor({ state: "attached" });
     assert.equal(await plot.getAttribute("data-status"), "available");
-    assert.equal(await frame.locator("#countTotal").textContent(), "1");
+    assert.equal(await frame.locator("#countTotal").textContent(), "2");
+    await frame.locator('.plot[data-plot-id="P-2"]').waitFor({ state: "attached" });
     await plot.click();
     await frame.locator("#drawer.open").waitFor({ state: "visible" });
     assert.equal(await frame.locator("#drawer").getAttribute("aria-hidden"), "false");
