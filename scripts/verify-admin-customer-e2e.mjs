@@ -163,14 +163,14 @@ async function adjacentBoundaryJourney(page, context, firstPlot) {
   }
 
   const zoom = page.getByRole("slider", { name: "Zoom level" });
-  assert.equal(await zoom.getAttribute("max"), "20", "mapper allows 2000% zoom");
+  assert.equal(await zoom.getAttribute("max"), "50", "mapper allows 5000% zoom");
   await zoom.focus();
   await zoom.press("End");
-  await page.waitForFunction(() => document.querySelector('input[aria-label="Zoom level"]')?.getAttribute("aria-valuetext") === "2000%");
+  await page.waitForFunction(() => document.querySelector('input[aria-label="Zoom level"]')?.getAttribute("aria-valuetext") === "5000%");
   assert.equal(await page.getByRole("button", { name: "Zoom in", exact: true }).isDisabled(), true);
   await zoom.press("Home");
   await page.waitForFunction(() => document.querySelector('input[aria-label="Zoom level"]')?.getAttribute("aria-valuetext") === "100%");
-  console.log("PASS adjacent plot click/drag OFF precision → ON alignment → persisted gap → 2000% zoom");
+  console.log("PASS adjacent plot click/drag OFF precision → ON alignment → persisted gap → 5000% zoom");
 }
 
 async function adminJourney(browser) {
