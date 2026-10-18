@@ -39,6 +39,7 @@ import {
   type MapperPoint,
 } from "./mapper-geometry";
 import ProjectPricingSource from "./project-pricing-source";
+import { syncManualDimensionLabel } from "./manual-measurement-labels";
 import ProjectStartView from "./project-start-view";
 import {
   edgeIndexForDisplayDirection,
@@ -3857,22 +3858,29 @@ export default function PlotMapper({
       facingMetadata.facingDirectionOverrides,
     );
 
-    // Manual Mapping Controls corrections must supersede older imported
-    // display labels without changing the road-facing Front edge or polygon.
-    const unitChanged = Boolean(existing?.dimensionUnit) && existing?.dimensionUnit !== dimensionUnit;
-    const sideWasEdited = (previous: number | null | undefined, next: number | null, originalLabel: string | null | undefined) =>
-      controlsWorkspace && Boolean(existing) &&
-      ((previous ?? null) !== next || (next !== null && (unitChanged || !String(originalLabel || "").trim())));
-    const frontEdited = sideWasEdited(existing?.front, frontValue, existing?.frontLabel);
-    const backEdited = sideWasEdited(existing?.back, backValue, existing?.backLabel);
-    const depthEdited = sideWasEdited(existing?.depth, depthValue, existing?.depthLabel);
-    const depth2Edited = sideWasEdited(existing?.depth2, depth2Value, existing?.depth2Label);
-    const anySideEdited = frontEdited || backEdited || depthEdited || depth2Edited;
-    const manualDisplayLabel = (
-      edited: boolean,
+    // Explicit Mapping Controls updates reconcile display text with numeric
+    // values, even when the numeric draft had already been saved earlier.
+    const manualLabel = (
       value: number | null,
-      original: string | null | undefined,
-    ) => edited ? (value === null ? null : `${value} ${dimensionUnit}`) : original || null;
+      previousValue: number | null | undefined,
+      label: string | null | undefined,
+    ) => controlsWorkspace
+      ? syncManualDimensionLabel(value, previousValue, label, dimensionUnit, existing?.dimensionUnit)
+      : label || null;
+    const previousLabels = [
+      existing?.frontLabel, existing?.backLabel, existing?.depthLabel, existing?.depth2Label,
+    ];
+    const nextLabels = controlsWorkspace
+      ? [
+          manualLabel(frontValue, existing?.front, existing?.frontLabel),
+          manualLabel(backValue, existing?.back, existing?.backLabel),
+          manualLabel(depthValue, existing?.depth, existing?.depthLabel),
+          manualLabel(depth2Value, existing?.depth2, existing?.depth2Label),
+        ]
+      : previousLabels;
+    const anySideEdited = controlsWorkspace && nextLabels.some(
+      (label, index) => (label || "") !== (previousLabels[index] || ""),
+    );
 
     const unchangedInventoryArea =
       Boolean(existing) && area > 0 && Math.abs(Number(existing?.sqft || 0) - area) < 0.0001;
@@ -3906,10 +3914,10 @@ export default function PlotMapper({
       depthEdgeIndex: depthEdgeValue,
       backEdgeIndex: backEdgeValue,
       depth2EdgeIndex: resolvedSideLayout === "three" ? null : depth2EdgeValue,
-      frontLabel: manualDisplayLabel(frontEdited, frontValue, existing?.frontLabel),
-      depthLabel: manualDisplayLabel(depthEdited, depthValue, existing?.depthLabel),
-      backLabel: manualDisplayLabel(backEdited, backValue, existing?.backLabel),
-      depth2Label: resolvedSideLayout === "three" ? null : manualDisplayLabel(depth2Edited, depth2Value, existing?.depth2Label),
+      frontLabel: nextLabels[0],
+      depthLabel: nextLabels[2],
+      backLabel: nextLabels[1],
+      depth2Label: resolvedSideLayout === "three" ? null : nextLabels[3],
       // Old aggregate source text can contradict newly corrected individual sides.
       sideDimensions: anySideEdited ? null : existing?.sideDimensions || null,
       edgeSemantics,
