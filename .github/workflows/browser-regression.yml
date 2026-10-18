@@ -25,6 +25,8 @@ jobs:
       - run: npm run build
       - name: 2D status overlay regression
         run: node --test tests/public-status-overlay-contrast-v2.test.mjs
+      - name: Mapping Controls publish dimension regression
+        run: node --test tests/mapping-controls-published-dimensions.test.mjs
       - name: Install isolated browser tooling
         run: npm install --prefix /tmp/rekixo-browser --no-package-lock playwright@1.55.0
       - name: Install Chromium
