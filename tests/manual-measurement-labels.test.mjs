@@ -2,15 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { runInNewContext } from "node:vm";
+import ts from "typescript";
 
 const src = await readFile(new URL("../app/manual-measurement-labels.ts", import.meta.url), "utf8");
-const runtime = src
-  .replace(/: "ft" \| "m"/g, "")
-  .replace(/: number \| null \| undefined/g, "")
-  .replace(/: string \| null \| undefined/g, "")
-  .replace(/: number \| null/g, "")
-  .replace(/: string \| null/g, "")
-  .replace(/export function/g, "function");
+const runtime = ts.transpileModule(src, {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+}).outputText.replace(/export\\s+function/g, "function");
 const reconcile = runInNewContext(runtime + "\nsyncManualDimensionLabel", {});
 
 test("repair stale front/back labels even if numeric values were previously saved", () => {
