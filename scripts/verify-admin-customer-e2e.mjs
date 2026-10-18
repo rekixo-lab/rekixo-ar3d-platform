@@ -133,7 +133,17 @@ async function adjacentBoundaryJourney(page, context, firstPlot) {
   const adjacent = [[left, lowerY], [right, lowerY], [right, upperY], [left, upperY]];
   for (let index = 0; index < adjacent.length; index += 1) {
     const [x, y] = adjacent[index];
-    await page.mouse.click(box.x + x * box.width, box.y + y * box.height);
+    // Dispatch through the SVG's real pointer handlers in this persistence
+    // subcase. Earlier free/snap journeys exercise physical mouse input; here
+    // we isolate state/save logic from overlapping existing-plot hit targets.
+    await svg.evaluate((element, xy) => {
+      const rect = element.getBoundingClientRect();
+      const clientX = rect.left + xy[0] * rect.width;
+      const clientY = rect.top + xy[1] * rect.height;
+      const args = { bubbles: true, cancelable: true, pointerId: 1, pointerType: "mouse", clientX, clientY };
+      element.dispatchEvent(new PointerEvent("pointerdown", args));
+      element.dispatchEvent(new PointerEvent("pointerup", args));
+    }, [x, y]);
     await page.waitForFunction(
       (count) => document.querySelectorAll(".mapper-point-handle").length === count,
       index + 1,
