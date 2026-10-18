@@ -1818,13 +1818,14 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     const exact=rows.find(row=>validPlotSideEdge(row.edgeIndex,p.points.length)===edge);
     return edgeMeasurementText(exact||rows[0])
   }
+  // Explicit plot-level display labels (including manual corrections) take precedence over stale source rows.
   function plotSemanticDimensions(p){
     const sides=cleanDimensionLabel(p.sideDimensions);
     const parsedSides=parseSideDimensionFacts(sides);
-    const front=plotEdgeMeasurementValue(p,'front',validPlotSideEdge(p.frontEdgeIndex,p.points.length))||cleanDimensionLabel(p.frontLabel)||plotLengthText(p.front,p.dimensionUnit)||parsedSides.front;
-    const depth=plotEdgeMeasurementValue(p,'depthA',validPlotSideEdge(p.depthEdgeIndex,p.points.length))||cleanDimensionLabel(p.depthLabel)||plotLengthText(p.depth,p.dimensionUnit)||parsedSides.depth;
-    const back=plotEdgeMeasurementValue(p,'back',validPlotSideEdge(p.backEdgeIndex,p.points.length))||cleanDimensionLabel(p.backLabel)||plotLengthText(p.back,p.dimensionUnit)||parsedSides.back;
-    const depth2=plotEdgeMeasurementValue(p,'depthB',validPlotSideEdge(p.depth2EdgeIndex,p.points.length))||cleanDimensionLabel(p.depth2Label)||plotLengthText(p.depth2,p.dimensionUnit)||parsedSides.depth2;
+    const front=cleanDimensionLabel(p.frontLabel)||plotEdgeMeasurementValue(p,'front',validPlotSideEdge(p.frontEdgeIndex,p.points.length))||plotLengthText(p.front,p.dimensionUnit)||parsedSides.front;
+    const depth=cleanDimensionLabel(p.depthLabel)||plotEdgeMeasurementValue(p,'depthA',validPlotSideEdge(p.depthEdgeIndex,p.points.length))||plotLengthText(p.depth,p.dimensionUnit)||parsedSides.depth;
+    const back=cleanDimensionLabel(p.backLabel)||plotEdgeMeasurementValue(p,'back',validPlotSideEdge(p.backEdgeIndex,p.points.length))||plotLengthText(p.back,p.dimensionUnit)||parsedSides.back;
+    const depth2=cleanDimensionLabel(p.depth2Label)||plotEdgeMeasurementValue(p,'depthB',validPlotSideEdge(p.depth2EdgeIndex,p.points.length))||plotLengthText(p.depth2,p.dimensionUnit)||parsedSides.depth2;
     const edge=validPlotSideEdge(p.frontEdgeIndex,p.points.length);
     return{front,depth,back,depth2,sides,edge}
   }
