@@ -29,6 +29,8 @@ jobs:
         run: node --test tests/mapping-controls-published-dimensions.test.mjs
       - name: Exact dimension label legacy compatibility regression
         run: node --test tests/exact-dimension-label-isolation.test.mjs
+      - name: Manual dimension label reconciliation
+        run: node --test tests/manual-measurement-labels.test.mjs
       - name: Install isolated browser tooling
         run: npm install --prefix /tmp/rekixo-browser --no-package-lock playwright@1.55.0
       - name: Install Chromium
