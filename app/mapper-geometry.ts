@@ -229,15 +229,18 @@ function projectToSegment(
   };
 }
 
-/** Snap to an existing vertex first, then to a shared edge. */
+/** Opt in to shared-boundary snapping within a small CSS screen-pixel radius. */
 export function snapPoint(
   point: MapperPoint,
   polygons: MapperPoint[][],
   renderedWidth: number,
   renderedHeight: number,
-  thresholdPx = 16,
+  { enabled = false, thresholdPx = 6 }: { enabled?: boolean; thresholdPx?: number } = {},
 ) {
   let best = { point, distance: Infinity, kind: "none" as "none" | "vertex" | "edge" };
+  // Nearby plots can have deliberately separate boundaries. Free placement
+  // must preserve the exact source coordinates for both taps and handle drags.
+  if (!enabled) return best;
   for (const polygon of polygons) {
     for (const vertex of polygon) {
       const distance = Math.hypot(

@@ -46,10 +46,11 @@ test("corner handle preview is RAF batched and commits React state only at drag 
   assert.doesNotMatch(moveBody, /setPoints\(/);
 });
 
-test("high zoom reduces magnetic snap radius without changing canonical coordinates", () => {
-  assert.match(mapper, /snapThresholdPx/);
-  assert.match(mapper, /18 \/ Math\.sqrt\(Math\.max\(1, zoomRef\.current\)\)/);
-  assert.match(mapper, /Math\.max\(\s*8,/);
+test("manual placement starts free and applies optional snapping without changing canonical coordinates", () => {
+  assert.match(mapper, /\[snapEnabled,\s*setSnapEnabled\]\s*=\s*useState\(false\)/);
+  assert.match(mapper, /enabled:\s*snapEnabled/);
+  assert.match(mapper, /aria-pressed=\{snapEnabled\}/);
+  assert.doesNotMatch(mapper, /18 \/ Math\.sqrt\(Math\.max\(1, zoomRef\.current\)\)/);
   assert.match(mapper, /polygon:\s*JSON\.stringify\(points\)/);
   assert.match(mapper, /verifyPlotPersistence\(saved\)/);
 });

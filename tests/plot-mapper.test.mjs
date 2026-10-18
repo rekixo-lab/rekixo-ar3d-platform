@@ -23,7 +23,7 @@ test("auto CAD mapper is owner-only, project-native and keeps precise manual fal
   assert.match(mapper, /Main masterplan image/);
   assert.match(mapper, /toolMode/);
   assert.match(mapper, /"pan" \| "select"/);
-  assert.match(mapper, /MAX_MAPPER_ZOOM = 18/);
+  assert.match(mapper, /MAX_MAPPER_ZOOM = 20/);
   assert.match(mapper, /max=\{MAX_MAPPER_ZOOM\}/);
   assert.match(mapper, /clearAllSelections/);
   assert.match(mapper, /action: "clear_all_polygons"/);
