@@ -5,6 +5,8 @@ import path from "node:path";
 const encoder = new TextEncoder();
 const email = "e2e-owner@rekixo.test";
 const password = `E2E-${randomBytes(12).toString("hex")}9a`;
+const clientEmail = "e2e-client@rekixo.test";
+const otherClientEmail = "e2e-other-client@rekixo.test";
 const salt = randomBytes(16);
 const key = await webcrypto.subtle.importKey(
   "raw",
@@ -39,13 +41,14 @@ fs.writeFileSync(
 );
 fs.writeFileSync(
   "/tmp/rekixo-phase11-auth.json",
-  JSON.stringify({ email, password }),
+  JSON.stringify({ email, password, clientEmail, otherClientEmail }),
   { mode: 0o600 },
 );
 
 const artifactDir = path.join(process.cwd(), "artifacts", "full-admin-e2e");
 fs.mkdirSync(artifactDir, { recursive: true });
 const seed = `
+DELETE FROM plot_admin_details WHERE project_id IN ('e2e-phase11','e2e-details-other');
 DELETE FROM published_plot_edge_measurements WHERE project_id='e2e-phase11';
 DELETE FROM published_plots WHERE project_id='e2e-phase11';
 DELETE FROM published_settings WHERE project_id='e2e-phase11';
@@ -74,6 +77,36 @@ ON CONFLICT(id) DO UPDATE SET
   deleted_at=NULL,
   updated_at=excluded.updated_at;
 
+INSERT INTO projects (
+  id,name,slug,kind,status,public_status,publish_version,created_at,updated_at
+) VALUES (
+  'e2e-details-other','Other Client Details Fixture','details-other-e2e','customer','active','draft',0,
+  '2026-09-24T00:00:00.000Z','2026-09-24T00:00:00.000Z'
+)
+ON CONFLICT(id) DO UPDATE SET status='active',deleted_at=NULL;
+
+INSERT INTO admin_users (
+  id,email,name,login_type,login_id,project_id,role,password_hash,password_salt,
+  status,must_change_password,session_version,created_at,updated_at
+) VALUES (
+  'e2e-phase11-client','${clientEmail}','Browser E2E Client','email','${clientEmail}',
+  'e2e-phase11','client_admin','${b64(hash)}','${b64(salt)}',
+  'active',0,1,'2026-09-24T00:00:00.000Z','2026-09-24T00:00:00.000Z'
+), (
+  'e2e-details-other-client','${otherClientEmail}','Other Browser E2E Client','email','${otherClientEmail}',
+  'e2e-details-other','client_admin','${b64(hash)}','${b64(salt)}',
+  'active',0,1,'2026-09-24T00:00:00.000Z','2026-09-24T00:00:00.000Z'
+)
+ON CONFLICT(id) DO UPDATE SET
+  password_hash=excluded.password_hash,password_salt=excluded.password_salt,
+  status='active',must_change_password=0,session_version=1;
+
+INSERT INTO project_memberships (user_id,project_id,role,status,is_primary,created_at,updated_at)
+VALUES
+  ('e2e-phase11-client','e2e-phase11','client_admin','active',1,'2026-09-24T00:00:00.000Z','2026-09-24T00:00:00.000Z'),
+  ('e2e-details-other-client','e2e-details-other','client_admin','active',1,'2026-09-24T00:00:00.000Z','2026-09-24T00:00:00.000Z')
+ON CONFLICT(user_id,project_id) DO UPDATE SET status='active';
+
 INSERT INTO plots (
   project_id,id,sqft,sqm,sqyd,dimensions,road,
   front,depth,back,depth2,dimension_unit,
@@ -87,6 +120,12 @@ INSERT INTO plots (
   20,50,20,50,'ft',
   '','available','Adjacent-boundary browser fixture',0,1,'2026-09-24T00:00:00.000Z'
 );
+
+INSERT INTO plots (project_id,id,sqft,sqm,sqyd,dimensions,road,status,notes,featured,inventory_active,updated_at)
+VALUES
+  ('e2e-details-other','P-1',2000,185.806,222.222,'40 x 50 ft','30 ft road','sold','Other client duplicate plot ID',0,1,'2026-09-24T00:00:00.000Z'),
+  ('e2e-details-other','OTHER-ONLY',2000,185.806,222.222,'40 x 50 ft','30 ft road','sold','Other client unique plot ID',0,1,'2026-09-24T00:00:00.000Z')
+ON CONFLICT(project_id,id) DO NOTHING;
 
 INSERT INTO settings (project_id,key,value,updated_at) VALUES
   ('e2e-phase11','projectName','Phase 11 E2E Project','2026-09-24T00:00:00.000Z'),

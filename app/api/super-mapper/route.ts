@@ -72,6 +72,7 @@ type PlotInventoryDiff = {
   missingMappedIds: string[];
   missingNonAvailableIds: string[];
   missingPricedIds: string[];
+  missingAdminDetailsIds: string[];
   confirmationRequired: boolean;
   confirmationToken: string;
 };
@@ -115,7 +116,14 @@ async function plotInventoryDiff(
        CASE WHEN EXISTS (
          SELECT 1 FROM plot_pricing pr
          WHERE pr.project_id=p.project_id AND pr.plot_id=p.id
-       ) THEN 1 ELSE 0 END AS priced
+       ) THEN 1 ELSE 0 END AS priced,
+       CASE WHEN EXISTS (
+         SELECT 1 FROM plot_admin_details ad
+         WHERE ad.project_id=p.project_id AND ad.plot_id=p.id
+           AND (COALESCE(TRIM(ad.owner_name),'')<>''
+             OR ad.booking_amount_paise IS NOT NULL
+             OR COALESCE(TRIM(ad.broker_name),'')<>'')
+       ) THEN 1 ELSE 0 END AS hasAdminDetails
      FROM plots p
      WHERE p.project_id=?
      ORDER BY p.id`,
@@ -127,6 +135,7 @@ async function plotInventoryDiff(
       status: string;
       polygon: string | null;
       priced: number;
+      hasAdminDetails: number;
     }>();
 
   const rows = result.results;
@@ -159,6 +168,9 @@ async function plotInventoryDiff(
       .map((row) => row.id),
     missingPricedIds: missingRows
       .filter((row) => Boolean(row.priced))
+      .map((row) => row.id),
+    missingAdminDetailsIds: missingRows
+      .filter((row) => Boolean(row.hasAdminDetails))
       .map((row) => row.id),
     confirmationRequired: missingRows.length > 0,
     confirmationToken,
@@ -1343,6 +1355,16 @@ export async function POST(request: Request) {
       const quality = assessPlotSheetRows(rows);
       const incomingIds = Array.from(new Set(rows.map((row) => row.id)));
       const inventory = await plotInventoryDiff(projectId, incomingIds);
+      if (inventory.missingAdminDetailsIds.length) {
+        return Response.json(
+          {
+            error: "Saved Owner / Booking Amount / Broker details wale plots ko inventory se remove nahi kar sakte. In plot IDs ko Plot Data me rakhein.",
+            code: "PLOT_ADMIN_DETAILS_REMOVAL_BLOCKED",
+            protectedPlotIds: inventory.missingAdminDetailsIds,
+          },
+          { status: 409 },
+        );
+      }
       await writeAudit(actor, "mapper.plotSheet_preflight", projectId, null, {
         filename: file.name,
         count: rows.length,
@@ -1387,6 +1409,16 @@ export async function POST(request: Request) {
       const quality = assessPlotSheetRows(rows);
       const incomingIds = Array.from(new Set(rows.map((row) => row.id)));
       const inventory = await plotInventoryDiff(projectId, incomingIds);
+      if (inventory.missingAdminDetailsIds.length) {
+        return Response.json(
+          {
+            error: "Saved Owner / Booking Amount / Broker details wale plots ko inventory se remove nahi kar sakte. In plot IDs ko Plot Data me rakhein.",
+            code: "PLOT_ADMIN_DETAILS_REMOVAL_BLOCKED",
+            protectedPlotIds: inventory.missingAdminDetailsIds,
+          },
+          { status: 409 },
+        );
+      }
       const inventoryConfirmation = String(
         form.get("inventoryConfirmation") || "",
       );

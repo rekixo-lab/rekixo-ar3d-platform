@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 
 const encoder = new TextEncoder();
 const ZIP32_MAX = 0xffffffff;
-const EXPORT_FORMAT_VERSION = 1;
+const EXPORT_FORMAT_VERSION = 2;
 
 export type ProjectAssetExportOptions = {
   includeLinkedGeoLab?: boolean;
@@ -54,6 +54,7 @@ export type ProjectAssetManifest = {
     plots: number;
     measurements: number;
     pricing: number;
+    plotAdminDetails: number;
     gallery: number;
     domains: number;
     admins: number;
@@ -538,6 +539,7 @@ export async function buildProjectAssetExport(
     plots,
     measurements,
     pricing,
+    plotAdminDetails,
     gallery,
     admins,
     memberships,
@@ -566,6 +568,10 @@ export async function buildProjectAssetExport(
     ),
     all<Row>(
       "SELECT project_id AS projectId,plot_id AS plotId,pricing_type AS pricingType,unit,rate,fixed_price AS fixedPrice,currency,updated_at AS updatedAt FROM plot_pricing WHERE project_id=? ORDER BY plot_id",
+      projectId,
+    ),
+    all<Row>(
+      "SELECT project_id AS projectId,plot_id AS plotId,owner_name AS ownerName,booking_amount_paise AS bookingAmountPaise,currency,broker_name AS brokerName,revision,updated_at AS updatedAt,updated_by AS updatedBy FROM plot_admin_details WHERE project_id=? ORDER BY plot_id",
       projectId,
     ),
     all<Row>(
@@ -627,6 +633,13 @@ export async function buildProjectAssetExport(
     measurements,
   );
   await addJsonAndCsv(entries, "01-project-data/pricing", "Canonical pricing", "data", pricing);
+  await addJsonAndCsv(
+    entries,
+    "01-project-data/private-plot-details",
+    "Private plot owner, booking amount and broker details",
+    "data",
+    plotAdminDetails,
+  );
 
   await addGenerated(
     entries,
@@ -1187,6 +1200,10 @@ Authoritative data
 ------------------
 JSON files preserve exact database values. CSV files are convenience copies for
 spreadsheet use and formula-like text cells are escaped for spreadsheet safety.
+Private plot details are included in private-plot-details.json/csv. Booking
+amounts are stored as exact integer paise (INR); null means no amount recorded,
+and zero means an explicitly recorded zero amount. These files are private admin
+data and must not be copied into public project snapshots or customer assets.
 
 Security exclusions
 -------------------
@@ -1258,6 +1275,7 @@ canonical D1 JSON datasets, preserving project isolation and current schema rule
       plots: plots.length,
       measurements: measurements.length,
       pricing: pricing.length,
+      plotAdminDetails: plotAdminDetails.length,
       gallery: gallery.length,
       domains: domains.length,
       admins: admins.length,

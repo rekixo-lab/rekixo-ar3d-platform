@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./client-plot-management.css";
 import "./super-mapper.css";
 import "./mapper-side-controls.css";
 import { panelMode } from "@/modules/auth";

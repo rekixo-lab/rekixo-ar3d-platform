@@ -1,11 +1,12 @@
 import { env } from "cloudflare:workers";
 import { getDb } from "@/modules/db";
-import { gallery, plots, settings } from "@/modules/db/schema";
+import { gallery, plotAdminDetails, plots, settings } from "@/modules/db/schema";
 import { and, desc, eq, like, sql } from "drizzle-orm";
 import { sameOrigin, validAdminSession } from "@/modules/auth";
 import { isClientEditableSettingKey, pickClientVisibleSettings, validClientPlotStatus } from "@/modules/auth";
 import { writeAudit } from "@/modules/audit";
 import { validateProjectContactPatch } from "@/modules/projects";
+import { canonicalPlotAdminDetails } from "@/app/plot-admin-details";
 
 const denied = () => Response.json({ error: "Admin login required" }, { status: 401 });
 
@@ -25,6 +26,17 @@ const plotNaturalOrder = sql`
   ${plots.id} COLLATE NOCASE,
   ${plots.id}
 `;
+
+// This join is used only by this authenticated admin endpoint. Public plot serializers
+// continue to read the original plots table, which contains no owner or booking data.
+const privateDetailsJoin = and(eq(plotAdminDetails.projectId, plots.projectId), eq(plotAdminDetails.plotId, plots.id));
+const adminPlotSelection = { plot: plots, adminDetails: {
+  ownerName: plotAdminDetails.ownerName,
+  bookingAmountPaise: plotAdminDetails.bookingAmountPaise,
+  brokerName: plotAdminDetails.brokerName,
+  revision: plotAdminDetails.revision,
+  updatedAt: plotAdminDetails.updatedAt,
+} };
 
 export async function GET(request: Request) {
   const session = await validAdminSession();
@@ -51,7 +63,8 @@ export async function GET(request: Request) {
         ? and(eq(plots.projectId, projectId), like(plots.id, pattern))
         : eq(plots.projectId, projectId);
       const [pageRows,totalRow,statusRows] = await Promise.all([
-        db.select().from(plots).where(where).orderBy(plotNaturalOrder).limit(limit).offset(offset),
+        db.select(adminPlotSelection).from(plots).leftJoin(plotAdminDetails, privateDetailsJoin)
+          .where(where).orderBy(plotNaturalOrder).limit(limit).offset(offset),
         q
           ? env.DB.prepare("SELECT COUNT(*) AS total FROM plots WHERE project_id=? AND id LIKE ?").bind(projectId, pattern).first<{ total: number }>()
           : env.DB.prepare("SELECT COUNT(*) AS total FROM plots WHERE project_id=?").bind(projectId).first<{ total: number }>(),
@@ -66,13 +79,13 @@ export async function GET(request: Request) {
       return Response.json(
         {
           projectId,
-          plots: pageRows,
+          plots: pageRows.map((row) => ({ ...row.plot, adminDetails: canonicalPlotAdminDetails(row.adminDetails) })),
           total,
           counts,
           nextOffset: offset + pageRows.length,
           hasMore: offset + pageRows.length < total,
         },
-        { headers: { "cache-control": "no-store" } },
+        { headers: { "cache-control": "private, no-store" } },
       );
     }
 
@@ -84,7 +97,8 @@ export async function GET(request: Request) {
         .first<{ name: string; publicHost: string | null; adminHost: string | null }>(),
       section === "meta"
         ? Promise.resolve([])
-        : db.select().from(plots).where(eq(plots.projectId, projectId)),
+        : db.select(adminPlotSelection).from(plots).leftJoin(plotAdminDetails, privateDetailsJoin)
+          .where(eq(plots.projectId, projectId)).orderBy(plotNaturalOrder),
       db.select().from(settings).where(eq(settings.projectId, projectId)),
       db
         .select()
@@ -100,11 +114,11 @@ export async function GET(request: Request) {
         projectName: project?.name || "Project",
         publicHost: project?.publicHost || null,
         adminHost: project?.adminHost || null,
-        plots: plotRows,
+        plots: plotRows.map((row) => ({ ...row.plot, adminDetails: canonicalPlotAdminDetails(row.adminDetails) })),
         settings: session.role === "client_admin" ? pickClientVisibleSettings(allSettings) : allSettings,
         gallery: galleryRows,
       },
-      { headers: { "cache-control": "no-store" } },
+      { headers: { "cache-control": "private, no-store" } },
     );
   } catch (error) {
     console.error("Admin data load failed", error);
