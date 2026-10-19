@@ -215,6 +215,19 @@ export async function promotePublishedAssets(
 
 export function finalizeInactivePlotInventoryStatements(projectId: string) {
   return [
+    // Explicitly cleared details have no business data left to preserve. Rows
+    // with any saved value remain protected by the composite foreign key, so a
+    // concurrent edit cannot silently disappear during the publish transaction.
+    env.DB.prepare(
+      `DELETE FROM plot_admin_details
+       WHERE project_id=?
+         AND COALESCE(TRIM(owner_name),'')=''
+         AND booking_amount_paise IS NULL
+         AND COALESCE(TRIM(broker_name),'')=''
+         AND plot_id IN (
+           SELECT id FROM plots WHERE project_id=? AND inventory_active=0
+         )`,
+    ).bind(projectId, projectId),
     env.DB.prepare(
       `UPDATE geo_features
        SET linked_plot_id=NULL

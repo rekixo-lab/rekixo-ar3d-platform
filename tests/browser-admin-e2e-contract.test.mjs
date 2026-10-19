@@ -9,14 +9,32 @@ const [workflow,journey,prepare,customerPage]=await Promise.all([
   readFile(new URL("../app/projects/[slug]/page.tsx",import.meta.url),"utf8"),
 ]);
 
-test("browser CI exercises real local D1 Super Admin and customer modes",()=>{
+test("browser CI exercises real local D1 Super Admin, Client Admin and customer modes",()=>{
   assert.match(workflow,/wrangler d1 migrations apply tiyansh-production --local --config wrangler\.jsonc/);
   assert.match(workflow,/E2E_STAGE=admin/);
   assert.match(workflow,/PANEL_MODE=client/);
   assert.match(workflow,/E2E_STAGE=customer/);
+  assert.match(workflow,/E2E_STAGE=client-details/);
+  assert.match(workflow,/E2E_STAGE=details-backup/);
   assert.match(prepare,/randomBytes/);
   assert.match(prepare,/e2e-phase11/);
+  assert.match(prepare,/clientEmail/);
+  assert.match(prepare,/e2e-details-other/);
   assert.match(workflow,/wrangler dev --local --config wrangler\.jsonc/);
+});
+
+test("Client Admin browser journey covers persistence, privacy, conflicts and compact mobile",()=>{
+  assert.match(journey,/async function clientDetailsJourney/);
+  assert.match(journey,/12345678/);
+  assert.match(journey,/zero booking differs from blank/);
+  assert.match(journey,/revision conflict preserves typed draft/);
+  assert.match(journey,/network failure preserves draft/);
+  assert.match(journey,/same plot ID in another project stays untouched/);
+  assert.match(journey,/public response excludes/);
+  assert.match(journey,/for \(const width of \[390, 320\]\)/);
+  assert.match(journey,/editing form has no overflow/);
+  assert.match(journey,/mobile Save remains reachable above bottom navigation/);
+  assert.match(journey,/private files actually exist inside ZIP/);
 });
 
 test("Phase 11 journey covers login mapping semantics preview publish and customer",()=>{

@@ -47,6 +47,7 @@ test("export captures canonical D1 recovery datasets and current published state
     "plots",
     "plot_edge_measurements",
     "plot_pricing",
+    "plot_admin_details",
     "settings",
     "project_domains",
     "gallery",
@@ -71,6 +72,9 @@ test("export captures canonical D1 recovery datasets and current published state
   assert.match(exporter, /Published share card/);
   assert.match(exporter, /Canonical pricing/);
   assert.match(exporter, /Plot edge measurements/);
+  assert.match(exporter, /01-project-data\/private-plot-details/);
+  assert.match(exporter, /booking_amount_paise AS bookingAmountPaise/);
+  assert.match(exporter, /plotAdminDetails: plotAdminDetails\.length/);
 });
 
 test("export includes current mapper, branding, gallery and Geo binaries without sweeping R2 prefixes", async () => {

@@ -353,9 +353,307 @@ async function customerJourney(browser) {
   console.log("PASS published customer desktop/mobile route");
 }
 
-const browser = await chromium.launch();
+async function clientDetailsJourney(browser) {
+  assert.ok(auth?.clientEmail && auth?.otherClientEmail && auth?.password, "Client E2E credentials missing");
+  const errors = [];
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await context.newPage();
+  watchPage(page, errors);
+  page.on("dialog", (dialog) => dialog.accept());
+  const endpoint = `${base}/api/client/plot-details`;
+  const ownerName = "अमित शर्मा <private owner>";
+  const brokerName = "राज वर्मा — निजी ब्रोकर";
+  const row = page.getByRole("article", { name: "Plot P-1", exact: true });
+  const form = page.getByRole("form", { name: "Booking details for Plot P-1", exact: true });
+
+  async function list(request = context.request, override = "") {
+    const response = await request.get(`${base}/api/data?section=plots&limit=100${override}`);
+    assert.equal(response.ok(), true, `private plot list: ${response.status()}`);
+    assert.match(response.headers()["cache-control"] || "", /no-store/, "private list must not cache");
+    return response.json();
+  }
+  async function savedPlot() {
+    const data = await list();
+    const plot = data.plots.find((item) => item.id === "P-1");
+    assert.ok(plot, "fixture plot returned");
+    return plot;
+  }
+  async function patch(changes, expectedRevision, plotId = "P-1", extra = {}, origin = base) {
+    return context.request.patch(endpoint, {
+      headers: { origin },
+      data: { plotId, expectedRevision, changes, ...extra },
+    });
+  }
+  async function edit() {
+    await row.getByRole("button", { name: /(?:Add|Edit) details for Plot P-1/ }).click();
+    await form.waitFor({ state: "visible" });
+  }
+  async function saveFromForm() {
+    const pending = page.waitForResponse((response) =>
+      response.url() === endpoint && response.request().method() === "PATCH",
+    );
+    await form.getByRole("button", { name: "Save details", exact: true }).click();
+    const response = await pending;
+    assert.equal(response.status(), 200, await response.text());
+    await form.waitFor({ state: "hidden" });
+    return response.json();
+  }
+  function coreOnly(plot) {
+    const { adminDetails, ...core } = plot;
+    void adminDetails;
+    return core;
+  }
+
+  const anonymous = await browser.newContext();
+  const denied = await anonymous.request.patch(endpoint, {
+    headers: { origin: base },
+    data: { plotId: "P-1", expectedRevision: 0, changes: { ownerName } },
+  });
+  assert.equal(denied.status(), 401, "anonymous private write denied");
+  await anonymous.close();
+
+  await page.goto(`${base}/projects/${projectSlug}/admin-login`, { waitUntil: "networkidle" });
+  await page.locator("#login-id").fill(auth.clientEmail);
+  await page.locator("#login-password").fill(auth.password);
+  await page.getByRole("button", { name: "Sign In to Dashboard" }).click();
+  await page.waitForURL(new RegExp(`/projects/${projectSlug}/admin/?$`));
+  await page.locator(".role-client-admin").waitFor();
+  await page.getByRole("button", { name: "Plots", exact: true }).click();
+  await row.waitFor({ state: "visible" });
+  const baseline = await savedPlot();
+  const clientExport = await context.request.get(`${base}/api/admin/project-assets?projectId=${projectId}`);
+  assert.equal(clientExport.status(), 403, "project backups remain Super Admin-only");
+  assert.deepEqual(baseline.adminDetails, {
+    ownerName: null, bookingAmountPaise: null, brokerName: null, revision: 0, updatedAt: null,
+  }, "existing inventory works before any private-details backfill");
+
+  await edit();
+  await form.getByLabel("Plot owner", { exact: true }).fill(ownerName);
+  await form.getByLabel("Booking amount", { exact: true }).fill("123456.78");
+  await form.getByLabel("Broker", { exact: true }).fill(brokerName);
+  const initial = await saveFromForm();
+  assert.equal(initial.details.bookingAmountPaise, 12345678, "decimal rupees preserve paise exactly");
+  assert.equal(initial.details.ownerName, ownerName, "Unicode owner saved");
+  assert.equal(initial.details.brokerName, brokerName, "Unicode broker saved");
+  await row.getByText(ownerName, { exact: true }).waitFor();
+  assert.equal(await row.locator("private").count(), 0, "owner content remains text, not HTML");
+  await page.screenshot({ path: path.join(artifactDir, "client-details-desktop.png"), fullPage: true });
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Plots", exact: true }).click();
+  await row.getByText(ownerName, { exact: true }).waitFor();
+  await row.getByText(brokerName, { exact: true }).waitFor();
+  await edit();
+  assert.equal(await form.getByLabel("Booking amount", { exact: true }).inputValue(), "123456.78");
+  await form.getByLabel("Booking amount", { exact: true }).fill("0");
+  const zero = await saveFromForm();
+  assert.equal(zero.details.bookingAmountPaise, 0, "zero booking differs from blank");
+  await edit();
+  assert.equal(await form.getByLabel("Booking amount", { exact: true }).inputValue(), "0");
+  await form.getByLabel("Booking amount", { exact: true }).fill("");
+  const blank = await saveFromForm();
+  assert.equal(blank.details.bookingAmountPaise, null, "blank clears the booking amount");
+  assert.deepEqual(coreOnly(await savedPlot()), coreOnly(baseline), "private saves leave geometry, status, area and plot timestamp untouched");
+
+  const invalidCases = [
+    { changes: { status: "sold" }, extra: {}, label: "unknown detail field" },
+    { changes: { ownerName }, extra: { projectId: "e2e-details-other" }, label: "body project override" },
+    { changes: { bookingAmount: 10.25 }, extra: {}, label: "floating point API amount" },
+    { changes: { bookingAmount: "1.234" }, extra: {}, label: "fractional paise" },
+    { changes: { bookingAmount: "-1" }, extra: {}, label: "negative amount" },
+  ];
+  for (const item of invalidCases) {
+    const response = await patch(item.changes, blank.details.revision, "P-1", item.extra);
+    assert.equal(response.status(), 400, item.label);
+  }
+  assert.equal((await patch({ ownerName }, blank.details.revision, "P-1", {}, "https://outside.example")).status(), 403, "cross-origin private write denied");
+  assert.equal((await patch({ ownerName }, 0, "OTHER-ONLY")).status(), 404, "other-project-only plot is inaccessible");
+  assert.deepEqual((await savedPlot()).adminDetails, blank.details, "rejected requests preserve existing details");
+
+  const scoped = await list(context.request, "&projectId=e2e-details-other");
+  assert.equal(scoped.plots.some((plot) => plot.id === "OTHER-ONLY"), false, "query project override cannot read another client inventory");
+  assert.equal(scoped.plots.find((plot) => plot.id === "P-1")?.sqft, baseline.sqft, "duplicate plot ID stays scoped to current project");
+
+  await edit();
+  const pendingOwner = "मेरी सुरक्षित ड्राफ्ट जानकारी";
+  await form.getByLabel("Plot owner", { exact: true }).fill(pendingOwner);
+  const concurrent = await patch({ brokerName: "दूसरे एडमिन का अपडेट" }, blank.details.revision);
+  assert.equal(concurrent.status(), 200);
+  const current = await concurrent.json();
+  const conflictPromise = page.waitForResponse((response) => response.url() === endpoint && response.status() === 409);
+  await form.getByRole("button", { name: "Save details", exact: true }).click();
+  await conflictPromise;
+  assert.equal(await form.getByLabel("Plot owner", { exact: true }).inputValue(), pendingOwner, "revision conflict preserves typed draft");
+  assert.deepEqual((await savedPlot()).adminDetails, current.details, "stale save cannot overwrite another admin");
+  await form.getByRole("button", { name: "Reload saved details", exact: true }).click();
+  await page.waitForFunction((expected) => {
+    const input = document.querySelector('form[aria-label="Booking details for Plot P-1"] input');
+    return input instanceof HTMLInputElement && input.value === expected;
+  }, ownerName);
+  await form.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  await edit();
+  await form.getByLabel("Plot owner", { exact: true }).fill(pendingOwner);
+  const search = page.getByPlaceholder("Plot number search", { exact: true });
+  await search.fill("P-2");
+  await page.locator(".client-booking-pinned").waitFor({ state: "visible" });
+  assert.equal(await form.getByLabel("Plot owner", { exact: true }).inputValue(), pendingOwner, "filtering inventory preserves the open draft");
+  await search.fill("");
+  await row.waitFor({ state: "visible" });
+  await page.route("**/api/client/plot-details", (route) => route.abort("failed"));
+  await form.getByRole("button", { name: "Save details", exact: true }).click();
+  await form.getByRole("button", { name: "Save details", exact: true }).waitFor({ state: "visible" });
+  await page.waitForFunction(() => {
+    const form = document.querySelector('form[aria-label="Booking details for Plot P-1"]');
+    return Boolean(form?.querySelector('[role="alert"]'));
+  });
+  assert.equal(await form.getByLabel("Plot owner", { exact: true }).inputValue(), pendingOwner, "network failure preserves draft");
+  await page.unroute("**/api/client/plot-details");
+  await form.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.deepEqual((await savedPlot()).adminDetails, current.details, "failed network save has no database effect");
+
+  await edit();
+  await form.getByLabel("Booking amount", { exact: true }).fill("50000.50");
+  const finalSave = await saveFromForm();
+  for (const status of ["booked", "sold", "available"]) {
+    const update = page.waitForResponse((response) => response.url() === `${base}/api/data` && response.request().method() === "POST");
+    await row.getByLabel("P-1 status", { exact: true }).selectOption(status);
+    assert.equal((await update).status(), 200);
+    assert.deepEqual((await savedPlot()).adminDetails, finalSave.details, `status ${status} preserves private details`);
+  }
+
+  // Public reads use a fresh anonymous session and both the combined and split
+  // runtime endpoints. Inspect raw JSON as well as keys to catch serialization leaks.
+  const publicContext = await browser.newContext();
+  for (const suffix of [
+    `/api/public-data?projectSlug=${projectSlug}`,
+    `/api/public-data?projectSlug=${projectSlug}&view=structure&pv=1`,
+    `/api/public-live?projectSlug=${projectSlug}`,
+  ]) {
+    const response = await publicContext.request.get(`${base}${suffix}`);
+    assert.equal(response.status(), 200, `public privacy endpoint ${suffix}`);
+    const body = await response.text();
+    for (const secret of [ownerName, brokerName, "दूसरे एडमिन का अपडेट", "ownerName", "owner_name", "brokerName", "broker_name", "bookingAmount", "booking_amount", "adminDetails"]) {
+      assert.equal(body.includes(secret), false, `public response excludes ${secret}`);
+    }
+  }
+  await publicContext.close();
+
+  const otherContext = await browser.newContext();
+  const otherLogin = await otherContext.request.post(`${base}/api/admin/login`, {
+    headers: { origin: base },
+    data: { loginId: auth.otherClientEmail, password: auth.password, projectSlug: "details-other-e2e" },
+  });
+  assert.equal(otherLogin.status(), 200, "other fixture client authenticates");
+  const otherRows = await list(otherContext.request);
+  assert.equal(otherRows.plots.find((plot) => plot.id === "P-1")?.adminDetails?.revision, 0, "same plot ID in another project stays untouched");
+  await otherContext.close();
+
+  for (const width of [390, 320]) {
+    const mobile = await browser.newContext({
+      viewport: { width, height: 844 }, isMobile: true, hasTouch: true,
+      storageState: await context.storageState(),
+    });
+    const mobilePage = await mobile.newPage();
+    watchPage(mobilePage, errors);
+    await mobilePage.goto(`${base}/projects/${projectSlug}/admin`, { waitUntil: "networkidle" });
+    await mobilePage.getByRole("button", { name: "Plots", exact: true }).click();
+    const mobileRow = mobilePage.getByRole("article", { name: "Plot P-1", exact: true });
+    await mobileRow.getByText(ownerName, { exact: true }).waitFor();
+    assert.equal(await mobilePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, `${width}px page has no horizontal overflow`);
+    const cardBox = await mobileRow.boundingBox();
+    assert.ok(cardBox && cardBox.height < 270, `${width}px saved details stay compact`);
+    await mobileRow.getByRole("button", { name: "Edit details for Plot P-1" }).click();
+    const mobileForm = mobilePage.getByRole("form", { name: "Booking details for Plot P-1", exact: true });
+    await mobileForm.getByLabel("Booking amount", { exact: true }).waitFor();
+    assert.equal(await mobileForm.getByLabel("Booking amount", { exact: true }).getAttribute("inputmode"), "decimal", "mobile amount keyboard supports paise");
+    assert.equal(await mobilePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, `${width}px editing form has no overflow`);
+    await mobilePage.screenshot({ path: path.join(artifactDir, `client-details-mobile-${width}-edit.png`), fullPage: true });
+    if (width === 390) {
+      // A semantically identical amount still lets the real mobile Save button
+      // exercise scrolling past the fixed bottom navigation without changing data.
+      await mobileForm.getByLabel("Booking amount", { exact: true }).fill("50000.5");
+      const mobileSave = mobilePage.waitForResponse((response) => response.url() === endpoint && response.request().method() === "PATCH");
+      await mobileForm.getByRole("button", { name: "Save details", exact: true }).click();
+      assert.equal((await mobileSave).status(), 200, "mobile Save remains reachable above bottom navigation");
+      await mobileForm.waitFor({ state: "hidden" });
+    } else {
+      await mobileForm.getByRole("button", { name: "Cancel", exact: true }).click();
+    }
+    await mobilePage.screenshot({ path: path.join(artifactDir, `client-details-mobile-${width}.png`), fullPage: true });
+    await mobile.close();
+  }
+  assert.deepEqual(errors, []);
+  await context.close();
+  console.log("PASS Client Admin details: Unicode + exact paise → reload → zero/blank → security/isolation → stale/network draft retention → status preservation → public privacy → compact 390/320px mobile");
+}
+
+async function detailsBackupJourney(browser) {
+  const context = await browser.newContext();
+  const login = await context.request.post(`${base}/api/admin/login`, {
+    headers: { origin: base }, data: { loginId: auth.email, password: auth.password },
+  });
+  assert.equal(login.status(), 200, "Super Admin authenticates for private backup");
+  const manifestResponse = await context.request.get(`${base}/api/admin/project-assets?projectId=${projectId}`);
+  assert.equal(manifestResponse.status(), 200, "project backup manifest generated");
+  const manifest = await manifestResponse.json();
+  assert.equal(manifest.counts.plotAdminDetails, 1, "backup counts private details");
+  const jsonPath = "01-project-data/private-plot-details.json";
+  const csvPath = "01-project-data/private-plot-details.csv";
+  for (const filename of [jsonPath, csvPath]) {
+    assert.ok(manifest.files.some((file) => file.path === filename), `backup manifest includes ${filename}`);
+  }
+  const zipResponse = await context.request.get(`${base}/api/admin/project-assets/download?projectId=${projectId}`);
+  assert.equal(zipResponse.status(), 200, "streamed backup ZIP generated");
+  assert.match(zipResponse.headers()["cache-control"] || "", /no-store/, "private backups must never be cached");
+  const zip = await zipResponse.body();
+  // Use ZIP's central directory for the streaming STORE format. Local headers
+  // intentionally use data descriptors, so their initial lengths may be zero.
+  const end = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  assert.ok(end >= 0, "backup ZIP has a central directory");
+  const entries = new Map();
+  let cursor = zip.readUInt32LE(end + 16);
+  const entryCount = zip.readUInt16LE(end + 10);
+  for (let index = 0; index < entryCount; index += 1) {
+    assert.equal(zip.readUInt32LE(cursor), 0x02014b50, "central directory entry signature");
+    assert.equal(zip.readUInt16LE(cursor + 10), 0, "backup uses lossless STORE entries");
+    const size = zip.readUInt32LE(cursor + 20);
+    const nameLength = zip.readUInt16LE(cursor + 28);
+    const extraLength = zip.readUInt16LE(cursor + 30);
+    const commentLength = zip.readUInt16LE(cursor + 32);
+    const localOffset = zip.readUInt32LE(cursor + 42);
+    const name = zip.subarray(cursor + 46, cursor + 46 + nameLength).toString("utf8");
+    const contentStart = localOffset + 30 + zip.readUInt16LE(localOffset + 26) + zip.readUInt16LE(localOffset + 28);
+    entries.set(name, zip.subarray(contentStart, contentStart + size));
+    cursor += 46 + nameLength + extraLength + commentLength;
+  }
+  assert.ok(entries.has(jsonPath) && entries.has(csvPath), "private files actually exist inside ZIP");
+  const rows = JSON.parse(entries.get(jsonPath).toString("utf8"));
+  assert.equal(rows.length, 1);
+  const listResponse = await context.request.get(`${base}/api/data?section=plots&projectId=${projectId}`);
+  const plots = (await listResponse.json()).plots;
+  const saved = plots.find((plot) => plot.id === "P-1").adminDetails;
+  assert.equal(rows[0].projectId, projectId);
+  assert.equal(rows[0].plotId, "P-1");
+  for (const field of ["ownerName", "bookingAmountPaise", "brokerName", "revision", "updatedAt"]) {
+    assert.equal(rows[0][field], saved[field], `backup preserves ${field}`);
+  }
+  assert.equal(rows[0].bookingAmountPaise, 5000050, "backup preserves the exact decimal booking amount");
+  assert.ok(entries.get(csvPath).toString("utf8").includes("5000050"), "CSV backup preserves integer paise");
+  const raw = zip.toString("utf8");
+  assert.equal(raw.includes(auth.password), false, "backup excludes login password");
+  assert.equal(/"(?:passwordHash|password_hash)"\s*:/.test(raw), false, "backup excludes password hash fields");
+  await context.close();
+  console.log("PASS Super Admin backup: private JSON/CSV in real streamed ZIP retain exact saved details and exclude credentials");
+}
+
+const browser = await chromium.launch(process.env.PLOT_CHROMIUM_EXECUTABLE_PATH
+  ? { executablePath: process.env.PLOT_CHROMIUM_EXECUTABLE_PATH }
+  : {});
 try {
   if (stage === "admin") await adminJourney(browser);
+  else if (stage === "client-details") await clientDetailsJourney(browser);
+  else if (stage === "details-backup") await detailsBackupJourney(browser);
   else if (stage === "customer") await customerJourney(browser);
   else throw new Error(`Unknown E2E_STAGE: ${stage}`);
 } finally {

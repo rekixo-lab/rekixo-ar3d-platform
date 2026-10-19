@@ -1,4 +1,5 @@
-import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+import { check, foreignKey, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const projects = sqliteTable("projects", {
   id:text("id").primaryKey(), name:text("name").notNull(), slug:text("slug").notNull().unique(),
@@ -20,6 +21,28 @@ export const projectDomains = sqliteTable("project_domains", {
 },table=>({projectKindIndex:index("idx_project_domains_project_kind").on(table.projectId,table.kind,table.status)}));
 
 export const plots = sqliteTable("plots", { projectId:text("project_id").notNull().references(()=>projects.id), id:text("id").notNull(), sqft:real("sqft").notNull(), sqm:real("sqm").notNull(), sqyd:real("sqyd").notNull(), dimensions:text("dimensions").notNull(), road:text("road").notNull(), front:real("front"), depth:real("depth"), back:real("back"), depth2:real("depth2"), dimensionUnit:text("dimension_unit"), frontEdgeIndex:integer("front_edge_index"), depthEdgeIndex:integer("depth_edge_index"), backEdgeIndex:integer("back_edge_index"), depth2EdgeIndex:integer("depth2_edge_index"), frontLabel:text("front_label"), depthLabel:text("depth_label"), backLabel:text("back_label"), depth2Label:text("depth2_label"), sideDimensions:text("side_dimensions"), edgeSemantics:text("edge_semantics"), polygon:text("polygon").notNull().default(""), status:text("status").notNull().default("available"), notes:text("notes").notNull().default(""), featured:integer("featured",{mode:"boolean"}).notNull().default(false), inventoryActive:integer("inventory_active",{mode:"boolean"}).notNull().default(true), updatedAt:text("updated_at").notNull() },table=>({pk:primaryKey({columns:[table.projectId,table.id]})}));
+
+// Private client-admin records are deliberately separate from publicly serialized plots.
+// Existing projects need no backfill: an absent row means empty details at revision 0.
+export const plotAdminDetails = sqliteTable("plot_admin_details", {
+  projectId:text("project_id").notNull(),
+  plotId:text("plot_id").notNull(),
+  ownerName:text("owner_name"),
+  bookingAmountPaise:integer("booking_amount_paise"),
+  currency:text("currency").notNull().default("INR"),
+  brokerName:text("broker_name"),
+  revision:integer("revision").notNull().default(1),
+  updatedAt:text("updated_at").notNull(),
+  updatedBy:text("updated_by").notNull()
+},table=>({
+  pk:primaryKey({columns:[table.projectId,table.plotId]}),
+  plotForeignKey:foreignKey({columns:[table.projectId,table.plotId],foreignColumns:[plots.projectId,plots.id]}).onDelete("restrict").onUpdate("restrict"),
+  ownerLength:check("plot_admin_details_owner_length",sql`${table.ownerName} IS NULL OR length(${table.ownerName}) <= 120`),
+  brokerLength:check("plot_admin_details_broker_length",sql`${table.brokerName} IS NULL OR length(${table.brokerName}) <= 120`),
+  amountBounds:check("plot_admin_details_amount_bounds",sql`${table.bookingAmountPaise} IS NULL OR (typeof(${table.bookingAmountPaise}) = 'integer' AND ${table.bookingAmountPaise} BETWEEN 0 AND 1000000000000)`),
+  currencyInr:check("plot_admin_details_currency_inr",sql`${table.currency} = 'INR'`),
+  revisionPositive:check("plot_admin_details_revision_positive",sql`typeof(${table.revision}) = 'integer' AND ${table.revision} BETWEEN 1 AND 9007199254740991`)
+}));
 export const plotEdgeMeasurements = sqliteTable("plot_edge_measurements", {
   projectId:text("project_id").notNull().references(()=>projects.id),
   plotId:text("plot_id").notNull(),
