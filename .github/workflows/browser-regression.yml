@@ -81,6 +81,7 @@ jobs:
           setsid npx wrangler dev --local --config wrangler.jsonc --ip 127.0.0.1 --port 4174 > artifacts/full-admin-e2e/client-server.log 2>&1 &
           SERVER_PID=$!
           node scripts/wait-http.mjs http://localhost:4174/projects/phase-11-e2e
+          node scripts/wait-http.mjs http://localhost:4174/projects/phase-11-e2e/admin-login
           E2E_STAGE=client-details E2E_BASE_URL=http://localhost:4174 node scripts/verify-admin-customer-e2e.mjs
           E2E_STAGE=customer E2E_BASE_URL=http://localhost:4174 node scripts/verify-admin-customer-e2e.mjs
           stop_server

@@ -412,7 +412,7 @@ async function clientDetailsJourney(browser) {
   assert.equal(denied.status(), 401, "anonymous private write denied");
   await anonymous.close();
 
-  await page.goto(`${base}/projects/${projectSlug}/admin-login`, { waitUntil: "networkidle" });
+  await page.goto(`${base}/projects/${projectSlug}/admin-login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.locator("#login-id").fill(auth.clientEmail);
   await page.locator("#login-password").fill(auth.password);
   await page.getByRole("button", { name: "Sign In to Dashboard" }).click();
