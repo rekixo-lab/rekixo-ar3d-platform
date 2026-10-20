@@ -57,6 +57,11 @@ const server = http.createServer(async (req, res) => {
     if (variant === "original") {
       state.originalRequested();
       await state.gate;
+      if (url.searchParams.get("inspect") === "1") {
+        return json(res, state.missing
+          ? { original: false, source: "published-canonical-fallback", bytes: previewPng.length }
+          : { original: true, source: "published-original", bytes: originalPng.length });
+      }
       if (state.missing) { res.writeHead(404); return res.end(); }
     }
     const body = variant === "original" ? originalPng : previewPng;
@@ -220,9 +225,13 @@ async function journey(target) {
       // original does not start a request loop or discard the usable preview.
       await page.waitForTimeout(1300);
       assert.equal(await page.locator(".master").evaluate(el => el.naturalWidth), previewWidth);
-      assert.equal(state.requests.filter(v => v === "original").length, 1, "legacy original404 is attempted only once");
+      assert.equal(state.requests.filter(v => v === "original").length, 1, "missing original is probed only once, never downloaded");
+      assert.equal(await page.locator("#masterplanQuality").getAttribute("data-quality"), "preview");
     } else {
       await page.waitForFunction(width => document.querySelector(".master")?.naturalWidth === width, originalWidth);
+      await page.waitForFunction(() => document.querySelector("#masterplanQuality")?.dataset.quality === "original");
+      assert.equal(await page.locator("#masterplanQuality").textContent(), "Original HD");
+      assert.ok(state.requests.filter(v => v === "original").length >= 2, "original metadata is verified before downloading the image");
       const response = await context.request.get(await page.locator(".master").getAttribute("src"));
       assert.equal(response.status(), 200);
       assert.equal(createHash("sha256").update(await response.body()).digest("hex"), createHash("sha256").update(originalPng).digest("hex"), "display source is byte-identical to uploaded fixture");
