@@ -1336,18 +1336,41 @@ export default function PlotMapper({
   }
 
 
-  function preloadHdMasterplan(version: string) {
+  async function preloadHdMasterplan(version: string) {
     if (completedProject) return;
     const retryToken = String(Date.now());
     const hdUrl = masterplanAssetUrl("hd", version, retryToken);
     const preload = new Image();
     hdPreloadRef.current = preload;
     setImageLoadState("hd-loading");
+    const inspected = new URL(hdUrl, window.location.href);
+    inspected.searchParams.set("inspect", "1");
+    try {
+      // Read-only R2 provenance check: a source URL returning WebP fallback is
+      // never presented as high resolution, nor needlessly decoded in memory.
+      const response = await fetch(inspected.pathname + inspected.search, { cache: "no-store" });
+      if (hdPreloadRef.current !== preload) return;
+      if (!response.ok) throw new Error("Original source probe failed");
+      const source = (await response.json()) as { original?: boolean };
+      if (hdPreloadRef.current !== preload) return;
+      if (source.original !== true) {
+        setImageError("Verified original masterplan nahi mili. Compressed preview dikh rahi hai; original file ko dobara upload karke Publish Update karein.");
+        setImageLoadState("preview-ready");
+        return;
+      }
+    } catch {
+      if (hdPreloadRef.current !== preload) return;
+      setImageError("Original masterplan verify nahi hui. Safe preview visible hai; Retry karein.");
+      setImageLoadState("preview-ready");
+      return;
+    }
     preload.decoding = "async";
     preload.onload = () => {
       if (hdPreloadRef.current !== preload) return;
       const storedWidth = Number(settings.mapWidth);
       const storedHeight = Number(settings.mapHeight);
+      const originalWidth = Number(settings.masterplanOriginalWidth);
+      const originalHeight = Number(settings.masterplanOriginalHeight);
       if (storedWidth > 0 && storedHeight > 0) {
         const expected = storedWidth / storedHeight;
         const actual = preload.naturalWidth / Math.max(1, preload.naturalHeight);
@@ -1357,12 +1380,19 @@ export default function PlotMapper({
           return;
         }
       }
+      if (originalWidth > 0 && originalHeight > 0 &&
+          (Math.abs(preload.naturalWidth / originalWidth - 1) > 0.015 ||
+           Math.abs(preload.naturalHeight / originalHeight - 1) > 0.015)) {
+        setImageError("Original source ki pixel resolution project metadata se alag hai. Mapping safe rakhne ke liye preview use ho rahi hai.");
+        setImageLoadState("preview-ready");
+        return;
+      }
       setImageQuality("hd");
       setImageUrl(hdUrl);
     };
     preload.onerror = () => {
       if (hdPreloadRef.current !== preload) return;
-      setImageError("Original masterplan load nahi hua. Preview available hai; Retry se dobara koshish karein.");
+      setImageError("Original masterplan decode nahi hua. Preview available hai; Retry se dobara koshish karein.");
       setImageLoadState("preview-ready");
     };
     preload.src = hdUrl;
@@ -5074,6 +5104,13 @@ export default function PlotMapper({
           {imageReady && imageLoadState === "hd-loading" && (
             <div className="mapper-loading">
               Preview ready · Original masterplan background में load हो रहा है…
+            </div>
+          )}
+          {imageReady && hasMasterplan && (
+            <div className="mapper-quality-status" role="status" aria-live="polite" style={{ fontSize: 12, margin: "5px 0", color: imageLoadState === "hd-ready" ? "#13a779" : "#d6a448" }}>
+              {imageLoadState === "hd-ready"
+                ? `Verified Original HD · ${naturalImageSize?.width || "?"} × ${naturalImageSize?.height || "?"} px`
+                : imageLoadState === "hd-loading" ? "Preview · verifying full-resolution original..." : "Preview only · original HD not active"}
             </div>
           )}
           {imageError && (
