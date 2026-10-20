@@ -226,11 +226,10 @@ async function journey(target) {
       await page.waitForTimeout(1300);
       assert.equal(await page.locator(".master").evaluate(el => el.naturalWidth), previewWidth);
       assert.equal(state.requests.filter(v => v === "original").length, 1, "missing original is probed only once, never downloaded");
-      assert.equal(await page.locator("#masterplanQuality").getAttribute("data-quality"), "preview");
+      assert.equal(await page.locator("#masterplanQuality").count(), 0, "customer masterplan quality badge is removed");
     } else {
       await page.waitForFunction(width => document.querySelector(".master")?.naturalWidth === width, originalWidth);
-      await page.waitForFunction(() => document.querySelector("#masterplanQuality")?.dataset.quality === "original");
-      assert.equal(await page.locator("#masterplanQuality").textContent(), "Original HD");
+      assert.equal(await page.locator("#masterplanQuality").count(), 0, "customer original HD text and background are removed");
       assert.ok(state.requests.filter(v => v === "original").length >= 2, "original metadata is verified before downloading the image");
       const response = await context.request.get(await page.locator(".master").getAttribute("src"));
       assert.equal(response.status(), 200);
