@@ -52,9 +52,6 @@ html.rekixo-project-error .rekixo-boot-error{display:grid}
 .search svg{width:21px;height:21px;stroke:#7687ae;fill:none;stroke-width:2}.search input{flex:1;min-width:0;height:100%;border:0;outline:0;background:transparent;color:white;font-size:17px;font-weight:600}
 .search input::placeholder{color:#667698}.go{height:46px;border:0;background:transparent;color:#89b7ff;font-weight:950;padding:0 10px}
 .map{position:relative;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#040812;cursor:grab;contain:layout paint}.map.dragging{cursor:grabbing}
-.masterplan-quality{position:absolute;right:10px;bottom:calc(82px + var(--safe,0px));z-index:6;pointer-events:none;border:1px solid #3e566e;background:#061525e8;border-radius:999px;padding:5px 9px;color:#d0dfed;font-size:10px;font-weight:750;line-height:1.4;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.masterplan-quality[data-quality="original"]{color:#65edb4;border-color:#247a5e}
-.masterplan-quality[data-quality="preview"]{color:#f7c96e;border-color:#79612b}
 .map.master-loading::after{content:"Loading masterplan…";position:absolute;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);padding:10px 14px;border:1px solid #23304a;border-radius:999px;background:#07101fdd;color:#9db0d4;font-size:12px;font-weight:800;box-shadow:0 8px 28px #0008;pointer-events:none}
 .world{position:absolute;left:50%;top:50%;width:var(--map-w,1200px);height:var(--map-h,2133px);transform-origin:center center;will-change:transform;user-select:none;backface-visibility:hidden;contain:layout paint style;transform:translateZ(0)}
 .master,.hotspots{position:absolute;inset:0;width:var(--map-w,1200px);height:var(--map-h,2133px);display:block}.master{pointer-events:none;-webkit-user-drag:none;backface-visibility:hidden;transform:translateZ(0);image-rendering:auto}.hotspots{z-index:2;overflow:visible}
@@ -1022,7 +1019,6 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
 
 <main class="map" id="viewport">
   <div class="three-host" id="threeHost"></div>
-  <span class="masterplan-quality" id="masterplanQuality" data-quality="preview" title="High-resolution masterplan loading">Preview</span>
   <div class="world" id="world">
     <img class="master" width="1200" height="2133" alt="Project masterplan" decoding="async" fetchpriority="high" draggable="false">
     <svg class="hotspots" id="hotspots" viewBox="0 0 1200 2133" width="1200" height="2133" aria-label="Interactive plot overlay"></svg>
