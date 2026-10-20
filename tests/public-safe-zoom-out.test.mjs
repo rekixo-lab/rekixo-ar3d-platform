@@ -7,11 +7,11 @@ const page = await readFile(
   "utf8",
 );
 
-test("customer map opens exactly at the existing start fit", () => {
-  assert.match(
-    page,
-    /function reset\(\)\{calcFit\(\);scale=fit;pan=\{x:0,y:0\};pan=initialPanForPresentation\(\);render\(\)\}/,
-  );
+test("existing-auto mode preserves original fit; configured start focus uses bounded zoom", () => {
+  assert.match(page, /function reset\(\)\{/);
+  assert.match(page, /scale=focus\?configuredFocusScale\(focus\):fit/);
+  assert.match(page, /pan=initialPanForPresentation\(\)/);
+  assert.match(page, /Math\.min\(fit\*4\.5,required\*1\.01\)/);
   assert.match(page, /fit = mobile \? Math\.max\(fw,fh\) : containFit/);
 });
 
