@@ -242,7 +242,7 @@ export default function ClientPlotManagement({
                 </div>
               )}
               {!hasDetails && <span className="client-booking-empty-note">No booking details</span>}
-              <button type="button" className="client-booking-edit" aria-label={`${hasDetails ? "Edit" : "Add"} details for Plot ${plot.id}`} aria-expanded={open} disabled={saving} onClick={() => openEditor(plot)}>
+              <button type="button" className="client-booking-edit" aria-label={open ? `Close booking editor for Plot ${plot.id}` : `${hasDetails ? "Edit" : "Add"} details for Plot ${plot.id}`} aria-expanded={open} disabled={saving} onClick={() => openEditor(plot)}>
                 {open ? <ChevronUp size={15} /> : hasDetails ? <Pencil size={15} /> : <Plus size={15} />}
                 <span className="client-booking-edit-desktop">{open ? "Editing" : hasDetails ? "Edit details" : "Add details"}</span>
                 <span className="client-booking-edit-mobile" aria-hidden="true">{open ? "Close" : hasDetails ? "Edit" : "Add"}</span>
