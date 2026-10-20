@@ -77,7 +77,8 @@ test("mapped plot bounds center survives start reset, manual mode leaves old def
   env.pan = { x: 0, y: 0 };
   env.reset();
   assert.equal(env.scale, scale);
-  assert.deepEqual(env.pan, firstPan, "RST uses the same saved opening focus");
+  assert.equal(env.pan.x, firstPan.x, "RST restores same horizontal start pan");
+  assert.equal(env.pan.y, firstPan.y, "RST restores same vertical start pan");
   assert.equal(JSON.stringify(env.plots), before);
   env.publicInitialViewMode = "legacy";
   env.reset();
