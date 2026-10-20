@@ -146,10 +146,10 @@ export default function ProjectStartView({
       setY(clamp01(Number(data.y ?? 0.5)));
       notify(
         mode === "legacy"
-          ? "Website start view existing behavior par reset ho gaya"
+          ? "Start view draft reset save hua. Customer site par lagane ke liye Review & Publish → Publish Update karein."
           : mode === "plots"
-            ? "Website start view mapped plots center par set ho gaya"
-            : "Website custom start focus save ho gaya",
+            ? "Mapped center draft save hua. Customer site par lagane ke liye Review & Publish → Publish Update karein."
+            : "Custom focus draft save hua. Customer site par lagane ke liye Review & Publish → Publish Update karein.",
       );
     } catch (error) {
       notify(
@@ -281,6 +281,11 @@ export default function ProjectStartView({
           ) : null}
         </>
       ) : null}
+
+      <p className="mapper-start-view-publish-note" style={{ margin: 0, color: "#a5bbd2", fontSize: 12 }}>
+        Start View yahan save karne se draft badalta hai. Customer site ke liye neeche Review &amp; Publish
+        section mein <b>Publish Update</b> karna zaroori hai. Preview se pehle saved mode check karein.
+      </p>
 
       <div className="mapper-start-view-actions">
         <button
