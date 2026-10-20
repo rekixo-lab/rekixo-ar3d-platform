@@ -52,6 +52,8 @@ test("public API exposes only the three project start-view settings", () => {
 test("public renderer preserves legacy opening behavior exactly when no setting exists", () => {
   assert.match(publicPage, /let publicInitialViewMode='legacy'/);
   assert.match(publicPage, /function normalizeInitialViewMode\(value\)/);
+  assert.match(publicPage, /publicInitialViewMode=normalizeInitialViewMode\(s\.publicInitialViewMode\)/);
+  assert.doesNotMatch(publicPage, /publicInitialViewMode=normalizeInitialViewMode\(s\);/);
   assert.match(publicPage, /if\(publicInitialViewMode==='custom'\)/);
   assert.match(publicPage, /if\(publicInitialViewMode==='plots'\)/);
   assert.match(publicPage, /if\(!isMobilePanorama\(\)\)return\{x:0,y:0\};/);
@@ -60,6 +62,8 @@ test("public renderer preserves legacy opening behavior exactly when no setting 
 
 test("custom and mapped focus are normalized and rotation-aware", () => {
   assert.match(publicPage, /function panForStartFocus\(x,y\)/);
+  assert.match(publicPage, /function configuredFocusScale\(focus\)/);
+  assert.match(publicPage, /return Math\.max\(fit,Math\.min\(fit\*4\.5,required\*1\.01\)\)/);
   assert.match(publicPage, /const r=rotateOffset\(dx,dy,publicRotation\)/);
   assert.match(publicPage, /return\{x:-r\.x\*scale,y:-r\.y\*scale\}/);
   assert.match(publicPage, /function mappedPlotsCenterFocus\(\)/);
@@ -69,9 +73,17 @@ test("custom and mapped focus are normalized and rotation-aware", () => {
 
 test("RST keeps using reset so configured start view is restored", () => {
   assert.match(publicPage, /q\('#resetBtn'\)\.onclick=\(\)=>mode3D\?engine3D\?\.reset\(\):reset\(\)/);
-  assert.match(publicPage, /function reset\(\)\{calcFit\(\);scale=fit;pan=\{x:0,y:0\};pan=initialPanForPresentation\(\);render\(\)\}/);
+  assert.match(publicPage, /function reset\(\)\{/);
+  assert.match(publicPage, /scale=focus\?configuredFocusScale\(focus\):fit/);
+  assert.match(publicPage, /pan=initialPanForPresentation\(\)/);
 });
 
 test("3D renderer stays independent from website start-view presentation", () => {
   assert.doesNotMatch(three, /publicInitialViewMode|publicInitialFocusX|publicInitialFocusY|mappedPlotsCenterFocus/);
+});
+
+test("saving Start View explains publishing is required without changing plot geometry", () => {
+  assert.match(component, /Review &amp; Publish/);
+  assert.match(component, /Publish Update/);
+  assert.doesNotMatch(component, /\bUPDATE plots\b|\bDELETE FROM plots\b/);
 });
