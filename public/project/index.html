@@ -1671,14 +1671,16 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     }
     return count?{x:((minX+maxX)/2)/Math.max(1,W),y:((minY+maxY)/2)/Math.max(1,H)}:null
   }
-  function initialPanForPresentation(){
+  function configuredStartFocus(){
     if(publicInitialViewMode==='custom'){
-      return panForStartFocus(publicInitialFocusX,publicInitialFocusY)
+      return{x:publicInitialFocusX,y:publicInitialFocusY}
     }
-    if(publicInitialViewMode==='plots'){
-      const focus=mappedPlotsCenterFocus();
-      if(focus)return panForStartFocus(focus.x,focus.y)
-    }
+    if(publicInitialViewMode==='plots')return mappedPlotsCenterFocus();
+    return null
+  }
+  function initialPanForPresentation(){
+    const focus=configuredStartFocus();
+    if(focus)return panForStartFocus(focus.x,focus.y);
     // Legacy branch intentionally stays byte-equivalent in behavior for every
     // existing project that has no start-view setting.
     if(!isMobilePanorama())return{x:0,y:0};
@@ -1687,7 +1689,30 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     const l=limits();
     return{x:l.x,y:0}
   }
-  function reset(){calcFit();scale=fit;pan={x:0,y:0};pan=initialPanForPresentation();render()}
+  function configuredFocusScale(focus){
+    // Desktop contain-fit leaves no room to pan; on some mobile aspect ratios
+    // cover-fit also clips only one axis. Use the minimum safe presentation
+    // zoom to center the selected normalized point without moving polygons.
+    const size=displaySize();
+    const fw=(viewportWidth||viewport.clientWidth)/Math.max(1,size.w);
+    const fh=(viewportHeight||viewport.clientHeight)/Math.max(1,size.h);
+    let u=focus.x,v=focus.y;
+    if(publicRotation===1){u=1-focus.y;v=focus.x}
+    else if(publicRotation===2){u=1-focus.x;v=1-focus.y}
+    else if(publicRotation===3){u=focus.y;v=1-focus.x}
+    const nearX=Math.max(.15,Math.min(u,1-u));
+    const nearY=Math.max(.15,Math.min(v,1-v));
+    const required=Math.max(fw/2/nearX,fh/2/nearY,fw,fh);
+    return Math.max(fit,Math.min(fit*4.5,required*1.01))
+  }
+  function reset(){
+    calcFit();
+    const focus=configuredStartFocus();
+    scale=focus?configuredFocusScale(focus):fit;
+    pan={x:0,y:0};
+    pan=initialPanForPresentation();
+    render()
+  }
   function toast(t){const el=q('#toast');el.textContent=t;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1800)}
   function openFullImage(src,caption){lightboxImage.src=src;lightboxImage.alt=caption;lightboxCaption.textContent=caption;imageLightbox.classList.add('open');imageLightbox.setAttribute('aria-hidden','false')}
   function closeFullImage(){imageLightbox.classList.remove('open');imageLightbox.setAttribute('aria-hidden','true');lightboxImage.removeAttribute('src')}
@@ -2485,7 +2510,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     publicRotation=normalizeQuarterTurn(s.publicRotation);
     publicNorthSourceAngle=northBearingFromSettings(s);
     updateMapCompassOrientation();
-    publicInitialViewMode=normalizeInitialViewMode(s);
+    publicInitialViewMode=normalizeInitialViewMode(s.publicInitialViewMode);
     publicInitialFocusX=normalizeUnitFocus(s.publicInitialFocusX,.5);
     publicInitialFocusY=normalizeUnitFocus(s.publicInitialFocusY,.5);
     // Saved polygons stay canonical. Only the shared presentation world rotates.
