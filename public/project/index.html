@@ -52,6 +52,9 @@ html.rekixo-project-error .rekixo-boot-error{display:grid}
 .search svg{width:21px;height:21px;stroke:#7687ae;fill:none;stroke-width:2}.search input{flex:1;min-width:0;height:100%;border:0;outline:0;background:transparent;color:white;font-size:17px;font-weight:600}
 .search input::placeholder{color:#667698}.go{height:46px;border:0;background:transparent;color:#89b7ff;font-weight:950;padding:0 10px}
 .map{position:relative;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#040812;cursor:grab;contain:layout paint}.map.dragging{cursor:grabbing}
+.masterplan-quality{position:absolute;right:10px;bottom:calc(82px + var(--safe,0px));z-index:6;pointer-events:none;border:1px solid #3e566e;background:#061525e8;border-radius:999px;padding:5px 9px;color:#d0dfed;font-size:10px;font-weight:750;line-height:1.4;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.masterplan-quality[data-quality="original"]{color:#65edb4;border-color:#247a5e}
+.masterplan-quality[data-quality="preview"]{color:#f7c96e;border-color:#79612b}
 .map.master-loading::after{content:"Loading masterplan…";position:absolute;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);padding:10px 14px;border:1px solid #23304a;border-radius:999px;background:#07101fdd;color:#9db0d4;font-size:12px;font-weight:800;box-shadow:0 8px 28px #0008;pointer-events:none}
 .world{position:absolute;left:50%;top:50%;width:var(--map-w,1200px);height:var(--map-h,2133px);transform-origin:center center;will-change:transform;user-select:none;backface-visibility:hidden;contain:layout paint style;transform:translateZ(0)}
 .master,.hotspots{position:absolute;inset:0;width:var(--map-w,1200px);height:var(--map-h,2133px);display:block}.master{pointer-events:none;-webkit-user-drag:none;backface-visibility:hidden;transform:translateZ(0);image-rendering:auto}.hotspots{z-index:2;overflow:visible}
@@ -1019,6 +1022,7 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
 
 <main class="map" id="viewport">
   <div class="three-host" id="threeHost"></div>
+  <span class="masterplan-quality" id="masterplanQuality" data-quality="preview" title="High-resolution masterplan loading">Preview</span>
   <div class="world" id="world">
     <img class="master" width="1200" height="2133" alt="Project masterplan" decoding="async" fetchpriority="high" draggable="false">
     <svg class="hotspots" id="hotspots" viewBox="0 0 1200 2133" width="1200" height="2133" aria-label="Interactive plot overlay"></svg>
@@ -1534,24 +1538,42 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.setAttribute('width',String(W));svg.setAttribute('height',String(H));
   }
 
-  // Decode offscreen so a failed or stale full-resolution request never removes the preview.
-  function upgradeMasterplanImage(master,src,expectedAspect,onUpgrade,isCurrent=()=>true){
-    const image=new Image();
+  // The metadata probe is tiny. Never download/decode 100 MB only to discover
+  // the "original" endpoint returned a compressed fallback. Public exposure is
+  // governed by the same published-only asset API, never an editable draft.
+  function setMasterplanQuality(status,label,explanation=''){
+    const indicator=document.getElementById('masterplanQuality');
+    if(!indicator)return;
+    indicator.dataset.quality=status;
+    indicator.textContent=label;
+    indicator.title=explanation||label;
+  }
+  function upgradeMasterplanImage(master,src,expectedAspect,onUpgrade,isCurrent=()=>true,expectedWidth=0,expectedHeight=0){
+    const image=new Image(),controller=new AbortController();
     let cancelled=false,promoted=false;
     image.decoding='async';
+    const current=()=>!cancelled&&isCurrent();
     image.onload=()=>{
-      if(cancelled||promoted||!isCurrent()||!image.naturalWidth||!image.naturalHeight)return;
+      if(!current()||promoted||!image.naturalWidth||!image.naturalHeight)return;
       const aspectError=Math.abs((image.naturalWidth/image.naturalHeight)/expectedAspect-1);
-      if(aspectError>0.015)return;
+      const dimensionsMismatch=(expectedWidth>0&&expectedHeight>0)&&
+        (Math.abs(image.naturalWidth/expectedWidth-1)>0.015||
+         Math.abs(image.naturalHeight/expectedHeight-1)>0.015);
+      if(aspectError>0.015||dimensionsMismatch){
+        setMasterplanQuality('preview','Preview only','Original image dimensions do not match the published map.');
+        return;
+      }
       promoted=true;
       const previousSrc=master.src,previousLoad=master.onload,previousError=master.onerror;
       master.onload=()=>{
-        if(cancelled||!isCurrent())return;
+        if(!current())return;
         master.onload=previousLoad;master.onerror=previousError;
+        setMasterplanQuality('original','Original HD',image.naturalWidth+' × '+image.naturalHeight+' px');
         onUpgrade?.(master.src);
       };
       master.onerror=()=>{
-        if(cancelled||!isCurrent())return;
+        if(!current())return;
+        setMasterplanQuality('preview','Preview only','Original could not be rendered.');
         master.onload=()=>{master.onload=previousLoad;master.onerror=previousError};
         master.onerror=previousError;
         master.src=previousSrc;
@@ -1559,9 +1581,27 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       // Only the raster changes: keep map plane, polygons, pan, zoom and rotation intact.
       master.src=image.src;
     };
-    image.onerror=()=>{};
-    image.src=src;
-    return()=>{cancelled=true;image.onload=null;image.onerror=null};
+    image.onerror=()=>{if(current())setMasterplanQuality('preview','Preview only','Original could not be decoded.')};
+    const probe=new URL(src,location.href);
+    probe.searchParams.set('inspect','1');
+    setMasterplanQuality('loading','HD loading','Checking published original masterplan.');
+    (async()=>{
+      try{
+        const response=await fetch(probe.pathname+probe.search,{cache:'no-store',signal:controller.signal});
+        if(!current())return;
+        if(!response.ok)throw Error('Source check failed');
+        const result=await response.json();
+        if(!current())return;
+        if(result.original!==true){
+          setMasterplanQuality('preview','Preview only','Published original is not available. Preview is retained.');
+          return;
+        }
+        image.src=src;
+      }catch(_error){
+        if(current())setMasterplanQuality('preview','Preview only','High resolution source unavailable; preview is retained.');
+      }
+    })();
+    return()=>{cancelled=true;controller.abort();image.onload=null;image.onerror=null};
   }
 
   function displaySize(){return publicRotation%2?{w:H,h:W}:{w:W,h:H}}
@@ -2424,6 +2464,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   function applyPublicData(data){
     cancelMasterplanUpgrade();
     const imageGeneration=++masterplanGeneration;
+    setMasterplanQuality('preview','Preview','Waiting for published masterplan.');
     window.REKIXO_PUBLIC_DATA=data;
     ACTIVE_PROJECT_ID=String(data.projectId||'').trim();
     REKIXO_LIVE_STATE_ENABLED=!Boolean(data&&data.preview);
@@ -2537,6 +2578,8 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         const originalParams=new URLSearchParams(baseParams);
         originalParams.set('variant','original');
         originalParams.set('v',masterVersion);
+        // Break legacy immutable caches that may contain a compressed fallback.
+        originalParams.set('fidelity','original-v2');
         originalMasterUrl='/api/project-asset/masterplan?'+originalParams.toString();
         preferredMasterUrl='/api/project-asset/masterplan?'+publicParams.toString();
         canonicalMasterUrl='/api/project-asset/masterplan?'+canonicalParams.toString();
@@ -2570,7 +2613,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       engine3D?.setShowAll(showAll);engine3D?.setStatusFilter?.(statusFilter);
       if(master&&HAS_MASTERPLAN&&originalMasterUrl){
         master.dataset.previewSrc=canonicalMasterUrl;
-        cancelMasterplanUpgrade=upgradeMasterplanImage(master,originalMasterUrl,W/H,src=>engine3D?.setImageSrc?.(src,canonicalMasterUrl),()=>imageGeneration===masterplanGeneration);
+        cancelMasterplanUpgrade=upgradeMasterplanImage(master,originalMasterUrl,W/H,src=>engine3D?.setImageSrc?.(src,canonicalMasterUrl),()=>imageGeneration===masterplanGeneration,Number(s.masterplanOriginalWidth)||0,Number(s.masterplanOriginalHeight)||0);
       }
     };
     const loadMaster=(canonical=false,bust=false)=>{

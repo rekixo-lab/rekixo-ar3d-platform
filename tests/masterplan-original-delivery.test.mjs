@@ -112,6 +112,48 @@ test("publishing captures the exact original bytes and public delivery is inline
   assert.equal(h.objects.get(h.published).customMetadata.masterplanOriginalKey, h.source);
 });
 
+test("read-only original provenance probe uses the published resolver and never sends image bytes", async () => {
+  const h = harness();
+  await seed(h);
+  await h.snapshot.promotePublishedAssets("a", 7);
+  const probe = await h.get("variant=original&v=7&inspect=1");
+  assert.equal(probe.status, 200);
+  assert.match(probe.headers.get("content-type"), /application\/json/);
+  assert.equal(probe.headers.get("cache-control"), "no-store");
+  assert.equal(probe.headers.get("x-content-type-options"), "nosniff");
+  const metadata = await probe.json();
+  assert.equal(metadata.original, true);
+  assert.equal(metadata.source, "published-original");
+  assert.equal(metadata.bytes, new TextEncoder().encode("UNCHANGED original image bytes").length);
+  assert.equal(JSON.stringify(metadata).includes("projects/"), false, "do not leak R2 object keys");
+});
+
+test("compressed original fallback is accurately labelled and must never be immutably cached", async () => {
+  const h = harness();
+  await seed(h);
+  await h.bucket.delete(h.source);
+  await h.snapshot.promotePublishedAssets("a", 7);
+  const probe = await h.get("variant=original&v=7&inspect=1");
+  assert.deepEqual((await probe.json()).original, false);
+  const response = await h.get("variant=original&v=7&fidelity=original-v2");
+  assert.equal(await response.text(), "working webp");
+  assert.equal(response.headers.get("x-rekixo-original-fidelity"), "optimized-fallback");
+  assert.equal(response.headers.get("x-rekixo-masterplan-source"), "published-canonical-fallback");
+  assert.doesNotMatch(response.headers.get("cache-control"), /immutable/);
+});
+
+test("legacy compatible originals are never stuck in immutable browser cache", async () => {
+  const h = harness();
+  await seed(h, { bound: false });
+  await h.bucket.put(h.published, "working webp");
+  const probe = await h.get("variant=original&v=7&inspect=1");
+  assert.equal((await probe.json()).original, true);
+  const original = await h.get();
+  assert.equal(original.headers.get("x-rekixo-masterplan-source"), "published-original-compatible");
+  assert.equal(original.headers.get("x-rekixo-original-fidelity"), "original");
+  assert.doesNotMatch(original.headers.get("cache-control"), /immutable/);
+});
+
 test("freezing before a replacement preserves the old public original", async () => {
   const h = harness();
   await seed(h);

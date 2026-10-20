@@ -306,6 +306,26 @@ export async function GET(
   }
   if (!object) return new Response("Not found", { status: 404 });
 
+  // The original URL is also used for older projects. Its byte source must be
+  // observable without downloading a possibly 100 MB image. This read-only
+  // probe shares the EXACT tenant/publish resolution above and never exposes
+  // R2 keys or editable originals to public callers.
+  const sourceIsOriginal =
+    wantsOriginalMasterplan &&
+    (servedMasterplanSource === "published-original" ||
+      servedMasterplanSource === "published-original-compatible" ||
+      servedMasterplanSource === "canonical-original");
+  if (kind === "masterplan" && wantsOriginalMasterplan &&
+      requestUrl.searchParams.get("inspect") === "1") {
+    return Response.json({
+      source: servedMasterplanSource,
+      original: sourceIsOriginal,
+      bytes: Number(object.size || 0),
+      contentType: object.httpMetadata?.contentType || "application/octet-stream",
+      version: publishVersion,
+    }, { headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" } });
+  }
+
   // Published versioned masterplan/logo responses are immutable by design. The
   // public-site kill switch is checked above on every origin request, but bytes
   // already stored in a browser/CDN immutable cache cannot be recalled. Runtime
@@ -317,7 +337,10 @@ export async function GET(
     "cache-control":
       mode === "admin"
         ? "no-store"
-        : kind === "masterplan" && publicVariant && versionedRequest
+        : kind === "masterplan" && publicVariant && versionedRequest &&
+            (wantsOriginalMasterplan
+              ? servedMasterplanSource === "published-original" && servedPublishedSnapshot
+              : servedPublishedSnapshot)
           ? "public,max-age=31536000,immutable"
           : kind === "masterplan"
             ? "public,max-age=0,must-revalidate"
@@ -340,6 +363,8 @@ export async function GET(
   }
   if (kind === "masterplan") {
     headers.set("x-rekixo-masterplan-source", servedMasterplanSource);
+    if (wantsOriginalMasterplan)
+      headers.set("x-rekixo-original-fidelity", sourceIsOriginal ? "original" : "optimized-fallback");
   }
   if (kind === "sourceCad" || kind === "plotSheet" || kind === "masterplanOriginal")
     headers.set("content-disposition", "attachment");
