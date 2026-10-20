@@ -5,12 +5,19 @@ import test from "node:test";
 
 const html = await readFile(new URL("../public/project/index.html", import.meta.url), "utf8");
 const three = await readFile(new URL("../public/project/three-view.js", import.meta.url), "utf8");
-const mapSource = html.slice(html.indexOf("  function setMapDimensions("), html.indexOf("  // Decode offscreen"));
+const mapSource = html.slice(html.indexOf("  function setMapDimensions("), html.indexOf("  // The metadata probe is tiny."));
 const upgradeSource = html.slice(html.indexOf("  function upgradeMasterplanImage("), html.indexOf("  function displaySize("));
 
 function imageHarness() {
   const requests = [];
+  let sourceOriginal = true;
   const sandbox = {
+    AbortController,
+    URL,
+    location: { href: "https://example.test/project/index.html" },
+    fetch: async () => ({ ok: true, json: async () => ({ original: sourceOriginal }) }),
+    document: { getElementById: () => null },
+    setMasterplanQuality() {},
     Image: class {
       constructor() { this.naturalWidth = 16000; this.naturalHeight = 8000; requests.push(this); }
     },
@@ -19,7 +26,9 @@ function imageHarness() {
   const unchanged = { pan: { x: 37, y: -18 }, scale: 3.25, rotation: 90, polygon: [[100, 200], [400, 200], [400, 500]] };
   let oldLoads = 0, oldErrors = 0;
   const master = { src: "preview.webp", onload: () => oldLoads++, onerror: () => oldErrors++ };
-  return { sandbox, requests, master, unchanged, counts: () => ({ oldLoads, oldErrors }) };
+  return { sandbox, requests, master, unchanged,
+    setSourceOriginal: value => { sourceOriginal = value; },
+    counts: () => ({ oldLoads, oldErrors }) };
 }
 
 test("giant raster dimensions preserve aspect and normalized plot positions", () => {
@@ -41,10 +50,11 @@ test("giant raster dimensions preserve aspect and normalized plot positions", ()
   assert.equal(sandbox.H, 2133);
 });
 
-test("decoded original promotion preserves current viewport and selection geometry", () => {
+test("decoded original promotion preserves current viewport and selection geometry", async () => {
   const h = imageHarness(), before = JSON.stringify(h.unchanged), upgrades = [];
   h.sandbox.upgradeMasterplanImage(h.master, "original.png", 2, src => upgrades.push(src));
   assert.equal(h.master.src, "preview.webp");
+  await new Promise(resolve => setImmediate(resolve)); // let the metadata probe resolve
   h.requests[0].onload();
   assert.equal(h.master.src, "original.png");
   h.master.onload();
@@ -54,10 +64,11 @@ test("decoded original promotion preserves current viewport and selection geomet
   assert.doesNotMatch(upgradeSource, /setMapDimensions|rescaleNormalizedPlots|reset\(/);
 });
 
-test("failed, wrong-aspect and superseded originals keep the decoded preview", () => {
+test("failed, wrong-aspect and superseded originals keep the decoded preview", async () => {
   for (const failure of ["network", "aspect", "stale", "cancelled"]) {
     const h = imageHarness();
     const cancel = h.sandbox.upgradeMasterplanImage(h.master, "original.png", 2, () => assert.fail("must not promote"), () => failure !== "stale");
+    await new Promise(resolve => setImmediate(resolve));
     if (failure === "network") h.requests[0].onerror();
     else if (failure === "cancelled") cancel();
     else {
@@ -68,14 +79,24 @@ test("failed, wrong-aspect and superseded originals keep the decoded preview", (
   }
 });
 
-test("a display failure after preloading restores the preview", () => {
+test("a display failure after preloading restores the preview", async () => {
   const h = imageHarness();
   h.sandbox.upgradeMasterplanImage(h.master, "original.png", 2, () => assert.fail("must not promote"));
+  await new Promise(resolve => setImmediate(resolve));
   h.requests[0].onload();
   h.master.onerror();
   assert.equal(h.master.src, "preview.webp");
   h.master.onload();
   assert.equal(h.counts().oldLoads, 0);
+});
+
+test("optimized fallback probe prevents starting an original image download", async () => {
+  const h = imageHarness();
+  h.setSourceOriginal(false);
+  h.sandbox.upgradeMasterplanImage(h.master, "original.png", 2, () => assert.fail("fallback must not promote"));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.master.src, "preview.webp");
+  assert.equal(h.requests[0].src, undefined, "fallback source is never downloaded/decoded");
 });
 
 function threeHarness() {
