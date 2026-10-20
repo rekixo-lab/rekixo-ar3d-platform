@@ -17,11 +17,12 @@ test("project-level website rotation is validated and public", () => {
   assert.match(publicData, /"publicRotation"/);
 });
 
-test("mapper repairs dimensions from decoded image without touching polygons", () => {
+test("viewing original raster preserves the saved mapping and calibration plane", () => {
   assert.match(mapper, /settingsReady/);
   assert.match(mapper, /naturalImageSize/);
-  assert.match(mapper, /metadataRepairRef/);
-  assert.match(mapper, /persistMapperSettings\(\{ mapWidth: String\(width\), mapHeight: String\(height\) \}\)/);
+  assert.doesNotMatch(mapper, /metadataRepairRef/);
+  assert.doesNotMatch(mapper, /persistMapperSettings\(\{ mapWidth: String\(width\), mapHeight: String\(height\) \}\)/);
+  assert.match(mapper, /else params\.set\("variant", "original"\)/);
   assert.match(mapper, /rekixo:mapper-settings-updated/);
 });
 

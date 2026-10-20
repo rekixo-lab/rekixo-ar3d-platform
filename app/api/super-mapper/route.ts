@@ -821,14 +821,25 @@ export async function POST(request: Request) {
           );
       }
 
+      // Bind each working image to its exact immutable source. A legacy upload
+      // without a source explicitly disables stale-original/settings fallback.
+      const resolvedOriginalToken = usingMultipartOriginal
+        ? originalObjectToken
+        : originalFile instanceof File
+          ? crypto.randomUUID().replaceAll("-", "")
+          : "";
+      const masterplanOriginalKey = resolvedOriginalToken
+        ? `projects/${projectId}/mapper/masterplanOriginal/${resolvedOriginalToken}`
+        : "";
       const writes: Promise<unknown>[] = [
         env.BUCKET.put(objectKey, file.stream(), {
           httpMetadata: { contentType: file.type || "application/octet-stream" },
+          customMetadata: { masterplanOriginalKey },
         }),
       ];
-      if (originalFile instanceof File) {
+      if (originalFile instanceof File && !usingMultipartOriginal) {
         writes.push(
-          env.BUCKET.put(`projects/${projectId}/mapper/masterplanOriginal`, originalFile.stream(), {
+          env.BUCKET.put(masterplanOriginalKey, originalFile.stream(), {
             httpMetadata: { contentType: originalFile.type || "application/octet-stream" },
           }),
         );
@@ -861,21 +872,20 @@ export async function POST(request: Request) {
         writeSetting(projectId, "mapHeight", String(height), now),
         writeSetting(projectId, "masterplanOriginalWidth", String(originalWidth || width), now),
         writeSetting(projectId, "masterplanOriginalHeight", String(originalHeight || height), now),
-        ...(usingMultipartOriginal
+        ...(resolvedOriginalToken
           ? [
               writeSetting(
                 projectId,
                 "masterplanOriginalObjectToken",
-                originalObjectToken,
+                resolvedOriginalToken,
                 now,
               ),
             ]
           : []),
       ]);
 
-      // Legacy uploader wrote the source at a stable key. If it is ever used again,
-      // clear the versioned-original pointer so downloads keep resolving correctly.
-      if (originalFile instanceof File && !usingMultipartOriginal) {
+      // Source-less legacy replacements must not retain a different image's token.
+      if (!resolvedOriginalToken) {
         await deleteSettings(projectId, ["masterplanOriginalObjectToken"]);
       }
 

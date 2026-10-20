@@ -60,10 +60,10 @@ test("30-100 MB originals upload in bounded and exact-size-verified R2 multipart
 test("mapper loads light preview first then promotes decoded HD with retry", () => {
   assert.match(mapper, /masterplanAssetUrl\("preview"/);
   assert.match(mapper, /preloadHdMasterplan/);
-  assert.match(mapper, /Light preview ready · HD precision masterplan/);
+  assert.match(mapper, /Preview ready · Original masterplan/);
   assert.match(mapper, /Retry masterplan/);
   assert.match(mapper, /masterplanVersion/);
-  assert.match(mapper, /imageQuality !== "hd"/);
+  assert.match(mapper, /imageQuality === "preview"/);
 });
 
 test("mapped projects reject aspect-changing masterplan replacements", () => {

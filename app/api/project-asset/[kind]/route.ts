@@ -1,7 +1,11 @@
 import { env } from "cloudflare:workers";
 import { getAdminSession } from "@/modules/auth";
 import { publicProjectId } from "@/modules/projects";
-import { publishedAssetKey } from "@/modules/public-publish-snapshot";
+import {
+  compatiblePublishedMasterplanOriginalKey,
+  currentMasterplanOriginalKey,
+  publishedAssetKey,
+} from "@/modules/public-publish-snapshot";
 import {
   publicSiteEnabled,
   publicSiteUnavailableResponse,
@@ -42,7 +46,8 @@ async function authorizedAssetAccess(request: Request, kind: string) {
     PUBLIC_KINDS.has(kind) &&
     (url.searchParams.get("public") === "1" ||
       variant === "public" ||
-      variant === "public-canonical");
+      variant === "public-canonical" ||
+      variant === "original");
 
   // Mapper preview requests are authenticated admin requests even when they ask
   // for optimized public masterplan bytes. Resolve preview before public routing
@@ -135,9 +140,11 @@ export async function GET(
   const authorizedPreview = previewRequest && mode === "admin";
   const variant = requestUrl.searchParams.get("variant") || "";
   const publicVariant =
-    variant === "public" || variant === "public-canonical";
+    variant === "public" || variant === "public-canonical" || variant === "original";
   const wantsPublicMasterplan =
     kind === "masterplan" && variant === "public";
+  const wantsOriginalMasterplan =
+    kind === "masterplan" && variant === "original";
 
   // Mapper/admin requests keep reading the editable canonical objects. Customer
   // requests read immutable bytes captured for the current publishVersion.
@@ -199,6 +206,24 @@ export async function GET(
     }
   }
 
+  if (wantsOriginalMasterplan && shouldServePublished) {
+    if (publishVersion === null) return new Response("Not found", { status: 404 });
+    // A page can remain open while another version is published. Do not put new
+    // image pixels underneath that page's older plot polygons or cache them at an
+    // old immutable URL. Its already loaded preview remains usable.
+    if (requestedAssetVersion && requestedAssetVersion !== String(publishVersion)) {
+      return new Response("Published masterplan version changed", {
+        status: 409,
+        headers: { "cache-control": "no-store" },
+      });
+    }
+    objectKey = publishedAssetKey(projectId, publishVersion, "masterplanOriginal");
+  } else if (wantsOriginalMasterplan && mode === "admin" && session?.role === "super_admin") {
+    const canonical = await env.BUCKET.head(`projects/${projectId}/mapper/masterplan`);
+    const originalKey = await currentMasterplanOriginalKey(projectId, canonical);
+    if (originalKey) objectKey = originalKey;
+  }
+
   let object = await env.BUCKET.get(objectKey);
   let servedPublishedSnapshot = Boolean(object && publishVersion !== null);
   let servedMasterplanSource =
@@ -208,51 +233,76 @@ export async function GET(
         : "published-canonical"
       : objectKind;
 
-  // Versioned share-card URLs are the public immutable contract. Older projects
-  // may not have the versioned object yet; canonical fallback is safe because
-  // share-image replacement freezes the currently published version first.
-  if (!object && kind === "shareCard" && validShareVersion) {
-    object = await env.BUCKET.get(`projects/${projectId}/share/card`);
-  }
-
-  if (!object && publishVersion !== null && wantsPublicMasterplan) {
-    object = await env.BUCKET.get(
-      publishedAssetKey(projectId, publishVersion, "masterplan"),
-    );
-    if (object) {
-      servedPublishedSnapshot = true;
-      servedMasterplanSource = "published-canonical-fallback";
+  if (wantsOriginalMasterplan) {
+    servedMasterplanSource = shouldServePublished ? "published-original" : "canonical-original";
+    if (!object && shouldServePublished && publishVersion !== null) {
+      const compatibleKey = await compatiblePublishedMasterplanOriginalKey(projectId, publishVersion);
+      if (compatibleKey) {
+        object = await env.BUCKET.get(compatibleKey);
+        servedPublishedSnapshot = false;
+        servedMasterplanSource = "published-original-compatible";
+      }
+    }
+    if (!object || (mode === "admin" && objectKey === `projects/${projectId}/mapper/masterplan`)) {
+      object = await env.BUCKET.get(
+        shouldServePublished && publishVersion !== null
+          ? publishedAssetKey(projectId, publishVersion, "masterplan")
+          : `projects/${projectId}/mapper/masterplan`,
+      );
+      servedPublishedSnapshot = Boolean(object && shouldServePublished);
+      servedMasterplanSource = shouldServePublished
+        ? "published-canonical-fallback"
+        : "canonical-fallback";
     }
   }
 
-  // Backward compatibility for projects published before versioned R2 snapshots
-  // existed. The next asset edit freezes this canonical object before replacing it.
-  if (!object && shouldServePublished) {
-    servedPublishedSnapshot = false;
-    const fallbackKind = wantsPublicMasterplan ? "masterplanPublic" : objectKind;
-    object = await env.BUCKET.get(
-      `projects/${projectId}/mapper/${fallbackKind}`,
-    );
-    if (!object && wantsPublicMasterplan) {
+  if (!wantsOriginalMasterplan) {
+    // Versioned share-card URLs are the public immutable contract. Older projects
+    // may not have the versioned object yet; canonical fallback is safe because
+    // share-image replacement freezes the currently published version first.
+    if (!object && kind === "shareCard" && validShareVersion) {
+      object = await env.BUCKET.get(`projects/${projectId}/share/card`);
+    }
+
+    if (!object && publishVersion !== null && wantsPublicMasterplan) {
+      object = await env.BUCKET.get(
+        publishedAssetKey(projectId, publishVersion, "masterplan"),
+      );
+      if (object) {
+        servedPublishedSnapshot = true;
+        servedMasterplanSource = "published-canonical-fallback";
+      }
+    }
+
+    // Backward compatibility for projects published before versioned R2 snapshots
+    // existed. The next asset edit freezes this canonical object before replacing it.
+    if (!object && shouldServePublished) {
+      servedPublishedSnapshot = false;
+      const fallbackKind = wantsPublicMasterplan ? "masterplanPublic" : objectKind;
+      object = await env.BUCKET.get(
+        `projects/${projectId}/mapper/${fallbackKind}`,
+      );
+      if (!object && wantsPublicMasterplan) {
+        object = await env.BUCKET.get(`projects/${projectId}/mapper/masterplan`);
+        servedMasterplanSource = "legacy-canonical-fallback";
+      } else if (kind === "masterplan") {
+        servedMasterplanSource = wantsPublicMasterplan
+          ? "legacy-public-fallback"
+          : "legacy-canonical-fallback";
+      }
+    } else if (!object && wantsPublicMasterplan) {
       object = await env.BUCKET.get(`projects/${projectId}/mapper/masterplan`);
-      servedMasterplanSource = "legacy-canonical-fallback";
-    } else if (kind === "masterplan") {
-      servedMasterplanSource = wantsPublicMasterplan
-        ? "legacy-public-fallback"
-        : "legacy-canonical-fallback";
+      servedMasterplanSource = "canonical-fallback";
+    } else if (!object && kind === "masterplan") {
+      object = await env.BUCKET.get(`projects/${projectId}/mapper/masterplanPublic`);
+      servedMasterplanSource = "public-fallback";
+    } else if (
+      !object &&
+      kind === "masterplanOriginal" &&
+      objectKey !== `projects/${projectId}/mapper/masterplanOriginal`
+    ) {
+      object = await env.BUCKET.get(`projects/${projectId}/mapper/masterplanOriginal`);
     }
-  } else if (!object && wantsPublicMasterplan) {
-    object = await env.BUCKET.get(`projects/${projectId}/mapper/masterplan`);
-    servedMasterplanSource = "canonical-fallback";
-  } else if (!object && kind === "masterplan") {
-    object = await env.BUCKET.get(`projects/${projectId}/mapper/masterplanPublic`);
-    servedMasterplanSource = "public-fallback";
-  } else if (
-    !object &&
-    kind === "masterplanOriginal" &&
-    objectKey !== `projects/${projectId}/mapper/masterplanOriginal`
-  ) {
-    object = await env.BUCKET.get(`projects/${projectId}/mapper/masterplanOriginal`);
   }
   if (!object) return new Response("Not found", { status: 404 });
 

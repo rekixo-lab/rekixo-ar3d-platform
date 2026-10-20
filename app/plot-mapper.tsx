@@ -267,8 +267,8 @@ const MAX_PUBLIC_DIMENSION = 2048;
 const MAX_PUBLIC_PIXELS = 3_000_000;
 const TARGET_PUBLIC_BYTES = 2 * 1024 * 1024;
 const MAX_ORIGINAL_MASTERPLAN_BYTES = 100 * 1024 * 1024;
-// Large source files are uploaded to R2 in multipart chunks. The mapper itself
-// never needs the 30–100 MB original after derivatives have been prepared.
+// Large source files upload to R2 in multipart chunks; the lightweight preview
+// is available before the original is decoded for precision mapping.
 const MASTERPLAN_ORIGINAL_CHUNK_BYTES = 8 * 1024 * 1024;
 // On constrained/mobile devices keep the working decode materially smaller.
 // Persistent polygons are normalized 0..1 so this never changes saved geometry.
@@ -1106,6 +1106,7 @@ export default function PlotMapper({
     if (completedProject) return "/project/masterplan.jpg";
     const params = new URLSearchParams({ projectId, preview: "1" });
     if (quality === "preview") params.set("variant", "public");
+    else params.set("variant", "original");
     if (version) params.set("v", version);
     if (retryToken) params.set("retry", retryToken);
     return `/api/project-asset/masterplan?${params.toString()}`;
@@ -1198,7 +1199,6 @@ export default function PlotMapper({
   const pointsRef = useRef<MapperPoint[]>([]);
   const frontFirstPendingRef = useRef(false);
   const loupeRef = useRef<HTMLDivElement | null>(null);
-  const metadataRepairRef = useRef(false);
   const hdPreloadRef = useRef<HTMLImageElement | null>(null);
 
 
@@ -1352,7 +1352,7 @@ export default function PlotMapper({
         const expected = storedWidth / storedHeight;
         const actual = preload.naturalWidth / Math.max(1, preload.naturalHeight);
         if (Math.abs(actual / expected - 1) > 0.015) {
-          setImageError("HD masterplan aspect ratio mismatch mila; safe preview hi use ho raha hai.");
+          setImageError("Original masterplan ka aspect ratio match nahi hua; safe preview use ho raha hai.");
           setImageLoadState("preview-ready");
           return;
         }
@@ -1362,7 +1362,7 @@ export default function PlotMapper({
     };
     preload.onerror = () => {
       if (hdPreloadRef.current !== preload) return;
-      setImageError("HD precision masterplan load nahi hua. Light preview available hai; Retry se dobara koshish karein.");
+      setImageError("Original masterplan load nahi hua. Preview available hai; Retry se dobara koshish karein.");
       setImageLoadState("preview-ready");
     };
     preload.src = hdUrl;
@@ -1447,44 +1447,8 @@ export default function PlotMapper({
     } else setCalibrationPairs([]);
   }
 
-  useEffect(() => {
-    if (
-      completedProject ||
-      !settingsReady ||
-      imageQuality !== "hd" ||
-      !naturalImageSize ||
-      metadataRepairRef.current
-    )
-      return;
-
-    const width = Math.round(naturalImageSize.width);
-    const height = Math.round(naturalImageSize.height);
-    if (!(width >= 100 && height >= 100 && width <= 10000 && height <= 10000)) return;
-
-    const storedWidth = Number(settings.mapWidth);
-    const storedHeight = Number(settings.mapHeight);
-    if (storedWidth === width && storedHeight === height) return;
-
-    metadataRepairRef.current = true;
-    persistMapperSettings({ mapWidth: String(width), mapHeight: String(height) })
-      .then(() => notify(`Masterplan dimensions auto-verified: ${width} × ${height}`))
-      .catch((error) => {
-        metadataRepairRef.current = false;
-        notify(
-          error instanceof Error
-            ? error.message
-            : "Masterplan dimensions auto-repair nahi hui",
-        );
-      });
-  }, [
-    completedProject,
-    settingsReady,
-    imageQuality,
-    naturalImageSize,
-    settings.mapWidth,
-    settings.mapHeight,
-    projectId,
-  ]);
+  // Raster resolution is independent of the saved mapping/calibration plane.
+  // Merely viewing the original must never rewrite mapWidth/mapHeight.
 
   // Rotation is presentation metadata only. Persisted polygon coordinates are
   // never rewritten when the shared Super Admin/public angle changes.
@@ -5109,7 +5073,7 @@ export default function PlotMapper({
           )}
           {imageReady && imageLoadState === "hd-loading" && (
             <div className="mapper-loading">
-              Light preview ready · HD precision masterplan background में load हो रहा है…
+              Preview ready · Original masterplan background में load हो रहा है…
             </div>
           )}
           {imageError && (
@@ -5179,7 +5143,7 @@ export default function PlotMapper({
                     );
                     setImageQuality("preview");
                     setImageLoadState("preview-loading");
-                    setImageError("HD masterplan decode fail hua; light preview par fallback kiya gaya.");
+                    setImageError("Original masterplan decode nahi hua; preview par fallback kiya gaya.");
                     setImageUrl(
                       masterplanAssetUrl("preview", version, String(Date.now())),
                     );

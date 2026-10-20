@@ -950,6 +950,7 @@ export async function buildProjectAssetExport(
     for (const publishedAsset of [
       { id: "published-masterplan", kind: "masterplan", label: "Published masterplan", fallback: "webp" },
       { id: "published-masterplan-public", kind: "masterplanPublic", label: "Published public masterplan", fallback: "webp" },
+      { id: "published-masterplan-original", kind: "masterplanOriginal", label: "Published original masterplan", fallback: "png" },
       { id: "published-logo", kind: "logo", label: "Published logo", fallback: "png" },
     ]) {
       const key = `${publishedPrefix}${publishedAsset.kind}`;
