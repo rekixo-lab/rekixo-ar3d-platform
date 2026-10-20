@@ -1692,7 +1692,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   function configuredFocusScale(focus){
     // Desktop contain-fit leaves no room to pan; on some mobile aspect ratios
     // cover-fit also clips only one axis. Use the minimum safe presentation
-    // zoom to center the selected normalized point without moving polygons.
+    // zoom to center the selected focus point without modifying the map.
     const size=displaySize();
     const fw=(viewportWidth||viewport.clientWidth)/Math.max(1,size.w);
     const fh=(viewportHeight||viewport.clientHeight)/Math.max(1,size.h);
