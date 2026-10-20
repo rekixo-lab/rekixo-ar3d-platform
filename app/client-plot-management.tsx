@@ -234,8 +234,19 @@ export default function ClientPlotManagement({
               <dl className="client-booking-value client-booking-amount"><dt>Booking amount</dt><dd>{money(details.bookingAmountPaise)}</dd></dl>
               <dl className="client-booking-value client-booking-broker"><dt>Broker</dt><dd>{details.brokerName || "—"}</dd></dl>
               <select className={`status-select client-booking-status ${plot.status}`} aria-label={`${plot.id} status`} value={plot.status} disabled={statusBusy === plot.id} onChange={(event) => onStatusChange(plot, event.target.value)}><option value="available">Available</option><option value="booked">Booked</option><option value="sold">Sold</option></select>
+              {hasDetails && (
+                <div className="client-booking-mobile-meta" aria-label={`Booking summary for Plot ${plot.id}`}>
+                  <span className="client-booking-mobile-owner" title={details.ownerName || "Owner not set"}>{details.ownerName || "Owner not set"}</span>
+                  <span className="client-booking-mobile-amount">{money(details.bookingAmountPaise)}</span>
+                  {details.brokerName && <small title={details.brokerName}>Broker: {details.brokerName}</small>}
+                </div>
+              )}
               {!hasDetails && <span className="client-booking-empty-note">No booking details</span>}
-              <button type="button" className="client-booking-edit" aria-label={`${hasDetails ? "Edit" : "Add"} details for Plot ${plot.id}`} aria-expanded={open} disabled={saving} onClick={() => openEditor(plot)}>{open ? <ChevronUp size={15} /> : hasDetails ? <Pencil size={15} /> : <Plus size={15} />}<span>{open ? "Editing" : hasDetails ? "Edit details" : "Add details"}</span></button>
+              <button type="button" className="client-booking-edit" aria-label={open ? `Close booking editor for Plot ${plot.id}` : `${hasDetails ? "Edit" : "Add"} details for Plot ${plot.id}`} aria-expanded={open} disabled={saving} onClick={() => openEditor(plot)}>
+                {open ? <ChevronUp size={15} /> : hasDetails ? <Pencil size={15} /> : <Plus size={15} />}
+                <span className="client-booking-edit-desktop">{open ? "Editing" : hasDetails ? "Edit details" : "Add details"}</span>
+                <span className="client-booking-edit-mobile" aria-hidden="true">{open ? "Close" : hasDetails ? "Edit" : "Add"}</span>
+              </button>
             </div>
             {open && renderEditor()}
           </article>

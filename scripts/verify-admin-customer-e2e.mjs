@@ -435,14 +435,14 @@ async function clientDetailsJourney(browser) {
   assert.equal(initial.details.bookingAmountPaise, 12345678, "decimal rupees preserve paise exactly");
   assert.equal(initial.details.ownerName, ownerName, "Unicode owner saved");
   assert.equal(initial.details.brokerName, brokerName, "Unicode broker saved");
-  await row.getByText(ownerName, { exact: true }).waitFor();
+  await row.locator(".client-booking-owner dd").getByText(ownerName, { exact: true }).waitFor();
   assert.equal(await row.locator("private").count(), 0, "owner content remains text, not HTML");
   await page.screenshot({ path: path.join(artifactDir, "client-details-desktop.png"), fullPage: true });
 
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Plots", exact: true }).click();
-  await row.getByText(ownerName, { exact: true }).waitFor();
-  await row.getByText(brokerName, { exact: true }).waitFor();
+  await row.locator(".client-booking-owner dd").getByText(ownerName, { exact: true }).waitFor();
+  await row.locator(".client-booking-broker dd").getByText(brokerName, { exact: true }).waitFor();
   await edit();
   assert.equal(await form.getByLabel("Booking amount", { exact: true }).inputValue(), "123456.78");
   await form.getByLabel("Booking amount", { exact: true }).fill("0");
@@ -559,10 +559,31 @@ async function clientDetailsJourney(browser) {
     await mobilePage.goto(`${base}/projects/${projectSlug}/admin`, { waitUntil: "networkidle" });
     await mobilePage.getByRole("button", { name: "Plots", exact: true }).click();
     const mobileRow = mobilePage.getByRole("article", { name: "Plot P-1", exact: true });
-    await mobileRow.getByText(ownerName, { exact: true }).waitFor();
+    await mobileRow.locator(".client-booking-mobile-owner").getByText(ownerName, { exact: true }).waitFor();
     assert.equal(await mobilePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, `${width}px page has no horizontal overflow`);
     const cardBox = await mobileRow.boundingBox();
-    assert.ok(cardBox && cardBox.height < 270, `${width}px saved details stay compact`);
+    assert.ok(cardBox && cardBox.height < 165, `${width}px saved details fit within a compact two-row card`);
+    const compact = await mobileRow.evaluate((card) => {
+      const meta = card.querySelector(".client-booking-mobile-meta");
+      const desktop = card.querySelector(".client-booking-owner");
+      const action = card.querySelector(".client-booking-edit");
+      const area = card.querySelector(".client-booking-area");
+      const status = card.querySelector(".client-booking-status");
+      return {
+        metaVisible: meta && getComputedStyle(meta).display !== "none",
+        desktopHidden: desktop && getComputedStyle(desktop).display === "none",
+        actionHeight: action?.getBoundingClientRect().height,
+        actionWidth: action?.getBoundingClientRect().width,
+        areaOverflow: area && area.scrollWidth > area.clientWidth,
+        statusHeight: status?.getBoundingClientRect().height,
+      };
+    });
+    assert.equal(Boolean(compact.metaVisible && compact.desktopHidden), true, "phone shows only compact detail summary");
+    assert.ok(compact.actionHeight >= 44 && compact.actionWidth < 130, "mobile Edit remains easy to tap without wasting width");
+    assert.ok(compact.statusHeight >= 44, "mobile status dropdown stays touch accessible");
+    const emptyRow = mobilePage.getByRole("article", { name: "Plot P-2", exact: true });
+    const emptyAction = await emptyRow.getByRole("button", { name: "Add details for Plot P-2" }).boundingBox();
+    assert.ok(emptyAction && emptyAction.height >= 44 && emptyAction.width < 130, "Available plot uses compact Add action");
     await mobileRow.getByRole("button", { name: "Edit details for Plot P-1" }).click();
     const mobileForm = mobilePage.getByRole("form", { name: "Booking details for Plot P-1", exact: true });
     await mobileForm.getByLabel("Booking amount", { exact: true }).waitFor();
