@@ -1204,6 +1204,7 @@ async function rekixoFetchPublicData(){
   try{
     const preview=REKIXO_PARAMS.get('preview')==='1';
     const structuralParams=new URLSearchParams(REKIXO_FORWARD);
+    if(!preview&&REKIXO_PARAMS.get('dataRevision'))structuralParams.set('dataRevision',REKIXO_PARAMS.get('dataRevision'));
     if(!preview)structuralParams.set('view','structure');
     const structuralQuery=structuralParams.toString()?'?'+structuralParams.toString():'';
     const livePromise=preview
