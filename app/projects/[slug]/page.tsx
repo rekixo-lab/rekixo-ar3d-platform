@@ -207,14 +207,15 @@ export default async function SharedProjectPage({
   const published = await env.DB.prepare(
     `SELECT
        p.publish_version AS publishVersion,
-       s.publish_version AS snapshotVersion
+       s.publish_version AS snapshotVersion,
+       (SELECT value FROM published_settings WHERE project_id=p.id AND key='publicDataRevision' LIMIT 1) AS dataRevision
      FROM projects p
      LEFT JOIN project_public_snapshots s ON s.project_id=p.id
      WHERE p.id=?
      LIMIT 1`,
   )
     .bind(project.id)
-    .first<{ publishVersion: number; snapshotVersion: number | null }>();
+    .first<{ publishVersion: number; snapshotVersion: number | null; dataRevision: string | null }>();
 
   const snapshotReady =
     published?.snapshotVersion != null &&
@@ -253,7 +254,7 @@ export default async function SharedProjectPage({
     <main style={{ position: "fixed", inset: 0, background: "#050914" }}>
       <iframe
         title={`${project.name} website`}
-        src={`/__rekixo/project/?projectSlug=${encodeURIComponent(project.slug)}&pv=${encodeURIComponent(String(published?.publishVersion || 0))}&v=69`}
+        src={`/__rekixo/project/?projectSlug=${encodeURIComponent(project.slug)}&pv=${encodeURIComponent(String(published?.publishVersion || 0))}&v=69${published?.dataRevision ? `&dataRevision=${encodeURIComponent(published.dataRevision)}` : ""}`}
         loading="eager"
         style={{ width: "100%", height: "100%", border: 0, display: "block" }}
       />
