@@ -94,21 +94,6 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Audit recoverable Talib published polygons (read only)
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT p.id,p.publish_version AS version,(SELECT COUNT(*) FROM plots d WHERE d.project_id=p.id AND d.inventory_active=1) AS draftCount,(SELECT COUNT(*) FROM plots d WHERE d.project_id=p.id AND d.inventory_active=1 AND TRIM(COALESCE(d.polygon,''))<>'') AS draftMapped,(SELECT COUNT(*) FROM published_plots q WHERE q.project_id=p.id) AS publicCount,(SELECT COUNT(*) FROM published_plots q WHERE q.project_id=p.id AND TRIM(COALESCE(q.polygon,''))<>'' AND json_valid(q.polygon) AND json_array_length(q.polygon)>=3) AS publicMapped,(SELECT value FROM settings s WHERE s.project_id=p.id AND s.key='mapWidth') AS draftWidth,(SELECT value FROM settings s WHERE s.project_id=p.id AND s.key='mapHeight') AS draftHeight,(SELECT value FROM settings s WHERE s.project_id=p.id AND s.key='publicRotation') AS draftRotation,(SELECT value FROM published_settings s WHERE s.project_id=p.id AND s.key='mapWidth') AS publicWidth,(SELECT value FROM published_settings s WHERE s.project_id=p.id AND s.key='mapHeight') AS publicHeight,(SELECT value FROM published_settings s WHERE s.project_id=p.id AND s.key='publicRotation') AS publicRotation,(SELECT value FROM published_settings s WHERE s.project_id=p.id AND s.key='masterplanName') AS publicImage FROM projects p WHERE p.id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2';" > /tmp/talib-recovery-audit.json
-          node --input-type=module - /tmp/talib-recovery-audit.json <<'NODE'
-          import fs from 'node:fs';
-          const input=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
-          const results=input.flatMap(r=>r.results||[]);
-          for(const row of results)console.log('TALIB_RECOVERY_AUDIT '+JSON.stringify(row));
-          NODE
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
       # Additive migrations run before the new V5 Workers. Existing legacy Worker
       # remains compatible while the columns/table are being added.
       - name: Apply D1 migrations
@@ -136,46 +121,6 @@ jobs:
           npx wrangler r2 object get 'tiyansh-gallery-production/projects/e94cec2c-e3f7-4a13-aa75-5ec4167baaf2/mapper/plotSheet' --remote --file=/tmp/talib-36-readback.csv
           npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT id,sqft,status,polygon,inventory_active AS active FROM plots WHERE project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' ORDER BY CAST(id AS INTEGER);" > /tmp/talib-after.json
           node scripts/talib-37-to-36-csv.mjs verify /tmp/talib-after.json /tmp/talib-36-readback.csv
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-      # Restores only Talib draft mapper geometry, from its immutable 37-plot
-      # published snapshot. Does NOT publish or touch customer live polygons.
-      # Re-runs are safe: skip on existing 36 restored polygons.
-      - name: Recover Talib 36 draft mapper polygons from published backup
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT (SELECT COUNT(*) FROM plots WHERE project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' AND inventory_active=1) AS total,(SELECT COUNT(*) FROM plots WHERE project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' AND inventory_active=1 AND TRIM(COALESCE(polygon,''))<>'') AS mapped,(SELECT value FROM settings WHERE project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' AND key='mapperPolygonRecoverySource') AS restored;" > /tmp/talib-restore-status.json
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          const json=JSON.parse(fs.readFileSync('/tmp/talib-restore-status.json','utf8'));
-          const row=json.flatMap(x=>x.results||[])[0];
-          if(!row || Number(row.total)!==36)throw Error('Talib inventory not 36; recovery halted');
-          if(Number(row.mapped)===0 && !row.restored){
-            fs.writeFileSync('/tmp/talib-restore-needed','true');
-            console.log('TALIB_MAPPER_RESTORE: 36 empty polygons; guarded restore eligible');
-          }else if(Number(row.mapped)===36 && row.restored==='published-v2-37-to-36-editor-only-20261022'){
-            fs.writeFileSync('/tmp/talib-restore-needed','false');
-            console.log('TALIB_MAPPER_RESTORE: existing restored 36; idempotent skip');
-          }else{
-            throw Error('Talib has partially modified mapper geometry or uncertain provenance; refusing overwrite');
-          }
-          NODE
-          if [[ "$(cat /tmp/talib-restore-needed)" == true ]]; then
-            npx wrangler d1 execute tiyansh-production --remote --file=scripts/sql/restore-talib-published-polygons-to-draft-once.sql
-          fi
-          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT (SELECT COUNT(*) FROM plots WHERE project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' AND inventory_active=1) AS draftPlots,(SELECT COUNT(*) FROM plots WHERE project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' AND inventory_active=1 AND TRIM(COALESCE(polygon,''))<>'' AND json_valid(polygon) AND json_array_length(polygon)>=3) AS restoredPolygons,(SELECT COUNT(*) FROM published_plots WHERE project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2') AS livePlots,(SELECT value FROM settings WHERE project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' AND key='mapperPolygonRecoverySource') AS provenance;" > /tmp/talib-restore-verified.json
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          const json=JSON.parse(fs.readFileSync('/tmp/talib-restore-verified.json','utf8'));
-          const row=json.flatMap(x=>x.results||[])[0];
-          if(!row || Number(row.draftPlots)!==36 || Number(row.restoredPolygons)!==36
-            || Number(row.livePlots)!==37 || row.provenance!=='published-v2-37-to-36-editor-only-20261022')
-            throw Error('Talib D1 recovery verification failed');
-          console.log('TALIB_MAPPER_RECOVERY_VERIFIED: draft 36/36 mapped, published 37 unchanged, source provenance verified');
-          NODE
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
