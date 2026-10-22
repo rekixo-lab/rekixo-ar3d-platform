@@ -14,7 +14,7 @@ const [dashboard,dataApi,pricing,pricingApi,manager,users,css]=await Promise.all
 ]);
 
 test("Client Admin plot inventory is server-paged and searchable rather than fully downloaded",()=>{
-  assert.match(dashboard,/PLOT_PAGE_SIZE=100/);
+  assert.match(dashboard,/PLOT_PAGE_SIZE=250/);
   assert.match(dashboard,/section:"plots"/);
   assert.match(dashboard,/offset:String\(plotPage\*PLOT_PAGE_SIZE\)/);
   assert.match(dashboard,/params\.set\("q",plotSearch\.trim\(\)\)/);
@@ -24,13 +24,13 @@ test("Client Admin plot inventory is server-paged and searchable rather than ful
 
   assert.match(dataApi,/section === "plots"/);
   assert.match(dataApi,/\.limit\(limit\)\.offset\(offset\)/);
-  assert.match(dataApi,/SELECT COUNT\(\*\) AS total FROM plots WHERE project_id=\? AND id LIKE \?/);
+  assert.match(dataApi,/SELECT COUNT\(\*\) AS total FROM plots WHERE project_id=\? AND inventory_active=1 AND id LIKE \?/);
   assert.match(dataApi,/GROUP BY status/);
   assert.match(css,/REKIXO_ADMIN_LIST_PAGER_V1/);
 });
 
 test("client pricing pages joined inventory and pricing on the server",()=>{
-  assert.match(pricing,/PRICING_PAGE_SIZE = 100/);
+  assert.match(pricing,/PRICING_PAGE_SIZE = 250/);
   assert.match(pricing,/offset: String\(page \* PRICING_PAGE_SIZE\)/);
   assert.match(pricing,/params\.set\("q", query\.trim\(\)\)/);
   assert.match(pricing,/plots\.map/);

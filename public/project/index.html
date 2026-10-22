@@ -1848,7 +1848,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     const poly=document.createElementNS('http://www.w3.org/2000/svg',p.path?'path':'polygon');
     if(p.path) poly.setAttribute('d',p.path); else poly.setAttribute('points',polyPoints(p));
     poly.setAttribute('class','plot'); poly.dataset.plotId=p.id; poly.dataset.status=plotStatus(p);
-    poly.setAttribute('tabindex','0'); poly.setAttribute('role','button'); poly.setAttribute('aria-label',`Plot ${p.id}`);
+    poly.setAttribute('tabindex','0'); poly.setAttribute('role','button'); poly.setAttribute('aria-label',` ${/^[BC][0-9]+$/i.test(String(p.id)) ? p.id : 'Plot '+p.id}`);
     poly.addEventListener('click',e=>{
       // Native mouse click fallback. Touch is handled once, centrally, on pointer-up.
       if(e.detail !== 0 && coarseMQ.matches) return;
@@ -2218,7 +2218,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     const st=plotStatus(p),statusLabel=st.charAt(0).toUpperCase()+st.slice(1);
     drawer.dataset.status=st;
     const chip=q('#plotStatusChip');if(chip){chip.textContent=statusLabel.toUpperCase();chip.className='chip '+st}
-    q('#plotTitle').textContent='Plot #'+p.id;
+    q('#plotTitle').textContent=/^[BC][0-9]+$/i.test(String(p.id)) ? String(p.id) : 'Plot #'+p.id;
     q('#sqm').textContent=Number(p.sqm).toLocaleString('en-IN')+' Sq.M';
     q('#sqft').textContent=Number(p.sqft).toLocaleString('en-IN')+' Sq.Ft';
     q('#sqyd').textContent=Number(p.sqyd).toLocaleString('en-IN')+' Sq.Yd';
@@ -2429,7 +2429,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   q('#closeBtn').onclick=close; scrim.onclick=closeFromScrim;
   function call(){if(!CALL_PHONE)return toast('Contact number not configured');location.href='tel:+'+CALL_PHONE}
   q('#callTop').onclick=call;q('#callBtn').onclick=call;
-  function openWhatsApp(){if(!WHATSAPP_PHONE)return toast('WhatsApp number not configured');const place=PROJECT_LOCATION?`, ${PROJECT_LOCATION}`:'';const msg=selected?`Hello, I am interested in Plot ${selected.id} at ${PROJECT_NAME}${place}. Please share current availability, price and booking details.`:`Hello, I would like details about ${PROJECT_NAME}${place}.`;window.open('https://wa.me/'+WHATSAPP_PHONE+'?text='+encodeURIComponent(msg),'_blank','noopener,noreferrer')}
+  function openWhatsApp(){if(!WHATSAPP_PHONE)return toast('WhatsApp number not configured');const place=PROJECT_LOCATION?`, ${PROJECT_LOCATION}`:'';const msg=selected?`Hello, I am interested in ${/^[BC][0-9]+$/i.test(String(selected.id)) ? selected.id : 'Plot '+selected.id} at ${PROJECT_NAME}${place}. Please share current availability, price and booking details.`:`Hello, I would like details about ${PROJECT_NAME}${place}.`;window.open('https://wa.me/'+WHATSAPP_PHONE+'?text='+encodeURIComponent(msg),'_blank','noopener,noreferrer')}
   q('#waBtn').onclick=openWhatsApp;
   const waTop=q('#waTop');if(waTop)waTop.onclick=openWhatsApp;
 
@@ -2468,7 +2468,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   function addPlotPolygon(p){
     const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
     poly.setAttribute('points',polyPoints(p));poly.setAttribute('class','plot');poly.dataset.plotId=p.id;poly.dataset.status=plotStatus(p);
-    poly.setAttribute('tabindex','0');poly.setAttribute('role','button');poly.setAttribute('aria-label',`Plot ${p.id}`);
+    poly.setAttribute('tabindex','0');poly.setAttribute('role','button');poly.setAttribute('aria-label',` ${/^[BC][0-9]+$/i.test(String(p.id)) ? p.id : 'Plot '+p.id}`);
     poly.addEventListener('click',e=>{if(e.detail!==0&&coarseMQ.matches)return;e.stopPropagation();openPlot(p,false)});
     poly.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openPlot(p,false)}});
     svg.appendChild(poly);

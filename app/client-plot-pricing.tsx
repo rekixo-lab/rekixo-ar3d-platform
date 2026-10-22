@@ -1,4 +1,5 @@
 "use client";
+import { displayPlotId } from "./plot-display-id";
 
 import { Check, IndianRupee, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -29,7 +30,7 @@ type PricingResponse = {
   error?: string;
 };
 
-const PRICING_PAGE_SIZE = 100;
+const PRICING_PAGE_SIZE = 250;
 
 const UNIT_LABELS = {
   sqyd: "Sq. Yards",
@@ -422,7 +423,7 @@ export default function ClientPlotPricing({
             return (
               <div key={plot.id}>
                 <span>
-                  Plot {plot.id}
+                  {displayPlotId(plot.id)}
                   {pricingType === "rate"
                     ? ` · ${Number(plot[unit]).toLocaleString("en-IN")} ${UNIT_LABELS[unit]}`
                     : ""}

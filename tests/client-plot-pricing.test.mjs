@@ -38,7 +38,7 @@ test("client pricing endpoint is session-project scoped and client-admin only", 
   assert.match(clientApi, /const projectId = session\.projectId/);
   assert.doesNotMatch(clientApi, /body\?\.projectId|body\.projectId/);
   assert.match(clientApi, /sameOrigin\(request\)/);
-  assert.match(clientApi, /SELECT id FROM plots WHERE project_id=\? AND id IN/);
+  assert.match(clientApi, /SELECT id FROM plots WHERE project_id=\? AND inventory_active=1 AND id IN/);
   assert.match(clientApi, /Unknown plot selection/);
 });
 
@@ -72,7 +72,7 @@ test("client dashboard keeps full plot editor Super Admin-only and mounts isolat
 
 test("client pricing UI supports single and bulk selection, rate units, fixed price and automatic base preview", () => {
   assert.match(clientUi, /Select page/);
-  assert.match(clientUi, /PRICING_PAGE_SIZE = 100/);
+  assert.match(clientUi, /PRICING_PAGE_SIZE = 250/);
   assert.match(clientUi, /plots\.map/);
   assert.match(clientUi, /offset: String\(page \* PRICING_PAGE_SIZE\)/);
   assert.match(clientUi, /params\.set\("q", query\.trim\(\)\)/);

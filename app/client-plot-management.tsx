@@ -1,4 +1,5 @@
 "use client";
+import { displayPlotId } from "./plot-display-id";
 
 import { Check, ChevronUp, LockKeyhole, Pencil, Plus } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
@@ -177,7 +178,7 @@ export default function ClientPlotManagement({
         throw new Error("Saved details verify nahi hui. Aapki changes yahin hain; dobara try karein.");
       }
       onSaved(editor.plotId, data.details);
-      notify(`Plot ${editor.plotId} booking details saved`);
+      notify(`${displayPlotId(editor.plotId)} booking details saved`);
       setEditor(null);
       setConflict(null);
     } catch (failure) {
@@ -202,8 +203,8 @@ export default function ClientPlotManagement({
     if (!editor) return null;
     const errorId = `${formId}-error`;
     return (
-      <form className="client-booking-editor" aria-label={`Booking details for Plot ${editor.plotId}`} onSubmit={saveDetails}>
-        <div className="client-booking-editor-title"><Pencil size={15} aria-hidden="true" />Booking details · Plot {editor.plotId}</div>
+      <form className="client-booking-editor" aria-label={`Booking details for ${displayPlotId(editor.plotId)}`} onSubmit={saveDetails}>
+        <div className="client-booking-editor-title"><Pencil size={15} aria-hidden="true" />Booking details · {displayPlotId(editor.plotId)}</div>
         <div className="client-booking-fields">
           <label htmlFor={`${formId}-owner`}><span>Plot owner</span><input id={`${formId}-owner`} ref={ownerInput} value={editor.draft.ownerName} onChange={(event) => changeDraft("ownerName", event.target.value)} maxLength={120} autoComplete="off" placeholder="Owner name" disabled={saving} /></label>
           <label htmlFor={`${formId}-amount`}><span>Booking amount</span><div className="client-booking-currency"><span aria-hidden="true">₹</span><input id={`${formId}-amount`} aria-label="Booking amount" aria-describedby={error ? errorId : undefined} type="text" inputMode="decimal" value={editor.draft.bookingAmount} onChange={(event) => changeDraft("bookingAmount", event.target.value)} maxLength={20} autoComplete="off" placeholder="50000.00" disabled={saving} /></div></label>
@@ -219,30 +220,30 @@ export default function ClientPlotManagement({
   const editorOffPage = editor && !plots.some((plot) => plot.id === editor.plotId);
   return (
     <div className="client-booking-list" aria-busy={loading}>
-      {editorOffPage && <div className="client-booking-pinned"><p>Plot {editor.plotId} ka open form — search ya page badalne par bhi aapki changes yahin hain.</p>{renderEditor()}</div>}
+      {editorOffPage && <div className="client-booking-pinned"><p>{displayPlotId(editor.plotId)} ka open form — search ya page badalne par bhi aapki changes yahin hain.</p>{renderEditor()}</div>}
       <div className="client-booking-column-head" aria-hidden="true"><span>Plot</span><span>Area</span><span>Plot owner</span><span>Booking amount</span><span>Broker</span><span>Status</span><span /></div>
       {!plots.length ? <div className="empty">{loading ? "Plots load ho rahe hain…" : "No matching plots found."}</div> : plots.map((plot) => {
         const details = canonicalPlotAdminDetails(plot.adminDetails);
         const hasDetails = Boolean(details.ownerName || details.brokerName || details.bookingAmountPaise !== null);
         const open = editor?.plotId === plot.id;
         return (
-          <article key={plot.id} className={`client-booking-plot${open ? " is-editing" : ""}${hasDetails ? " has-details" : ""}`} aria-label={`Plot ${plot.id}`}>
+          <article key={plot.id} className={`client-booking-plot${open ? " is-editing" : ""}${hasDetails ? " has-details" : ""}`} aria-label={`${displayPlotId(plot.id)}`}>
             <div className="client-booking-summary">
-              <b className="client-booking-number"><span>Plot </span>{plot.id}</b>
+              <b className="client-booking-number">{displayPlotId(plot.id)}</b>
               <div className="client-booking-area">{plot.sqft.toLocaleString("en-IN")}<small>sq.ft</small></div>
               <dl className="client-booking-value client-booking-owner"><dt>Plot owner</dt><dd>{details.ownerName || "—"}</dd></dl>
               <dl className="client-booking-value client-booking-amount"><dt>Booking amount</dt><dd>{money(details.bookingAmountPaise)}</dd></dl>
               <dl className="client-booking-value client-booking-broker"><dt>Broker</dt><dd>{details.brokerName || "—"}</dd></dl>
               <select className={`status-select client-booking-status ${plot.status}`} aria-label={`${plot.id} status`} value={plot.status} disabled={statusBusy === plot.id} onChange={(event) => onStatusChange(plot, event.target.value)}><option value="available">Available</option><option value="booked">Booked</option><option value="sold">Sold</option></select>
               {hasDetails && (
-                <div className="client-booking-mobile-meta" aria-label={`Booking summary for Plot ${plot.id}`}>
+                <div className="client-booking-mobile-meta" aria-label={`Booking summary for ${displayPlotId(plot.id)}`}>
                   <span className="client-booking-mobile-owner" title={details.ownerName || "Owner not set"}>{details.ownerName || "Owner not set"}</span>
                   <span className="client-booking-mobile-amount">{money(details.bookingAmountPaise)}</span>
                   {details.brokerName && <small title={details.brokerName}>Broker: {details.brokerName}</small>}
                 </div>
               )}
               {!hasDetails && <span className="client-booking-empty-note">No booking details</span>}
-              <button type="button" className="client-booking-edit" aria-label={open ? `Close booking editor for Plot ${plot.id}` : `${hasDetails ? "Edit" : "Add"} details for Plot ${plot.id}`} aria-expanded={open} disabled={saving} onClick={() => openEditor(plot)}>
+              <button type="button" className="client-booking-edit" aria-label={open ? `Close booking editor for ${displayPlotId(plot.id)}` : `${hasDetails ? "Edit" : "Add"} details for ${displayPlotId(plot.id)}`} aria-expanded={open} disabled={saving} onClick={() => openEditor(plot)}>
                 {open ? <ChevronUp size={15} /> : hasDetails ? <Pencil size={15} /> : <Plus size={15} />}
                 <span className="client-booking-edit-desktop">{open ? "Editing" : hasDetails ? "Edit details" : "Add details"}</span>
                 <span className="client-booking-edit-mobile" aria-hidden="true">{open ? "Close" : hasDetails ? "Edit" : "Add"}</span>

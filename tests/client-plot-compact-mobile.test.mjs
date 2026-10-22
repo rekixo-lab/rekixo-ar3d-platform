@@ -44,7 +44,7 @@ test("compact summary preserves full private booking detail fields and control h
   assert.match(tsx, /response\.status === 409/);
   assert.match(tsx, /Unsaved booking details discard/);
   assert.match(tsx, /className="client-booking-pinned"/);
-  assert.match(dashboard, /const PLOT_PAGE_SIZE=100;/);
+  assert.match(dashboard, /const PLOT_PAGE_SIZE=250;/);
 });
 
 test("mobile editor retains accessible phone-sized inputs and tap controls", () => {
@@ -55,5 +55,5 @@ test("mobile editor retains accessible phone-sized inputs and tap controls", () 
   assert.match(tsx, /className="client-booking-fields"/);
   assert.match(tsx, /className="client-booking-cancel"/);
   assert.match(tsx, /className="client-booking-save"/);
-  assert.match(tsx, /aria-label=\{open \? `Close booking editor for Plot/);
+  assert.match(tsx, /aria-label=\{open \? `Close booking editor for /);
 });

@@ -14,7 +14,7 @@ const genericDefaults={projectName:"New Project",brandName:"PROJECT",brandShort:
 type ProjectSettings=typeof genericDefaults&{logoName?:string;logoVersion?:string};
 const baseNavItems=[["overview",LayoutDashboard,"Overview"],["plots",MapIcon,"Plots"],["gallery",ImagePlus,"Gallery"],["settings",Settings,"Contact"]] as const;
 const clientSettingLabels=PROJECT_CONTACT_LABELS;
-const PLOT_PAGE_SIZE=100;
+const PLOT_PAGE_SIZE=250; // Keep 190 numbered + B/C Noorpur plots visible in one list.
 export default function AdminDashboard({user,signOut,projectId,publicSiteHref}:{user:{name:string;email:string;role:"super_admin"|"client_admin"};signOut:string;projectId:string;publicSiteHref?:string}){
  const initialDefaults=genericDefaults;
  const [tab,setTab]=useState("overview"),[plots,setPlots]=useState<Plot[]>([]),[selected,setSelected]=useState<Plot|null>(null),[gallery,setGallery]=useState<Gallery[]>([]),[settings,setSettings]=useState<ProjectSettings>(initialDefaults),[savedClientSettings,setSavedClientSettings]=useState<Record<string,string>>({}),[busy,setBusy]=useState(false),[statusBusy,setStatusBusy]=useState(""),[deleteBusy,setDeleteBusy]=useState(""),[toast,setToast]=useState(""),[uploadFiles,setUploadFiles]=useState<File[]>([]),[uploadPreviews,setUploadPreviews]=useState<string[]>([]),[uploadProgress,setUploadProgress]=useState<number|null>(null),[uploadCurrent,setUploadCurrent]=useState(0),[plotPage,setPlotPage]=useState(0),[plotTotal,setPlotTotal]=useState(0),[plotCounts,setPlotCounts]=useState({available:0,booked:0,sold:0}),[plotSearch,setPlotSearch]=useState(""),[plotLoading,setPlotLoading]=useState(false);
