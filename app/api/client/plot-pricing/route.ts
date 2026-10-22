@@ -123,11 +123,17 @@ export async function GET(request: Request) {
        LEFT JOIN plot_pricing pp
          ON pp.project_id=p.project_id AND pp.plot_id=p.id
        WHERE p.project_id=? AND p.inventory_active=1${filterSql}
-       ORDER BY p.id
+       ORDER BY
+         CASE WHEN p.id GLOB '[0-9]*' AND p.id NOT GLOB '*[^0-9]*' THEN 0
+           WHEN UPPER(SUBSTR(p.id,1,1)) GLOB '[A-Z]' AND SUBSTR(p.id,2) GLOB '[0-9]*' AND SUBSTR(p.id,2) NOT GLOB '*[^0-9]*' THEN 1 ELSE 2 END,
+         CASE WHEN p.id GLOB '[0-9]*' AND p.id NOT GLOB '*[^0-9]*' THEN CAST(p.id AS INTEGER) END,
+         CASE WHEN SUBSTR(p.id,2) GLOB '[0-9]*' AND SUBSTR(p.id,2) NOT GLOB '*[^0-9]*' THEN SUBSTR(p.id,1,1) COLLATE NOCASE END,
+         CASE WHEN SUBSTR(p.id,2) GLOB '[0-9]*' AND SUBSTR(p.id,2) NOT GLOB '*[^0-9]*' THEN CAST(SUBSTR(p.id,2) AS INTEGER) END,
+         p.id COLLATE NOCASE
        LIMIT ? OFFSET ?`,
     ).bind(...rowBindings).all<PricingPlotRow>(),
     env.DB.prepare(
-      `SELECT COUNT(*) AS total FROM plots p WHERE p.project_id=?${filterSql}`,
+      `SELECT COUNT(*) AS total FROM plots p WHERE p.project_id=? AND p.inventory_active=1${filterSql}`,
     ).bind(...countBindings).first<{ total: number }>(),
     env.DB.prepare(
       "SELECT COUNT(*) AS total FROM plot_pricing pp JOIN plots p ON p.project_id=pp.project_id AND p.id=pp.plot_id WHERE pp.project_id=? AND p.inventory_active=1",
