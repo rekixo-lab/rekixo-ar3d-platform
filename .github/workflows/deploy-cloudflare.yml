@@ -94,25 +94,6 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Read-only NOORPUR HILLS ESTATE inventory audit
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT p.id,p.name,p.slug,p.kind,p.status,p.public_status AS publicStatus,p.publish_version AS publishVersion,(SELECT COUNT(*) FROM plots v WHERE v.project_id=p.id) AS total,(SELECT COUNT(*) FROM plots v WHERE v.project_id=p.id AND v.inventory_active=1) AS active,(SELECT COUNT(*) FROM published_plots v WHERE v.project_id=p.id) AS publishedCount FROM projects p WHERE upper(p.name) LIKE '%NOORPUR%';" > /tmp/noorpur-project.json
-          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT p.id AS projectId,p.name AS projectName,v.id AS plotId,v.status,v.inventory_active AS active,CASE WHEN TRIM(COALESCE(v.polygon,''))<>'' THEN 1 ELSE 0 END AS draftPolygon,(SELECT COUNT(*) FROM published_plots q WHERE q.project_id=v.project_id AND q.id=v.id) AS publishedRow,(SELECT COUNT(*) FROM published_plots q WHERE q.project_id=v.project_id AND q.id=v.id AND TRIM(COALESCE(q.polygon,''))<>'') AS publishedPolygon,(SELECT COUNT(*) FROM plot_pricing k WHERE k.project_id=v.project_id AND k.plot_id=v.id) AS pricing,(SELECT COUNT(*) FROM plot_admin_details ad WHERE ad.project_id=v.project_id AND ad.plot_id=v.id AND (COALESCE(TRIM(ad.owner_name),'')<>'' OR ad.booking_amount_paise IS NOT NULL OR COALESCE(TRIM(ad.broker_name),'')<>'')) AS privateDetails FROM plots v JOIN projects p ON p.id=v.project_id WHERE upper(p.name) LIKE '%NOORPUR%' ORDER BY v.id COLLATE NOCASE;" > /tmp/noorpur-plots.json
-          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT p.id AS projectId,p.name AS projectName,q.id AS plotId,q.status,CASE WHEN TRIM(COALESCE(q.polygon,''))<>'' THEN 1 ELSE 0 END AS publishedPolygon FROM published_plots q JOIN projects p ON p.id=q.project_id WHERE upper(p.name) LIKE '%NOORPUR%' AND (UPPER(q.id) IN ('C6','C7') OR UPPER(q.id) LIKE 'B%' OR UPPER(q.id) LIKE 'C%') ORDER BY q.id COLLATE NOCASE;" > /tmp/noorpur-published.json
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          for(const key of ['project','plots','published']){
-            const json=JSON.parse(fs.readFileSync('/tmp/noorpur-'+key+'.json','utf8'));
-            const rows=json.flatMap(v=>v.results||[]);
-            console.log('NOORPUR_READ_ONLY_'+key.toUpperCase()+' '+JSON.stringify(rows));
-          }
-          NODE
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
       # Additive migrations run before the new V5 Workers. Existing legacy Worker
       # remains compatible while the columns/table are being added.
       - name: Apply D1 migrations
@@ -140,6 +121,93 @@ jobs:
           npx wrangler r2 object get 'tiyansh-gallery-production/projects/e94cec2c-e3f7-4a13-aa75-5ec4167baaf2/mapper/plotSheet' --remote --file=/tmp/talib-36-readback.csv
           npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT id,sqft,status,polygon,inventory_active AS active FROM plots WHERE project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' ORDER BY CAST(id AS INTEGER);" > /tmp/talib-after.json
           node scripts/talib-37-to-36-csv.mjs verify /tmp/talib-after.json /tmp/talib-36-readback.csv
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # Exact project-scoped structural publish (v12 to v13). All other live
+      # projects and old immutable v12 masterplan bytes remain unchanged.
+      - name: Prepare immutable Noorpur published asset snapshot for C6/C7 retirement
+        shell: bash
+        run: |
+          set -euo pipefail
+          ID=ca24581e-0dbc-41d7-964b-435c563534cd
+          B=tiyansh-gallery-production
+          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT p.publish_version AS version,(SELECT COUNT(*) FROM plots WHERE project_id=p.id AND inventory_active=1) AS draft,(SELECT COUNT(*) FROM published_plots WHERE project_id=p.id) AS published FROM projects p WHERE p.id='$ID' AND p.name='NOORPUR HILLS ESTATE' AND p.public_status='published';" > /tmp/noorpur-state.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const data=JSON.parse(fs.readFileSync('/tmp/noorpur-state.json','utf8'));
+          const row=data.flatMap(x=>x.results||[])[0];
+          if(!row)throw Error('Noorpur project not found');
+          if(Number(row.version)===13 && Number(row.draft)===209 && Number(row.published)===209){
+            fs.appendFileSync(process.env.GITHUB_ENV,'NOORPUR_MIGRATE=false\n');
+            console.log('NOORPUR_ALREADY_209: skip existing migration');
+          }else if(Number(row.version)===12 && Number(row.draft)===211 && Number(row.published)===211){
+            fs.appendFileSync(process.env.GITHUB_ENV,'NOORPUR_MIGRATE=true\n');
+            console.log('NOORPUR_PRECHECK_211: C6/C7 migration eligible');
+          }else throw Error('Unexpected Noorpur inventory or publish revision — refusing mutation');
+          NODE
+          if ! grep -qx 'NOORPUR_MIGRATE=true' "$GITHUB_ENV"; then exit 0; fi
+
+          # Preserve byte-for-byte copies of the currently published image,
+          # including optional original/brand assets. No image regeneration.
+          for kind in masterplan masterplanPublic masterplanOriginal logo; do
+            old="$B/projects/$ID/published/12/$kind"
+            new="$B/projects/$ID/published/13/$kind"
+            if npx wrangler r2 object get "$old" --remote --file="/tmp/noorpur-old-$kind" > /tmp/noorpur-get.log 2>&1; then
+              mime=$(file -b --mime-type "/tmp/noorpur-old-$kind")
+              npx wrangler r2 object put "$new" --remote --file="/tmp/noorpur-old-$kind" --content-type="$mime"
+              npx wrangler r2 object get "$new" --remote --file="/tmp/noorpur-verify-$kind"
+              cmp "/tmp/noorpur-old-$kind" "/tmp/noorpur-verify-$kind"
+              echo "NOORPUR_R2_ASSET_MIRRORED: $kind SHA256 $(sha256sum "/tmp/noorpur-old-$kind" | cut -d' ' -f1)"
+            elif [[ "$kind" == "masterplan" ]]; then
+              echo "Required published masterplan v12 missing — stopping"; cat /tmp/noorpur-get.log; exit 1
+            else
+              echo "NOORPUR_OPTIONAL_ASSET_ABSENT: $kind"
+            fi
+          done
+
+          # Original source CSV is optional (B/C may have been added in mapper);
+          # if present, back it up before removing C6/C7 from the sheet.
+          if npx wrangler r2 object get "$B/projects/$ID/mapper/plotSheet" --remote --file=/tmp/noorpur-old-source > /tmp/noorpur-source.log 2>&1; then
+            node scripts/noorpur-filter-plot-sheet.mjs /tmp/noorpur-old-source /tmp/noorpur-new-source
+            npx wrangler r2 object put "$B/projects/$ID/backups/plotSheet-before-c67-20261022" --remote --file=/tmp/noorpur-old-source --content-type='text/csv; charset=utf-8'
+          else
+            echo 'NOORPUR_SOURCE_CSV_NOT_FOUND: inventory removal still safe; archived D1 data remains authoritative'
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Remove Noorpur C6/C7 from draft and published inventories
+        if: env.NOORPUR_MIGRATE == 'true'
+        run: npx wrangler d1 execute tiyansh-production --remote --file=scripts/sql/noorpur-remove-c6-c7-published-once.sql
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Verify 209 Noorpur live polygons and update existing source CSV
+        if: env.NOORPUR_MIGRATE == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ID=ca24581e-0dbc-41d7-964b-435c563534cd
+          B=tiyansh-gallery-production
+          if [[ "${NOORPUR_SOURCE_HAS_C67:-false}" == true ]]; then
+            mime=$(file -b --mime-type /tmp/noorpur-new-source)
+            npx wrangler r2 object put "$B/projects/$ID/mapper/plotSheet" --remote --file=/tmp/noorpur-new-source --content-type="$mime"
+            npx wrangler r2 object get "$B/projects/$ID/mapper/plotSheet" --remote --file=/tmp/noorpur-source-readback
+            cmp /tmp/noorpur-new-source /tmp/noorpur-source-readback
+          fi
+          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT p.publish_version AS version,(SELECT COUNT(*) FROM plots WHERE project_id=p.id AND inventory_active=1) AS draft,(SELECT COUNT(*) FROM published_plots WHERE project_id=p.id) AS published,(SELECT COUNT(*) FROM plots WHERE project_id=p.id AND id IN ('C6','C7')) AS removedDraftPresent,(SELECT COUNT(*) FROM published_plots WHERE project_id=p.id AND id IN ('C6','C7')) AS removedPublishedPresent,(SELECT COUNT(*) FROM plots WHERE project_id=p.id AND id LIKE 'B%') AS bCount,(SELECT COUNT(*) FROM plots WHERE project_id=p.id AND id LIKE 'C%') AS cCount,(SELECT publish_version FROM project_public_snapshots WHERE project_id=p.id) AS snapshotVersion FROM projects p WHERE p.id='$ID';" > /tmp/noorpur-final.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const json=JSON.parse(fs.readFileSync('/tmp/noorpur-final.json','utf8'));
+          const r=json.flatMap(x=>x.results||[])[0];
+          if(!r||Number(r.version)!==13||Number(r.snapshotVersion)!==13||Number(r.draft)!==209||Number(r.published)!==209||Number(r.removedDraftPresent)!==0||Number(r.removedPublishedPresent)!==0||Number(r.bCount)!==14||Number(r.cCount)!==5)
+            throw Error('NOORPUR_209_PUBLISH_READBACK_FAILED');
+          console.log('NOORPUR_209_PUBLISH_VERIFIED: 209 draft + 209 published, B1-B14, C1-C5, no C6/C7, version 13');
+          NODE
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
