@@ -1,5 +1,5 @@
-import { displayPlotId } from "./plot-display-id";
 "use client";
+import { displayPlotId } from "./plot-display-id";
 
 import { Check, IndianRupee, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
