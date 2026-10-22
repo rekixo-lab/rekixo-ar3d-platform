@@ -76,6 +76,28 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      - name: Read-only Talib 37-to-36 inventory audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT p.id,p.name,p.slug,p.status,p.public_status AS publicStatus,p.publish_version AS publishVersion,(SELECT COUNT(*) FROM plots q WHERE q.project_id=p.id AND q.inventory_active=1) AS activePlots,(SELECT COUNT(*) FROM published_plots q WHERE q.project_id=p.id) AS publishedPlots,(SELECT COUNT(*) FROM plot_admin_details a WHERE a.project_id=p.id AND (COALESCE(TRIM(a.owner_name),'')<>'' OR a.booking_amount_paise IS NOT NULL OR COALESCE(TRIM(a.broker_name),'')<>'')) AS protectedDetails FROM projects p WHERE p.id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' AND p.slug='talib-nazami-alam-ploting-e94cec';" > /tmp/talib-project-audit.json
+          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT p.id,p.sqft,p.sqm,p.sqyd,p.dimensions,p.road,p.front,p.back,p.depth,p.depth2,p.dimension_unit AS dimensionUnit,p.front_label AS frontLabel,p.back_label AS backLabel,p.depth_label AS depthLabel,p.depth2_label AS depth2Label,p.side_dimensions AS sideDimensions,p.polygon,p.status,p.inventory_active AS active,(SELECT COUNT(*) FROM plot_admin_details a WHERE a.project_id=p.project_id AND a.plot_id=p.id AND (COALESCE(TRIM(a.owner_name),'')<>'' OR a.booking_amount_paise IS NOT NULL OR COALESCE(TRIM(a.broker_name),'')<>'')) AS hasProtectedDetails,(SELECT COUNT(*) FROM plot_pricing x WHERE x.project_id=p.project_id AND x.plot_id=p.id) AS hasPricing FROM plots p WHERE p.project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' AND CAST(p.id AS INTEGER) BETWEEN 30 AND 37 ORDER BY CAST(p.id AS INTEGER);" > /tmp/talib-plot-audit.json
+          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT key,value FROM settings WHERE project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' AND key IN ('masterplanName','mapWidth','mapHeight','plotSheetName') ORDER BY key;" > /tmp/talib-settings-audit.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const extract = name => {
+            const raw = JSON.parse(fs.readFileSync('/tmp/talib-' + name + '-audit.json','utf8'));
+            return raw.flatMap(x => Array.isArray(x?.results) ? x.results : []);
+          };
+          for (const name of ['project','plot','settings']) {
+            const rows = extract(name);
+            console.log('TALIB_READ_ONLY_AUDIT '+name.toUpperCase()+' '+JSON.stringify(rows));
+          }
+          NODE
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       # Additive migrations run before the new V5 Workers. Existing legacy Worker
       # remains compatible while the columns/table are being added.
       - name: Apply D1 migrations
