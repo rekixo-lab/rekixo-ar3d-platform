@@ -140,10 +140,10 @@ jobs:
           const row=data.flatMap(x=>x.results||[])[0];
           if(!row)throw Error('Noorpur project not found');
           console.log('NOORPUR_STAGE_READBACK '+JSON.stringify(row));
-          if(Number(row.version)===13 && Number(row.draft)===209 && Number(row.published)===209){
+          if(Number(row.version)===14 && Number(row.draft)===209 && Number(row.published)===209){
             fs.appendFileSync(process.env.GITHUB_ENV,'NOORPUR_MIGRATE=false\n');
             console.log('NOORPUR_ALREADY_209: skip existing migration');
-          }else if(Number(row.version)===12 && Number(row.draft)===211 && Number(row.published)===211){
+          }else if(Number(row.version)===13 && Number(row.draft)===211 && Number(row.published)===211){
             fs.appendFileSync(process.env.GITHUB_ENV,'NOORPUR_MIGRATE=true\n');
             console.log('NOORPUR_PRECHECK_211: C6/C7 migration eligible');
           }else throw Error('Unexpected Noorpur inventory or publish revision — refusing mutation');
@@ -153,8 +153,8 @@ jobs:
           # Preserve byte-for-byte copies of the currently published image,
           # including optional original/brand assets. No image regeneration.
           for kind in masterplan masterplanPublic masterplanOriginal logo; do
-            old="$B/projects/$ID/published/12/$kind"
-            new="$B/projects/$ID/published/13/$kind"
+            old="$B/projects/$ID/published/13/$kind"
+            new="$B/projects/$ID/published/14/$kind"
             if npx wrangler r2 object get "$old" --remote --file="/tmp/noorpur-old-$kind" > /tmp/noorpur-get.log 2>&1; then
               mime=$(file -b --mime-type "/tmp/noorpur-old-$kind")
               npx wrangler r2 object put "$new" --remote --file="/tmp/noorpur-old-$kind" --content-type="$mime"
@@ -162,7 +162,7 @@ jobs:
               cmp "/tmp/noorpur-old-$kind" "/tmp/noorpur-verify-$kind"
               echo "NOORPUR_R2_ASSET_MIRRORED: $kind SHA256 $(sha256sum "/tmp/noorpur-old-$kind" | cut -d' ' -f1)"
             elif [[ "$kind" == "masterplan" ]]; then
-              echo "Required published masterplan v12 missing — stopping"; cat /tmp/noorpur-get.log; exit 1
+              echo "Required published masterplan v13 missing — stopping"; cat /tmp/noorpur-get.log; exit 1
             else
               echo "NOORPUR_OPTIONAL_ASSET_ABSENT: $kind"
             fi
@@ -205,7 +205,7 @@ jobs:
           import fs from 'node:fs';
           const json=JSON.parse(fs.readFileSync('/tmp/noorpur-final.json','utf8'));
           const r=json.flatMap(x=>x.results||[])[0];
-          if(!r||Number(r.version)!==13||Number(r.snapshotVersion)!==13||Number(r.draft)!==209||Number(r.published)!==209||Number(r.removedDraftPresent)!==0||Number(r.removedPublishedPresent)!==0||Number(r.bCount)!==14||Number(r.cCount)!==5)
+          if(!r||Number(r.version)!==14||Number(r.snapshotVersion)!==14||Number(r.draft)!==209||Number(r.published)!==209||Number(r.removedDraftPresent)!==0||Number(r.removedPublishedPresent)!==0||Number(r.bCount)!==14||Number(r.cCount)!==5)
             throw Error('NOORPUR_209_PUBLISH_READBACK_FAILED');
           console.log('NOORPUR_209_PUBLISH_VERIFIED: 209 draft + 209 published, B1-B14, C1-C5, no C6/C7, version 13');
           NODE

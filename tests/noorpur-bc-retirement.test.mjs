@@ -24,8 +24,8 @@ function fixture(){
   db.exec('CREATE TABLE published_plot_edge_measurements (project_id TEXT,plot_id TEXT)');
   db.exec('CREATE TABLE geo_features (project_id TEXT,linked_plot_id TEXT)');
   db.exec('CREATE TABLE settings (project_id TEXT,key TEXT,value TEXT,updated_at TEXT)');
-  db.prepare('INSERT INTO projects VALUES (?,?,?,?,?,?,?)').run(id,'NOORPUR HILLS ESTATE','active','published',12,'2026-10-22','2026-10-22');
-  db.prepare('INSERT INTO project_public_snapshots VALUES (?,?,?)').run(id,12,'2026-10-22');
+  db.prepare('INSERT INTO projects VALUES (?,?,?,?,?,?,?)').run(id,'NOORPUR HILLS ESTATE','active' ,'published',13,'2026-10-22','2026-10-22');
+  db.prepare('INSERT INTO project_public_snapshots VALUES (?,?,?)').run(id,13,'2026-10-22');
   db.prepare('INSERT INTO settings VALUES (?,?,?,?)').run(id,'plotSheetCount','211','2026-10-22');
   for(const pid of [...Array.from({length:190},(_,i)=>String(i+1)),...Array.from({length:14},(_,i)=>'B'+(i+1)),...Array.from({length:7},(_,i)=>'C'+(i+1))]){
     const poly='[[0.1,0.1],[0.2,0.1],[0.2,0.2],[0.1,0.2]]';
@@ -45,8 +45,8 @@ test('published C6/C7 retirement is guarded, scoped and leaves 209 plots plus B1
     for(let n=1;n<=14;n++)assert.ok(values.includes('B'+n));
   }
   assert.equal(db.prepare('SELECT status FROM plots WHERE project_id=? AND id=?').get(id,'B1').status,'sold');
-  assert.equal(db.prepare('SELECT publish_version FROM projects WHERE id=?').get(id).publish_version,13);
-  assert.equal(db.prepare('SELECT publish_version FROM project_public_snapshots WHERE project_id=?').get(id).publish_version,13);
+  assert.equal(db.prepare('SELECT publish_version FROM projects WHERE id=?').get(id).publish_version,14);
+  assert.equal(db.prepare('SELECT publish_version FROM project_public_snapshots WHERE project_id=?').get(id).publish_version,14);
   assert.equal(db.prepare('SELECT value FROM settings WHERE project_id=? AND key=?').get(id,'plotSheetCount').value,'209');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM noorpur_before_c67_20261022_plots').get().n,211);
   assert.throws(()=>db.exec(sql),/CHECK constraint failed/);
