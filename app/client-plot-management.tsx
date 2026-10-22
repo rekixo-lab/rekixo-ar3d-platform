@@ -1,5 +1,5 @@
-import { displayPlotId } from "./plot-display-id";
 "use client";
+import { displayPlotId } from "./plot-display-id";
 
 import { Check, ChevronUp, LockKeyhole, Pencil, Plus } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
