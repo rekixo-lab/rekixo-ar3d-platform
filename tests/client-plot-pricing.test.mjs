@@ -38,7 +38,7 @@ test("client pricing endpoint is session-project scoped and client-admin only", 
   assert.match(clientApi, /const projectId = session\.projectId/);
   assert.doesNotMatch(clientApi, /body\?\.projectId|body\.projectId/);
   assert.match(clientApi, /sameOrigin\(request\)/);
-  assert.match(clientApi, /SELECT id FROM plots WHERE project_id=\? AND id IN/);
+  assert.match(clientApi, /SELECT id FROM plots WHERE project_id=\? AND inventory_active=1 AND id IN/);
   assert.match(clientApi, /Unknown plot selection/);
 });
 
