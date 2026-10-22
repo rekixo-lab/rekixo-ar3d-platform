@@ -76,24 +76,20 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Read-only Talib 37-to-36 inventory audit
+      # Recover the source CSV already stored in R2 and validate its 37 rows
+      # against current D1. No user-supplied CSV or fabricated plot sizes.
+      - name: Prepare guarded Talib 37-to-36 CSV from current production data
         shell: bash
         run: |
           set -euo pipefail
-          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT p.id,p.name,p.slug,p.status,p.public_status AS publicStatus,p.publish_version AS publishVersion,(SELECT COUNT(*) FROM plots q WHERE q.project_id=p.id AND q.inventory_active=1) AS activePlots,(SELECT COUNT(*) FROM published_plots q WHERE q.project_id=p.id) AS publishedPlots,(SELECT COUNT(*) FROM plot_admin_details a WHERE a.project_id=p.id AND (COALESCE(TRIM(a.owner_name),'')<>'' OR a.booking_amount_paise IS NOT NULL OR COALESCE(TRIM(a.broker_name),'')<>'')) AS protectedDetails FROM projects p WHERE p.id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' AND p.slug='talib-nazami-alam-ploting-e94cec';" > /tmp/talib-project-audit.json
-          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT p.id,p.sqft,p.sqm,p.sqyd,p.dimensions,p.road,p.front,p.back,p.depth,p.depth2,p.dimension_unit AS dimensionUnit,p.front_label AS frontLabel,p.back_label AS backLabel,p.depth_label AS depthLabel,p.depth2_label AS depth2Label,p.side_dimensions AS sideDimensions,p.polygon,p.status,p.inventory_active AS active,(SELECT COUNT(*) FROM plot_admin_details a WHERE a.project_id=p.project_id AND a.plot_id=p.id AND (COALESCE(TRIM(a.owner_name),'')<>'' OR a.booking_amount_paise IS NOT NULL OR COALESCE(TRIM(a.broker_name),'')<>'')) AS hasProtectedDetails,(SELECT COUNT(*) FROM plot_pricing x WHERE x.project_id=p.project_id AND x.plot_id=p.id) AS hasPricing FROM plots p WHERE p.project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' AND CAST(p.id AS INTEGER) BETWEEN 30 AND 37 ORDER BY CAST(p.id AS INTEGER);" > /tmp/talib-plot-audit.json
-          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT key,value FROM settings WHERE project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' AND key IN ('masterplanName','mapWidth','mapHeight','plotSheetName') ORDER BY key;" > /tmp/talib-settings-audit.json
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          const extract = name => {
-            const raw = JSON.parse(fs.readFileSync('/tmp/talib-' + name + '-audit.json','utf8'));
-            return raw.flatMap(x => Array.isArray(x?.results) ? x.results : []);
-          };
-          for (const name of ['project','plot','settings']) {
-            const rows = extract(name);
-            console.log('TALIB_READ_ONLY_AUDIT '+name.toUpperCase()+' '+JSON.stringify(rows));
-          }
-          NODE
+          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT id,sqft,status,polygon,inventory_active AS active FROM plots WHERE project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' ORDER BY CAST(id AS INTEGER);" > /tmp/talib-before.json
+          node scripts/talib-37-to-36-csv.mjs inspect /tmp/talib-before.json
+          if grep -qx 'TALIB_REMAP_NEEDED=true' "$GITHUB_ENV"; then
+            npx wrangler r2 object get 'tiyansh-gallery-production/projects/e94cec2c-e3f7-4a13-aa75-5ec4167baaf2/mapper/plotSheet' --remote --file=/tmp/talib-old-source.csv
+            node scripts/talib-37-to-36-csv.mjs convert /tmp/talib-before.json /tmp/talib-old-source.csv /tmp/talib-36-final.csv /tmp/talib-former-32-commercial.csv
+            npx wrangler r2 object put 'tiyansh-gallery-production/projects/e94cec2c-e3f7-4a13-aa75-5ec4167baaf2/backups/plotSheet-37-before-36-20261022.csv' --remote --file=/tmp/talib-old-source.csv --content-type='text/csv; charset=utf-8'
+            npx wrangler r2 object put 'tiyansh-gallery-production/projects/e94cec2c-e3f7-4a13-aa75-5ec4167baaf2/backups/former-plot-32-commercial-20261022.csv' --remote --file=/tmp/talib-former-32-commercial.csv --content-type='text/csv; charset=utf-8'
+          fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -102,6 +98,29 @@ jobs:
       # remains compatible while the columns/table are being added.
       - name: Apply D1 migrations
         run: npx wrangler d1 migrations apply tiyansh-production --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # This SQL has an exact project/37-row/image guard and durable backups.
+      # It changes draft only; the previous 37-plot public snapshot stays live
+      # until the 36 new masterplan polygons are mapped and Publish Update runs.
+      - name: Migrate Talib draft inventory 37 to 36
+        if: env.TALIB_REMAP_NEEDED == 'true'
+        run: npx wrangler d1 execute tiyansh-production --remote --file=scripts/sql/apply-talib-37-to-36-once.sql
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Replace and verify Talib source CSV after successful D1 migration
+        if: env.TALIB_REMAP_NEEDED == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler r2 object put 'tiyansh-gallery-production/projects/e94cec2c-e3f7-4a13-aa75-5ec4167baaf2/mapper/plotSheet' --remote --file=/tmp/talib-36-final.csv --content-type='text/csv; charset=utf-8'
+          npx wrangler r2 object get 'tiyansh-gallery-production/projects/e94cec2c-e3f7-4a13-aa75-5ec4167baaf2/mapper/plotSheet' --remote --file=/tmp/talib-36-readback.csv
+          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT id,sqft,status,polygon,inventory_active AS active FROM plots WHERE project_id='e94cec2c-e3f7-4a13-aa75-5ec4167baaf2' ORDER BY CAST(id AS INTEGER);" > /tmp/talib-after.json
+          node scripts/talib-37-to-36-csv.mjs verify /tmp/talib-after.json /tmp/talib-36-readback.csv
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
