@@ -79,7 +79,12 @@ UPDATE settings SET value=(
     CASE WHEN j.key IN ('33','34','35','36','37')
       THEN CAST(CAST(j.key AS INTEGER)-1 AS TEXT)
       ELSE j.key END,
-    j.value
+    CASE LOWER(CAST(j.value AS TEXT))
+      WHEN 'top' THEN 'left'
+      WHEN 'right' THEN 'top'
+      WHEN 'bottom' THEN 'right'
+      WHEN 'left' THEN 'bottom'
+      ELSE j.value END
   ),'{}')
   FROM json_each(settings.value) j WHERE j.key<>'32'
 ),updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
