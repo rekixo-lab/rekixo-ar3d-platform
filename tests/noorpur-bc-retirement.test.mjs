@@ -67,7 +67,7 @@ test('client listing orders numeric first, then B1,B2,B10, then C1.. and exposes
   const db=new DatabaseSync(':memory:');
   db.exec('CREATE TABLE plots(id TEXT)');
   for(const p of ['C10','B11','C2','C1','B10','2','10','B2','B1','1'])db.prepare('INSERT INTO plots VALUES (?)').run(p);
-  const rows=db.prepare(\`SELECT id FROM plots ORDER BY CASE WHEN id GLOB '[0-9]*' AND id NOT GLOB '*[^0-9]*' THEN 0 WHEN UPPER(SUBSTR(id,1,1)) GLOB '[A-Z]' AND SUBSTR(id,2) GLOB '[0-9]*' AND SUBSTR(id,2) NOT GLOB '*[^0-9]*' THEN 1 ELSE 2 END, CASE WHEN id GLOB '[0-9]*' AND id NOT GLOB '*[^0-9]*' THEN CAST(id AS INTEGER) END, CASE WHEN SUBSTR(id,2) GLOB '[0-9]*' AND SUBSTR(id,2) NOT GLOB '*[^0-9]*' THEN SUBSTR(id,1,1) COLLATE NOCASE END, CASE WHEN SUBSTR(id,2) GLOB '[0-9]*' AND SUBSTR(id,2) NOT GLOB '*[^0-9]*' THEN CAST(SUBSTR(id,2) AS INTEGER) END,id COLLATE NOCASE\`).all();
+  const rows=db.prepare(`SELECT id FROM plots ORDER BY CASE WHEN id GLOB '[0-9]*' AND id NOT GLOB '*[^0-9]*' THEN 0 WHEN UPPER(SUBSTR(id,1,1)) GLOB '[A-Z]' AND SUBSTR(id,2) GLOB '[0-9]*' AND SUBSTR(id,2) NOT GLOB '*[^0-9]*' THEN 1 ELSE 2 END, CASE WHEN id GLOB '[0-9]*' AND id NOT GLOB '*[^0-9]*' THEN CAST(id AS INTEGER) END, CASE WHEN SUBSTR(id,2) GLOB '[0-9]*' AND SUBSTR(id,2) NOT GLOB '*[^0-9]*' THEN SUBSTR(id,1,1) COLLATE NOCASE END, CASE WHEN SUBSTR(id,2) GLOB '[0-9]*' AND SUBSTR(id,2) NOT GLOB '*[^0-9]*' THEN CAST(SUBSTR(id,2) AS INTEGER) END,id COLLATE NOCASE`).all();
   assert.deepEqual(rows.map(x=>x.id),['1','2','10','B1','B2','B10','B11','C1','C2','C10']);
 });
 test('source CSV converter removes C6/C7 and preserves B/C labels, quoting',()=>{
