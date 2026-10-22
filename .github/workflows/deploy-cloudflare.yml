@@ -94,6 +94,25 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      - name: Read-only NOORPUR HILLS ESTATE inventory audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT p.id,p.name,p.slug,p.kind,p.status,p.public_status AS publicStatus,p.publish_version AS publishVersion,(SELECT COUNT(*) FROM plots v WHERE v.project_id=p.id) AS total,(SELECT COUNT(*) FROM plots v WHERE v.project_id=p.id AND v.inventory_active=1) AS active,(SELECT COUNT(*) FROM published_plots v WHERE v.project_id=p.id) AS publishedCount FROM projects p WHERE upper(p.name) LIKE '%NOORPUR%';" > /tmp/noorpur-project.json
+          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT p.id AS projectId,p.name AS projectName,v.id AS plotId,v.status,v.inventory_active AS active,CASE WHEN TRIM(COALESCE(v.polygon,''))<>'' THEN 1 ELSE 0 END AS draftPolygon,(SELECT COUNT(*) FROM published_plots q WHERE q.project_id=v.project_id AND q.id=v.id) AS publishedRow,(SELECT COUNT(*) FROM published_plots q WHERE q.project_id=v.project_id AND q.id=v.id AND TRIM(COALESCE(q.polygon,''))<>'') AS publishedPolygon,(SELECT COUNT(*) FROM plot_pricing k WHERE k.project_id=v.project_id AND k.plot_id=v.id) AS pricing,(SELECT COUNT(*) FROM plot_admin_details ad WHERE ad.project_id=v.project_id AND ad.plot_id=v.id AND (COALESCE(TRIM(ad.owner_name),'')<>'' OR ad.booking_amount_paise IS NOT NULL OR COALESCE(TRIM(ad.broker_name),'')<>'')) AS privateDetails FROM plots v JOIN projects p ON p.id=v.project_id WHERE upper(p.name) LIKE '%NOORPUR%' ORDER BY v.id COLLATE NOCASE;" > /tmp/noorpur-plots.json
+          npx wrangler d1 execute tiyansh-production --remote --json --command "SELECT p.id AS projectId,p.name AS projectName,q.id AS plotId,q.status,CASE WHEN TRIM(COALESCE(q.polygon,''))<>'' THEN 1 ELSE 0 END AS publishedPolygon FROM published_plots q JOIN projects p ON p.id=q.project_id WHERE upper(p.name) LIKE '%NOORPUR%' AND (UPPER(q.id) IN ('C6','C7') OR UPPER(q.id) LIKE 'B%' OR UPPER(q.id) LIKE 'C%') ORDER BY q.id COLLATE NOCASE;" > /tmp/noorpur-published.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          for(const key of ['project','plots','published']){
+            const json=JSON.parse(fs.readFileSync('/tmp/noorpur-'+key+'.json','utf8'));
+            const rows=json.flatMap(v=>v.results||[]);
+            console.log('NOORPUR_READ_ONLY_'+key.toUpperCase()+' '+JSON.stringify(rows));
+          }
+          NODE
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       # Additive migrations run before the new V5 Workers. Existing legacy Worker
       # remains compatible while the columns/table are being added.
       - name: Apply D1 migrations
