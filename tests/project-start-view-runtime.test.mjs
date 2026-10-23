@@ -25,6 +25,10 @@ function harness(options = {}) {
         ? { x: -dx, y: -dy } : rotation === 3 ? { x: dy, y: -dx } : { x: dx, y: dy };
     },
     isMobilePanorama() { return false; },
+    // The extracted start-view helpers intentionally run without DOM.
+    // Tablet-specific behavior has a separate numerical regression suite.
+    isTabletPlotPresentation() { return false; },
+    presentationUserAdjusted: false,
     limits() {
       const size = env.displaySize();
       return { x: Math.max(0, (size.w * env.scale - env.viewportWidth) / 2),

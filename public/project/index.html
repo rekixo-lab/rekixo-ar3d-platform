@@ -1481,6 +1481,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   const pointers = new Map();
   let lastPlotOpenAt = 0;
   let viewportWidth = 0, viewportHeight = 0, lastPercent = -1;
+  let presentationUserAdjusted = false;
   const percentEl = q('#percent');
 
   const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
@@ -1628,6 +1629,47 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       ? Math.min(containFit,fit)
       : fit;
   }
+  // REKIXO_TABLET_ROTATED_START_FIT_V1
+  // Tablet touch layout must not inherit the aggressive focus zoom intended
+  // for handsets. Work in DISPLAY (post-rotation) coordinates, not source axes.
+  // This changes only the presentation transform, never mapped point data.
+  function isTabletPlotPresentation(){
+    const vw=viewportWidth||viewport.clientWidth;
+    return publicInitialViewMode==='plots' && vw>700 && vw<=1400 &&
+      (window.matchMedia('(pointer:coarse)').matches || window.matchMedia('(any-pointer:coarse)').matches)
+  }
+  function mappedDisplayBounds(){
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity,count=0;
+    for(const item of plots){
+      if(!Array.isArray(item?.points))continue;
+      for(const point of item.points){
+        const x=Number(point?.[0]),y=Number(point?.[1]);
+        if(!Number.isFinite(x)||!Number.isFinite(y))continue;
+        // Reject malformed coordinates rather than framing a distant artifact.
+        if(x<0||y<0||x>W||y>H)continue;
+        const r=rotateOffset(x-W/2,y-H/2,publicRotation);
+        minX=Math.min(minX,r.x);maxX=Math.max(maxX,r.x);
+        minY=Math.min(minY,r.y);maxY=Math.max(maxY,r.y);
+        count++;
+      }
+    }
+    return count?{width:maxX-minX,height:maxY-minY}:null
+  }
+  function tabletMappedStartScale(){
+    const vw=viewportWidth||viewport.clientWidth,vh=viewportHeight||viewport.clientHeight;
+    const bounds=mappedDisplayBounds();
+    // Leave a modest gutter for touch controls; center the actual FULL image,
+    // since centering just a corner cluster would move the map offscreen.
+    const sidePadding=Math.min(64,Math.max(24,vw*.04));
+    const topPadding=Math.min(48,Math.max(18,vh*.025));
+    const bottomPadding=Math.min(100,Math.max(48,vh*.075));
+    const availableW=Math.max(1,vw-sidePadding*2);
+    const availableH=Math.max(1,vh-topPadding-bottomPadding);
+    const mappedW=bounds?Math.max(1,bounds.width):displaySize().w;
+    const mappedH=bounds?Math.max(1,bounds.height):displaySize().h;
+    const target=Math.min(fit*.96,availableW/mappedW,availableH/mappedH);
+    return Number.isFinite(target)&&target>0?target:fit
+  }
   function limits(){
     const sw=publicRotation%2?H:W,sh=publicRotation%2?W:H;
     const vw=viewportWidth||viewport.clientWidth,vh=viewportHeight||viewport.clientHeight;
@@ -1705,9 +1747,18 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   function reset(){
     calcFit();
     const focus=configuredStartFocus();
-    scale=focus?configuredFocusScale(focus):fit;
-    pan={x:0,y:0};
-    pan=initialPanForPresentation();
+    if(isTabletPlotPresentation()){
+      // Tablet + Center mapped plots: keep all 0/90/180/270-degree layouts in
+      // the visible canvas instead of applying configuredFocusScale's crop.
+      scale=tabletMappedStartScale();
+      minFit=Math.min(minFit,scale);
+      pan={x:0,y:0};
+    }else{
+      scale=focus?configuredFocusScale(focus):fit;
+      pan={x:0,y:0};
+      pan=initialPanForPresentation();
+    }
+    presentationUserAdjusted=false;
     render()
   }
   function toast(t){const el=q('#toast');el.textContent=t;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1800)}
@@ -2232,8 +2283,8 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     lastPlotOpenAt=performance.now();
   }
   function close(){drawer.classList.remove('open');drawer.setAttribute('aria-hidden','true');scrim.classList.remove('open')}
-  function focusPlot(p){const target=Math.max(scale,fit*1.85);scale=Math.min(target,fit*4.5);const r=rotateOffset(p.center[0]-W/2,p.center[1]-H/2,publicRotation);pan.x=-r.x*scale;pan.y=-r.y*scale;render()}
-  function zoomAt(newScale,sx,sy){newScale=clamp(newScale,minFit,fit*4.5);const r=viewport.getBoundingClientRect(),mx=sx-r.left-r.width/2,my=sy-r.top-r.height/2,cx=(mx-pan.x)/scale,cy=(my-pan.y)/scale;pan.x=mx-cx*newScale;pan.y=my-cy*newScale;scale=newScale;scheduleRender()}
+  function focusPlot(p){presentationUserAdjusted=true;const target=Math.max(scale,fit*1.85);scale=Math.min(target,fit*4.5);const r=rotateOffset(p.center[0]-W/2,p.center[1]-H/2,publicRotation);pan.x=-r.x*scale;pan.y=-r.y*scale;render()}
+  function zoomAt(newScale,sx,sy){presentationUserAdjusted=true;newScale=clamp(newScale,minFit,fit*4.5);const r=viewport.getBoundingClientRect(),mx=sx-r.left-r.width/2,my=sy-r.top-r.height/2,cx=(mx-pan.x)/scale,cy=(my-pan.y)/scale;pan.x=mx-cx*newScale;pan.y=my-cy*newScale;scale=newScale;scheduleRender()}
   function zoomCenter(factor){const r=viewport.getBoundingClientRect();zoomAt(scale*factor,r.left+r.width/2,r.top+r.height/2)}
   function distance(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
   function midpoint(a,b){return{x:(a.x+b.x)/2,y:(a.y+b.y)/2}}
@@ -2341,7 +2392,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       }
       const r=gesture.rect;
       const ns=clamp(gesture.scale*distance(a,b)/gesture.dist,minFit,fit*4.5),oldMx=gesture.mid.x-r.left-r.width/2,oldMy=gesture.mid.y-r.top-r.height/2,cx=(oldMx-gesture.pan.x)/gesture.scale,cy=(oldMy-gesture.pan.y)/gesture.scale,newMx=m.x-r.left-r.width/2,newMy=m.y-r.top-r.height/2;
-      scale=ns;pan.x=newMx-cx*scale;pan.y=newMy-cy*scale;scheduleRender();
+      presentationUserAdjusted=true;scale=ns;pan.x=newMx-cx*scale;pan.y=newMy-cy*scale;scheduleRender();
       return;
     }
     if(pointers.size===1&&gesture?.type==='single'&&gesture.id===e.pointerId){
@@ -2353,7 +2404,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         gesture.moved=true;
         setGestureActive(true)
       }
-      pan.x=gesture.pan.x+dx;pan.y=gesture.pan.y+dy;scheduleRender();
+      presentationUserAdjusted=true;pan.x=gesture.pan.x+dx;pan.y=gesture.pan.y+dy;scheduleRender();
     }
   };
   viewport.addEventListener(mapMoveEvent,handleMapPointerMove,{passive:true});
@@ -2461,7 +2512,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   amenitiesModal.addEventListener('click',e=>{if(e.target===amenitiesModal)closeAmenities()});
   q('#galleryBtn').onclick=openGallery;q('#galleryClose').onclick=closeGallery;q('#lightboxClose').onclick=closeFullImage;galleryModal.addEventListener('click',e=>{if(e.target===galleryModal)closeGallery()});imageLightbox.addEventListener('click',e=>{if(e.target===imageLightbox||e.target.classList.contains('lightbox-figure'))closeFullImage()});document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(imageLightbox.classList.contains('open'))closeFullImage();else if(galleryModal.classList.contains('open'))closeGallery();else if(amenitiesModal.classList.contains('open'))closeAmenities()});q('#locationBtn').onclick=()=>MAP_URL?window.open(MAP_URL,'_blank','noopener,noreferrer'):toast('Location link not configured');
 
-  function onResize(){if(resizeRaf)return;resizeRaf=requestAnimationFrame(()=>{resizeRaf=0;if(mode3D){engine3D?.resize();return}const oldFit=fit||1,z=scale/oldFit;calcFit();scale=clamp(fit*z,minFit,fit*4.5);render()})}
+  function onResize(){if(resizeRaf)return;resizeRaf=requestAnimationFrame(()=>{resizeRaf=0;if(mode3D){engine3D?.resize();return}if(publicInitialViewMode==='plots'&&!presentationUserAdjusted){reset();return}const oldFit=fit||1,z=scale/oldFit;calcFit();scale=clamp(fit*z,minFit,fit*4.5);render()})}
   window.addEventListener('resize',onResize);
   window.visualViewport?.addEventListener('resize',onResize);
 
