@@ -24,7 +24,7 @@ test("mobile zoom-out floor is full-image contain fit instead of opening cover f
   );
   assert.match(
     page,
-    /function zoomAt\(newScale,sx,sy\)\{newScale=clamp\(newScale,minFit,fit\*4\.5\)/,
+    /function zoomAt\(newScale,sx,sy\)\{presentationUserAdjusted=true;newScale=clamp\(newScale,minFit,fit\*4\.5\)/,
   );
 });
 
