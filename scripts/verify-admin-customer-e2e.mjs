@@ -439,7 +439,9 @@ async function clientDetailsJourney(browser) {
   assert.equal(await row.locator("private").count(), 0, "owner content remains text, not HTML");
   await page.screenshot({ path: path.join(artifactDir, "client-details-desktop.png"), fullPage: true });
 
-  await page.reload({ waitUntil: "networkidle" });
+  // Reload must wait for HTML and actual plot readiness, not global network idle:
+  // the client dashboard now legitimately loads optional private Sales access.
+  await page.reload({ waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "Plots", exact: true }).click();
   await row.locator(".client-booking-owner dd").getByText(ownerName, { exact: true }).waitFor();
   await row.locator(".client-booking-broker dd").getByText(brokerName, { exact: true }).waitFor();
