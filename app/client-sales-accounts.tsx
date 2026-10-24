@@ -94,6 +94,7 @@ function SaleDetails({info,role,onClose,onRefresh}:{info:Detail;role:Role;onClos
   {role!=="viewer"&&<PaymentForm saleId={sale.id} canApprove={role==="approver"} onRefresh={onRefresh}/>}
   {role!=="viewer"&&<ScheduleForm saleId={sale.id} onRefresh={onRefresh}/>}
   {role==="approver"&&<ApprovalActions saleId={sale.id} payments={info.payments} onRefresh={onRefresh}/>}
+  <DocumentPanel saleId={sale.id} canUpload={role!=="viewer"}/>
   <button type="button" onClick={()=>window.print()}>Print Ledger</button>
  </div>
 }
@@ -166,5 +167,36 @@ function ApprovalActions({saleId,payments,onRefresh}:{saleId:string;payments:Pay
   <h4>Reverse Recorded Payment</h4>
   {receipts.map(p=><div key={p.id}>{p.paidOn} · {fmt(p.amountPaise)} <button onClick={()=>reverse(p.id)}>Reverse</button></div>)}
   <span role="status">{message}</span>
+ </section>
+}
+
+function DocumentPanel({saleId,canUpload}:{saleId:string;canUpload:boolean}){
+ const [rows,setRows]=useState<{id:string;kind:string;fileName:string;uploadedAt:string}[]>([]);
+ const [kind,setKind]=useState("agreement"),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
+ async function load(){
+  const r=await fetch("/api/client/sales/documents?saleId="+encodeURIComponent(saleId),{cache:"no-store"});
+  if(r.ok){const d=await r.json();setRows(d.documents||[])}
+ }
+ useEffect(()=>{load().catch(()=>{})},[saleId]);
+ async function upload(e:React.FormEvent<HTMLFormElement>){
+  e.preventDefault();setBusy(true);setMessage("");
+  try{
+   const body=new FormData(e.currentTarget);body.set("saleId",saleId);body.set("kind",kind);
+   const r=await fetch("/api/client/sales/documents",{method:"POST",body});
+   const d=await r.json();if(!r.ok)throw Error(d.error||"Upload failed");
+   setMessage("Private document attached");await load();
+   e.currentTarget.reset();
+  }catch(err){setMessage(err instanceof Error?err.message:"Upload failed")}finally{setBusy(false)}
+ }
+ return <section style={{display:"grid",gap:10}}>
+  <h3>Private Sale Documents</h3>
+  {rows.map(d=><a key={d.id} href={"/api/client/sales/documents?saleId="+encodeURIComponent(saleId)+"&documentId="+encodeURIComponent(d.id)} download>
+    {d.kind} · {d.fileName} · {d.uploadedAt.slice(0,10)}</a>)}
+  {!rows.length&&<small>No sale documents uploaded yet.</small>}
+  {canUpload&&<form onSubmit={upload} style={{display:"flex",gap:9,flexWrap:"wrap"}}>
+   <select name="kind" value={kind} onChange={e=>setKind(e.target.value)}><option value="agreement">Agreement</option><option value="receipt">Receipt</option><option value="other">Other</option></select>
+   <input name="file" type="file" accept=".pdf,.png,.jpg,.jpeg" required/>
+   <button disabled={busy}>Upload Securely</button><span role="status">{message}</span>
+  </form>}
  </section>
 }
