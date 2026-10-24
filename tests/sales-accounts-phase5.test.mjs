@@ -14,7 +14,7 @@ test("Phase 5 financial plot protection applies to CSV preflight, upload and Pub
  assert.match(mapper,/SALES_LEDGER_PLOT_REMOVAL_BLOCKED/);
  assert.match(publish,/saleProtectedResult/);
  assert.match(publish,/financial records cannot be silently deleted/);
- assert.match(read("../drizzle/0039_project_sales_accounts.sql"),/REFERENCES plots\(project_id,plot_id\) ON DELETE RESTRICT/);
+ assert.match(read("../drizzle/0039_project_sales_accounts.sql"),/REFERENCES plots\(project_id,id\) ON DELETE RESTRICT/);
 });
 test("Phase 5 exports are private, scoped, escaped and disabled on customer API",()=>{
  assert.match(csv,/WHERE s.project_id=\?/);
