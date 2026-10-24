@@ -20,7 +20,11 @@ export default function SalesControls({projectId,notify}:{projectId:string;notif
  }
  return <div className="card" style={{padding:20,display:"grid",gap:16}}>
   <header><p style={{fontSize:12,opacity:.7}}>PRIVATE PROJECT FINANCE · SUPER ADMIN</p><h2>Sales & Accounts Controls</h2>
-   <p>{salesCount} recorded sale(s). Disabling only hides private access; historic records stay intact.</p></header>
+   <p>{salesCount} recorded sale(s). Disabling only hides private access; historic records stay intact.</p>
+   <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+    {(["sales","payments","installments","adjustments"] as const).map(kind=>
+     <a key={kind} href={"/api/admin/sales-export?projectId="+encodeURIComponent(projectId)+"&kind="+kind} download>Backup {kind}</a>)}
+   </div></header>
   {error&&<p role="alert">{error}</p>}
   <label style={{display:"flex",gap:10,alignItems:"center"}}>
    <input type="checkbox" checked={enabled} disabled={busy} onChange={e=>update({action:"toggle",enabled:e.target.checked})}/>
