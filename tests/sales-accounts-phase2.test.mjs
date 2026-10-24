@@ -20,7 +20,7 @@ test("Phase 2 UI is gated and private buyer data cannot enter public payload",()
  assert.match(admin,/salesAccess\?\[/);
  assert.match(admin,/tab==="sales"&&salesAccess&&<ClientSalesAccounts initialPlotId=/);
  assert.match(ui,/\/api\/client\/sales\?/);
- assert.match(ui,/<SalesSmartEntry onDirty=/);
+ assert.match(ui,/<SalesSmartEntry initialPlotId=/);
  assert.match(read("../app/sales-smart-entry.tsx"),/action:"createSale"/);
  assert.doesNotMatch(read("../app/api/public-data/route.ts"),/sales_customers|property_sales|sales_payments/);
 });
