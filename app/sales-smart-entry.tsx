@@ -102,7 +102,7 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty,initialPlotId}:{
   setForm(s=>({...s,[key]:value}));setStage("edit");setError("");
  },[]);
  const selectPlot=(next:SalesPlotChoice)=>{
-  setPlot(next);setForm(s=>({...s,plotId:next.id,expectedPlotStatus:next.status,markSold:false,agreementAmount:""}));
+  setPlot(next);setForm(s=>({...s,plotId:next.id,expectedPlotStatus:next.status,markSold:next.status!=="sold",agreementAmount:""}));
   setError("");setStage("edit");
  };
  const chooseBuyer=(buyer:ExistingBuyer)=>{
