@@ -1,0 +1,23 @@
+name: Sales Accounts Development Branch Check
+on:
+  push:
+    branches:
+      - feat/project-sales-accounts-five-phases-20261024
+permissions:
+  contents: read
+jobs:
+  isolated-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Full build and source verification (no deploy)
+        run: npm run build
+      - name: Full regression suite
+        run: node --test tests/*.test.mjs
