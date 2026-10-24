@@ -85,23 +85,24 @@ export async function POST(request:Request){
    mutations.push(env.DB.prepare("INSERT INTO sales_customers(project_id,id,name,mobile,address,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)")
     .bind(projectId,resolvedBuyerId,buyerName,mobile||null,address||null,userId,now,now));
   }
+  // D1.batch is transactional. Insert first, requiring the EXACT earlier plot
+  // status inside the same transaction; a mismatch inserts agreement=0, which
+  // violates the positive-amount CHECK and rolls back the entire buyer + sale
+  // batch. No orphan buyer or unintended status change can survive a conflict.
+  const saleMutationIndex=mutations.length;
+  mutations.push(env.DB.prepare(`INSERT INTO property_sales
+   (project_id,id,plot_id,customer_id,agreement_paise,sale_date,state,created_by,created_at)
+   VALUES(?,?,?,?,CASE WHEN EXISTS(
+     SELECT 1 FROM plots p WHERE p.project_id=? AND p.id=? AND p.inventory_active=1 AND p.status=?
+   ) THEN ? ELSE 0 END,?,'active',?,?) RETURNING id`)
+   .bind(projectId,saleId,plotId,resolvedBuyerId,projectId,plotId,expectedStatus,amount,saleDate,userId,now));
   if(markSold && plot.status!=="sold"){
    mutations.push(env.DB.prepare(`UPDATE plots SET status='sold',updated_at=?
       WHERE project_id=? AND id=? AND inventory_active=1 AND status=?`)
     .bind(now,projectId,plotId,expectedStatus));
   }
-  // The status is checked again INSIDE the D1 transaction. If another operator
-  // changes the plot between preflight and the batch, no sale/customer is left behind.
-  const expectedAtInsert=markSold?"sold":expectedStatus;
-  mutations.push(env.DB.prepare(`INSERT INTO property_sales
-   (project_id,id,plot_id,customer_id,agreement_paise,sale_date,state,created_by,created_at)
-   SELECT p.project_id,?,p.id,?, ?,?,'active',?,?
-   FROM plots p WHERE p.project_id=? AND p.id=? AND p.inventory_active=1 AND p.status=?
-   RETURNING id`)
-   .bind(saleId,resolvedBuyerId,amount,saleDate,userId,now,projectId,plotId,expectedAtInsert));
   const results=await env.DB.batch(mutations);
-  const result=results[results.length-1];
-  if(!result.results?.length)throw Error("Sale was not saved because plot status changed");
+  if(!results[saleMutationIndex]?.results?.length)throw Error("Sale could not be persisted");
   try{await salesAudit(access.context,"sales.sale_created",saleId,{plotId,markSold,previousStatus:plot.status});}
   catch{console.error("Sale saved, separate audit write failed",{projectId,saleId});}
   return salesResponse({ok:true,saleId,buyerId:resolvedBuyerId,plotStatus:markSold?"sold":plot.status},201);
