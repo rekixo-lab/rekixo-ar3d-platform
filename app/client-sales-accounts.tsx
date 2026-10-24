@@ -7,7 +7,7 @@ import {localSaleDate} from "./sales-smart-entry-policy";
 
 type Sale={id:string;plotId:string;buyerName:string;buyerMobile:string|null;buyerAddress:string|null;agreementPaise:number;receivedPaise:number;balancePaise:number;state:string;saleDate:string;revision:number};
 type Payment={id:string;kind:string;amountPaise:number;paidOn:string;method:string;reference:string|null;note:string|null;reversedPaymentId:string|null};
-type Detail={sale:Sale;payments:Payment[];installments:{id:string;dueOn:string;amountPaise:number;note:string|null}[];adjustments:{id:string;kind:string;amountPaise:number;note:string;reversesAdjustmentId?:string|null}[]};
+type Detail={sale:Sale;payments:Payment[];installments:{id:string;dueOn:string;amountPaise:number;note:string|null;cancelledAt?:string|null}[];adjustments:{id:string;kind:string;amountPaise:number;note:string;reversesAdjustmentId?:string|null}[]};
 type Role="viewer"|"editor"|"approver";
 const fmt=(v:number)=>moneyFromPaise(Number(v)||0);
 export default function ClientSalesAccounts({onDraftChange,onSaleSaved,initialPlotId,onGuidedPlotConsumed}:{onDraftChange?:(dirty:boolean)=>void;onSaleSaved?:()=>void;initialPlotId?:string|null;onGuidedPlotConsumed?:()=>void}){
@@ -98,10 +98,18 @@ function SaleDetails({info,role,onClose,onRefresh,onVoided}:{info:Detail;role:Ro
   </details>
   {!voided&&role!=="viewer"&&<details className="sales-collapse"><summary>गलती सुधारें · Edit / Undo</summary>
    <SalesCorrectionsPanel key={sale.id+"-"+sale.revision} sale={sale} role={role} onRefresh={onRefresh} onVoided={onVoided}/>
+   {role==="approver"&&<PaymentUndoList saleId={sale.id} payments={info.payments} onRefresh={onRefresh}/>}
   </details>}
   <details className="sales-collapse sales-advanced"><summary>More Options · Installments / Documents / Accounts</summary>
    <div className="sales-extra-content">
-    {info.installments.length>0&&<div><h4>Due Installments</h4>{info.installments.map(i=><div key={i.id}>{i.dueOn} · {fmt(i.amountPaise)} {i.cancelledAt?"(Cancelled)":""} {i.note}</div>)}</div>}
+    {info.installments.length>0&&<div><h4>Due Installments</h4>{info.installments.map(i=><div key={i.id} className="sales-history-line">
+      <span>{i.dueOn} · {fmt(i.amountPaise)} {i.cancelledAt?"(Cancelled)":""} {i.note}</span>
+      {!voided&&role!=="viewer"&&!i.cancelledAt&&<button type="button" className="sales-button sales-button-quiet" onClick={async()=>{
+       const reason=window.prompt("Reason to cancel this installment?");if(!reason||reason.trim().length<3)return;
+       const r=await fetch("/api/client/sales/adjustments",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({action:"cancelInstallment",saleId:sale.id,entryId:i.id,reason})});
+       if(r.ok)await onRefresh();else window.alert((await r.json()).error||"Could not cancel installment");
+      }}>Cancel installment</button>}
+     </div>)}</div>}
     {!voided&&role!=="viewer"&&<ScheduleForm saleId={sale.id} onRefresh={onRefresh}/>}
     {!voided&&role==="approver"&&<ApprovalActions saleId={sale.id} payments={info.payments} adjustments={info.adjustments} onRefresh={onRefresh}/>}
     <DocumentPanel saleId={sale.id} canUpload={!voided&&role!=="viewer"}/>
@@ -139,6 +147,27 @@ function PaymentForm({saleId,canApprove,outstanding,nextDue,onRefresh}:{saleId:s
  </form>
 }
 
+
+function PaymentUndoList({saleId,payments,onRefresh}:{saleId:string;payments:Payment[];onRefresh:()=>Promise<void>}){
+ const [message,setMessage]=useState("");
+ const reversed=new Set(payments.filter(p=>p.reversedPaymentId).map(p=>p.reversedPaymentId));
+ const receipts=payments.filter(p=>p.kind==="receipt"&&!reversed.has(p.id));
+ return <details className="sales-collapse"><summary>गलत Payment सुधारें (Undo)</summary>
+  <p className="sales-hint">इससे केवल accounting entry reverse होती है। असली बैंक refund नहीं होता। फिर सही रकम Add Payment से दर्ज करें।</p>
+  {receipts.map(p=><div key={p.id} className="sales-history-line"><span>{p.paidOn} · {fmt(p.amountPaise)} · {p.method}</span>
+   <button className="sales-button sales-button-quiet" type="button" onClick={async()=>{
+    const reason=window.prompt("गलत पेमेंट का कारण लिखें (कम से कम 3 अक्षर)");if(!reason||reason.trim().length<3)return;
+    if(!window.confirm("पेमेंट रिवर्स कर दें? बैंक में कोई पैसा वापस नहीं जाएगा।"))return;
+    const response=await fetch("/api/client/sales/payments",{method:"POST",headers:{"content-type":"application/json"},
+     body:JSON.stringify({action:"reverse",saleId,paymentId:p.id,reason,idempotencyKey:crypto.randomUUID()})});
+    if(response.ok){await onRefresh();setMessage("Payment corrected; add the right amount when ready.")}
+    else setMessage((await response.json()).error||"Correction failed");
+   }}>Undo Payment</button></div>)}
+  {!receipts.length&&<p className="sales-hint">कोई active receipt नहीं है।</p>}
+  {message&&<p role="status">{message}</p>}
+ </details>;
+}
+
 function ScheduleForm({saleId,onRefresh}:{saleId:string;onRefresh:()=>Promise<void>}){
  const [amount,setAmount]=useState(""),[dueOn,setDueOn]=useState(""),[note,setNote]=useState(""),[message,setMessage]=useState("");
  async function save(e:React.FormEvent){
@@ -155,7 +184,7 @@ function ScheduleForm({saleId,onRefresh}:{saleId:string;onRefresh:()=>Promise<vo
   <button className="sales-button sales-button-primary">Schedule Installment</button><span role="status">{message}</span>
  </form>
 }
-function ApprovalActions({saleId,payments,onRefresh}:{saleId:string;payments:Payment[];onRefresh:()=>Promise<void>}){
+function ApprovalActions({saleId,payments,adjustments,onRefresh}:{saleId:string;payments:Payment[];adjustments:Detail["adjustments"];onRefresh:()=>Promise<void>}){
  const [kind,setKind]=useState("discount"),[amount,setAmount]=useState(""),[reason,setReason]=useState(""),[message,setMessage]=useState("");
  const reversed=new Set(payments.filter(p=>p.reversedPaymentId).map(p=>p.reversedPaymentId));
  const receipts=payments.filter(p=>p.kind==="receipt"&&!reversed.has(p.id));
@@ -180,6 +209,14 @@ function ApprovalActions({saleId,payments,onRefresh}:{saleId:string;payments:Pay
    <input aria-label="Reason" placeholder="Reason required" required minLength={3} value={reason} onChange={e=>setReason(e.target.value)}/>
    <button className="sales-button sales-button-primary">Save Adjustment</button>
   </form>
+  <h4>Previous Adjustments</h4>
+  {adjustments.map(a=><div className="sales-history-line" key={a.id}><span>{a.kind} · {fmt(a.amountPaise)} {a.reversesAdjustmentId?"(correction)":""}</span>
+   {!a.reversesAdjustmentId&&!adjustments.some(x=>x.reversesAdjustmentId===a.id)&&<button type="button" className="sales-button sales-button-quiet" onClick={async()=>{
+    const reason=window.prompt("Why undo this adjustment?");if(!reason||reason.trim().length<3)return;
+    const r=await fetch("/api/client/sales/adjustments",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({action:"undoAdjustment",saleId,entryId:a.id,reason})});
+    if(r.ok)await onRefresh();else setMessage((await r.json()).error||"Could not undo adjustment");
+   }}>Undo</button>}
+  </div>)}
   <h4>Reverse Recorded Payment</h4>
   {receipts.map(p=><div key={p.id}>{p.paidOn} · {fmt(p.amountPaise)} <button className="sales-button sales-button-quiet" onClick={()=>reverse(p.id)}>Reverse</button></div>)}
   <span role="status">{message}</span>
