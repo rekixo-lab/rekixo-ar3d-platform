@@ -62,6 +62,16 @@ export async function POST(request:Request){
  const saleDate=body.saleDate,amount=parseMoneyPaise(body.agreementAmount);
  const expectedStatus=body.expectedPlotStatus;
  const markSold=body.markSold===true;
+ // Optional first received amount is part of the SAME D1 transaction as the
+ // agreement, buyer and Sold transition. A missing amount means no payment.
+ const firstPaymentRaw=body.firstPaymentAmount;
+ const firstPayment=firstPaymentRaw===undefined||firstPaymentRaw===""||firstPaymentRaw==="0"?0:parseMoneyPaise(firstPaymentRaw);
+ const firstMode=body.firstPaymentMethod;
+ const firstDate=body.firstPaymentDate;
+ const firstReference=typeof body.firstPaymentReference==="string"?body.firstPaymentReference.trim():"";
+ if(firstPayment===null||firstPayment>Number(amount||0)||firstReference.length>100||
+  (firstPayment>0&&(!["upi","bank","cash","cheque","other"].includes(String(firstMode))||!validSaleDate(firstDate))))
+  return salesResponse({error:"First payment must be within agreement amount, with valid date/mode"},400);
  if(!plotId||plotId.length>80||!["available","booked","sold"].includes(String(expectedStatus))||
    (body.buyerId && !buyerId)||(!buyerId && !validSalesName(buyerName))||
    !/^\+?[0-9()\-\s]{7,20}$/.test(mobile)||
@@ -119,11 +129,21 @@ export async function POST(request:Request){
       WHERE project_id=? AND id=? AND inventory_active=1 AND status=?`)
     .bind(now,projectId,plotId,expectedStatus));
   }
+  if(firstPayment>0){
+   // FK to newly created Sale + a balance check: a failed insert rolls the
+   // entire transaction back, rather than leaving a Sale with missing money.
+   mutations.push(env.DB.prepare(`INSERT INTO sales_payments
+     (project_id,id,sale_id,kind,amount_paise,paid_on,payment_method,reference,note,reversed_payment_id,idempotency_key,created_by,created_at)
+     SELECT s.project_id,?,s.id,'receipt',?,?,?,?,NULL,NULL,?,?,?
+     FROM property_sales s WHERE s.project_id=? AND s.id=? AND s.state='active'
+     AND s.agreement_paise>=?`)
+    .bind(crypto.randomUUID(),firstPayment,firstDate,firstMode,firstReference||null,crypto.randomUUID(),userId,now,projectId,saleId,firstPayment));
+  }
   const results=await env.DB.batch(mutations);
   if(!results[saleMutationIndex]?.results?.length)throw Error("Sale could not be persisted");
   try{await salesAudit(access.context,"sales.sale_created",saleId,{plotId,markSold,previousStatus:plot.status});}
   catch{console.error("Sale saved, separate audit write failed",{projectId,saleId});}
-  return salesResponse({ok:true,saleId,buyerId:resolvedBuyerId,plotStatus:markSold?"sold":plot.status},201);
+  return salesResponse({ok:true,saleId,buyerId:resolvedBuyerId,firstPaymentRecorded:firstPayment>0,plotStatus:markSold?"sold":plot.status},201);
  }catch(error){
   console.error("Sale create failure",error);
   return salesResponse({error:"Sale not created. Plot status, duplicate sale or customer selection changed. Refresh and retry."},409);
