@@ -3349,3 +3349,62 @@ body {
  .client-sales .sales-metric strong,.client-sales .sales-inventory-item strong {font-size:13px}
  .client-sales .sales-plot-summary dl {grid-template-columns:1fr}
 }
+
+
+/* AR3D_SIMPLE_ACCOUNTS_V4 — isolated to private Client Admin, no public map changes */
+.admin-shell.role-client-admin .client-sales {gap:12px!important;padding:16px!important}
+.client-sales>header h2{font-size:clamp(21px,2vw,26px);margin:0 0 5px;color:#f3f8ff}
+.client-sales>header small{color:#94abc5;font-size:12px}
+.client-sales .sales-finance-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.client-sales .sales-metric{padding:13px 15px;border-radius:12px}
+.client-sales .sales-metric strong{font-size:clamp(16px,2vw,22px)}
+.client-sales .sales-collapse{min-width:0;background:#0b192b;border:1px solid #263d59;border-radius:12px;padding:0;overflow:visible}
+.client-sales .sales-collapse>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 15px;cursor:pointer;color:#d5e6fa;font-size:13px;font-weight:700;min-height:44px}
+.client-sales .sales-collapse>summary::-webkit-details-marker{display:none}
+.client-sales .sales-collapse>summary:after{content:"⌄";font-size:19px;color:#69cda1}
+.client-sales .sales-collapse[open]>summary:after{content:"⌃"}
+.client-sales .sales-collapse>summary:focus-visible{outline:2px solid #31d095;outline-offset:2px;border-radius:10px}
+.client-sales .sales-collapse>.sales-inventory,.client-sales .sales-collapse>.sales-export-toolbar{margin:0 12px 12px}
+.client-sales .sales-collapse>.sales-export-toolbar{padding:5px 2px}
+.client-sales .sales-collapse .sales-hint{padding:8px 12px;color:#9fb4cb;font-size:12px}
+.client-sales .sales-ledger{padding:14px!important;border:1px solid #34516d!important;border-radius:14px;display:grid;gap:12px;min-width:0}
+.client-sales .sales-ledger .sales-section-head h3{font-size:16px;margin:0}
+.client-sales .sales-ledger .sales-section-head small{font-size:11px;color:#8ca4c0}
+.client-sales .sales-simple-payment{padding:13px;border:1px solid #2b6e55;border-radius:12px;background:#0b221e}
+.client-sales .sales-simple-payment h3{font-size:14px;color:#87efbc;margin:0 0 12px}
+.client-sales .sales-ledger-totals .sales-metric{background:#0d2135}
+.client-sales .sales-extra-content{display:grid;gap:14px;padding:12px;min-width:0}
+.client-sales .sales-history{display:grid;gap:7px;padding:10px 14px;color:#c7d9eb;font-size:12px;overflow-wrap:anywhere}
+.client-sales .sales-history-line{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 12px;border-bottom:1px solid #253951;color:#cfdef1;font-size:12px}
+.client-sales .sales-history-line a{color:#95d5ff;overflow-wrap:anywhere}
+.client-sales .sales-corrections{display:grid;gap:9px;padding:10px}
+.client-sales .sales-corrections>details{background:#10233a;border:1px solid #2c4665;border-radius:10px;padding:10px}
+.client-sales .sales-corrections>details>summary{cursor:pointer;color:#d9eafa;font-size:13px;font-weight:700;min-height:26px}
+.client-sales .sales-corrections form{margin-top:12px}
+.client-sales .sales-danger-section{border-color:#76384b!important}
+.client-sales .sales-danger-section p{font-size:12px;line-height:1.6;color:#e4afba}
+.client-sales .sales-button-danger{background:#7e293d;border-color:#a54b59;color:white}
+.client-sales .sales-quick-balance{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border:1px solid #2f765d;border-radius:12px;background:#0c3327}
+.client-sales .sales-quick-balance span{font-size:12px;color:#b6dacb}
+.client-sales .sales-quick-balance strong{font-size:21px;color:#f1fff9;overflow-wrap:anywhere}
+.client-sales .sales-plot-summary dl{grid-template-columns:repeat(2,minmax(0,1fr))}
+@container (max-width:860px){
+ .client-sales .sales-finance-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .client-sales .sales-metric{padding:10px}
+ .client-sales .sales-metric strong{font-size:16px}
+}
+@container (max-width:500px){
+ .client-sales .sales-finance-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+ .client-sales .sales-metric{padding:9px 7px}
+ .client-sales .sales-metric small{font-size:10px}
+ .client-sales .sales-metric strong{font-size:clamp(12px,3.2vw,15px)}
+ .client-sales .sales-ledger{padding:10px!important}
+ .client-sales .sales-simple-payment{padding:10px}
+ .client-sales .sales-collapse>summary{padding:11px 12px;font-size:12px}
+ .client-sales .sales-plot-summary dl{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .client-sales .sales-quick-balance strong{font-size:17px}
+}
+@container (max-width:340px){
+ .client-sales .sales-finance-grid{grid-template-columns:1fr 1fr}
+ .client-sales .sales-finance-grid .sales-metric:last-child{grid-column:1/-1}
+}
