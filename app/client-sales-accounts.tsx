@@ -179,13 +179,13 @@ function DocumentPanel({saleId,canUpload}:{saleId:string;canUpload:boolean}){
  }
  useEffect(()=>{load().catch(()=>{})},[saleId]);
  async function upload(e:React.FormEvent<HTMLFormElement>){
-  e.preventDefault();setBusy(true);setMessage("");
+  e.preventDefault();const formNode=e.currentTarget;setBusy(true);setMessage("");
   try{
-   const body=new FormData(e.currentTarget);body.set("saleId",saleId);body.set("kind",kind);
+   const body=new FormData(formNode);body.set("saleId",saleId);body.set("kind",kind);
    const r=await fetch("/api/client/sales/documents",{method:"POST",body});
    const d=await r.json();if(!r.ok)throw Error(d.error||"Upload failed");
    setMessage("Private document attached");await load();
-   e.currentTarget.reset();
+   formNode.reset();
   }catch(err){setMessage(err instanceof Error?err.message:"Upload failed")}finally{setBusy(false)}
  }
  return <section style={{display:"grid",gap:10}}>
