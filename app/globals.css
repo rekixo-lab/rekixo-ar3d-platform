@@ -3293,3 +3293,59 @@ body {
  .client-sales .sales-plot-summary dl{grid-template-columns:1fr}
  .client-sales .sales-export-toolbar a{flex:1;text-align:center}
 }
+
+
+/* REKIXO_SALES_STOCK_RESPONSIVE_V3 — scoped to private Client Admin */
+.admin-shell.role-client-admin .client-sales {min-width:0;max-width:100%;container-type:inline-size;}
+.client-sales .sales-finance-grid,.client-sales .sales-inventory-grid {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;min-width:0}
+.client-sales .sales-metric,.client-sales .sales-inventory-item {
+ min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px;
+ padding:13px 14px;border:1px solid #2b425c;border-radius:12px;background:#0e1c31;
+}
+.client-sales .sales-metric small,.client-sales .sales-inventory-item span {color:#a9bdd3;font-size:11px;font-weight:600}
+.client-sales .sales-metric strong,.client-sales .sales-inventory-item strong {
+ color:#f2f8ff;font-size:clamp(14px,1.55vw,20px);font-weight:800;line-height:1.2;overflow-wrap:anywhere;
+}
+.client-sales .sales-inventory {display:grid;gap:10px;min-width:0;padding:15px;border:1px solid #2b425c;border-radius:13px;background:#0b192b}
+.client-sales .sales-inventory .sales-section-head h3 {font-size:15px;margin:0}
+.client-sales .sales-inventory-item small {font-size:11px;color:#9eb3cd}
+.client-sales .sales-inventory-item.available {border-color:#235c46}
+.client-sales .sales-inventory-item.booked {border-color:#62512a}
+.client-sales .sales-inventory-item.sold {border-color:#603444}
+.client-sales .sales-register-scroll {width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+.client-sales .sales-register-table {min-width:680px;font-size:13px}
+.client-sales .sales-register-table th,.client-sales .sales-register-table td {padding:8px;white-space:nowrap}
+.client-sales .sales-register-table td:nth-child(2) {max-width:190px;overflow:hidden;text-overflow:ellipsis}
+.client-sales .sales-ledger,.client-sales .sales-entry,.client-sales .sales-form-section,.client-sales .sales-review {max-width:100%}
+.client-sales .sales-inline-form {grid-template-columns:repeat(auto-fit,minmax(min(100%,175px),1fr));padding:12px;gap:10px}
+.client-sales .sales-form-section {padding:15px;gap:11px}
+.client-sales .sales-entry-form {gap:11px}
+.client-sales .sales-inventory .sales-hint {margin:0;font-size:11px;line-height:1.4}
+.client-sales .sales-field [aria-invalid="true"] {border-color:#ed738a!important}
+@container (max-width:860px) {
+ .client-sales .sales-finance-grid,.client-sales .sales-inventory-grid {grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .client-sales .sales-finance-grid .sales-metric,.client-sales .sales-inventory-item {padding:10px 11px}
+ .client-sales .sales-metric strong,.client-sales .sales-inventory-item strong {font-size:16px}
+ .client-sales .sales-entry .sales-fields {grid-template-columns:repeat(2,minmax(0,1fr))}
+ .client-sales .sales-form-section {padding:13px}
+ .client-sales .sales-inline-form {grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@container (max-width:540px) {
+ .client-sales .sales-metric,.client-sales .sales-inventory-item {padding:9px 10px}
+ .client-sales .sales-metric strong,.client-sales .sales-inventory-item strong {font-size:14px}
+ .client-sales .sales-inventory {padding:10px;gap:9px}
+ .client-sales .sales-section-head h3 {font-size:16px}
+ .client-sales .sales-entry .sales-fields,.client-sales .sales-inline-form {grid-template-columns:minmax(0,1fr)}
+ .client-sales .sales-form-section {padding:12px}
+ .client-sales .sales-plot-summary {padding:10px}
+ .client-sales .sales-plot-summary dl {grid-template-columns:repeat(2,minmax(0,1fr))}
+ .client-sales .sales-review {padding:12px}
+ .client-sales .sales-review dl {grid-template-columns:minmax(0,1fr)}
+ .client-sales .sales-export-toolbar {gap:6px}
+ .client-sales .sales-export-toolbar a {padding:7px 9px;font-size:11px}
+ .client-sales .sales-register-table {min-width:625px}
+}
+@container (max-width:350px) {
+ .client-sales .sales-metric strong,.client-sales .sales-inventory-item strong {font-size:13px}
+ .client-sales .sales-plot-summary dl {grid-template-columns:1fr}
+}
