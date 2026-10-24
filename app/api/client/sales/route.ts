@@ -68,6 +68,10 @@ export async function POST(request:Request){
    (mobile.replace(/\D/g,"").length<10 || mobile.replace(/\D/g,"").length>15)||
    address.length<8||address.length>600||!validSaleDate(saleDate)||amount===null||typeof body.markSold!=="boolean")
    return salesResponse({error:"Invalid plot, buyer, date, amount or status selection"},400);
+ // A newly confirmed sale must be reflected in plot inventory. A plot already
+ // marked Sold (including historical records) stays Sold without changing data.
+ if(expectedStatus!=="sold"&&!markSold)
+  return salesResponse({error:"Confirm Mark Sold when recording a new Sale."},400);
  const {projectId,userId}=access.context;
  try{
   const plot=await env.DB.prepare("SELECT status FROM plots WHERE project_id=? AND id=? AND inventory_active=1")
