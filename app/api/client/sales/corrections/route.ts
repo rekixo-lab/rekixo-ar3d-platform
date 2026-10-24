@@ -35,15 +35,19 @@ export async function PATCH(request:Request){
    const now=new Date().toISOString();
    // D1 batch is transactional. Revision prevents concurrent edits; checked sale must still be active.
    const res=await env.DB.batch([
-    env.DB.prepare(`UPDATE property_sales SET revision=revision+1
-     WHERE project_id=? AND id=? AND revision=? AND state='active'
-     AND (SELECT COUNT(*) FROM property_sales x WHERE x.project_id=property_sales.project_id AND x.customer_id=property_sales.customer_id AND x.state='active')=1
-     RETURNING id`).bind(projectId,id,revision),
+    // Update buyer only for the current revision; do not touch it after stale edits.
     env.DB.prepare(`UPDATE sales_customers SET name=?,mobile=?,address=?,updated_at=?
      WHERE project_id=? AND id=? AND EXISTS(
       SELECT 1 FROM property_sales s WHERE s.project_id=? AND s.id=? AND s.customer_id=sales_customers.id
-      AND s.state='active' AND s.revision=?)
-     RETURNING id`).bind(name,mobile,address,now,projectId,sale.customerId,projectId,id,revision+1)
+      AND s.state='active' AND s.revision=?
+      AND (SELECT COUNT(*) FROM property_sales x WHERE x.project_id=s.project_id
+       AND x.customer_id=s.customer_id AND x.state='active')=1)
+     RETURNING id`).bind(name,mobile,address,now,projectId,sale.customerId,projectId,id,revision),
+    env.DB.prepare(`UPDATE property_sales SET revision=revision+1
+     WHERE project_id=? AND id=? AND revision=? AND state='active'
+     AND (SELECT COUNT(*) FROM property_sales x WHERE x.project_id=property_sales.project_id
+      AND x.customer_id=property_sales.customer_id AND x.state='active')=1
+     RETURNING id`).bind(projectId,id,revision)
    ]);
    if(!res[0].results?.length||!res[1].results?.length)throw Error("Buyer correction not applied");
    try{await salesAudit(access.context,"sales.buyer_corrected",id,{reason})}catch{console.error("Buyer correction audit write failed",{id})}
