@@ -558,8 +558,14 @@ async function clientDetailsJourney(browser) {
     });
     const mobilePage = await mobile.newPage();
     watchPage(mobilePage, errors);
-    // The dashboard performs background permission/meta reads; await visible plot rows instead of networkidle.
+    // Wait for the mounted dashboard's authenticated inventory response.
+    // Clicking SSR markup before React hydration can silently lose the tab action.
+    const mobileInventoryReady = mobilePage.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname === "/api/data" && url.searchParams.get("section") === "plots" && response.status() === 200;
+    }, { timeout: 45_000 });
     await mobilePage.goto(`${base}/projects/${projectSlug}/admin`, { waitUntil: "domcontentloaded" });
+    await mobileInventoryReady;
     await mobilePage.getByRole("button", { name: "Plots", exact: true }).click();
     const mobileRow = mobilePage.getByRole("article", { name: "Plot P-1", exact: true });
     await mobileRow.locator(".client-booking-mobile-owner").getByText(ownerName, { exact: true }).waitFor();
