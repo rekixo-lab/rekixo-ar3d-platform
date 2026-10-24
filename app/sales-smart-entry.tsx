@@ -59,6 +59,7 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty,initialPlotId}:{
  const [plot,setPlot]=useState<SalesPlotChoice|null>(null),[stage,setStage]=useState<"edit"|"review">("edit");
  const [buyerSearch,setBuyerSearch]=useState(""),[buyers,setBuyers]=useState<ExistingBuyer[]>([]);
  const [showBuyers,setShowBuyers]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState("");
+ const [buyerMissingMobile,setBuyerMissingMobile]=useState(false),[buyerMissingAddress,setBuyerMissingAddress]=useState(false);
  useEffect(()=>{
   if(!initialPlotId)return;
   const controller=new AbortController();
@@ -105,10 +106,11 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty,initialPlotId}:{
   setError("");setStage("edit");
  };
  const chooseBuyer=(buyer:ExistingBuyer)=>{
+  setBuyerMissingMobile(!buyer.mobile?.trim());setBuyerMissingAddress(!buyer.address?.trim());
   setForm(s=>({...s,buyerId:buyer.id,buyerName:buyer.name,buyerMobile:buyer.mobile||"",buyerAddress:buyer.address||""}));
   setShowBuyers(false);setStage("edit");
  };
- const clearBuyer=()=>setForm(s=>({...s,buyerId:"",buyerName:"",buyerMobile:"",buyerAddress:""}));
+ const clearBuyer=()=>{setBuyerMissingMobile(false);setBuyerMissingAddress(false);setForm(s=>({...s,buyerId:"",buyerName:"",buyerMobile:"",buyerAddress:""}))};
  function goBack(){
   if(busy)return;
   if(dirty&&!window.confirm("Discard unsaved Sale details?"))return;
@@ -171,10 +173,10 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty,initialPlotId}:{
     <div className="sales-fields">
      <Field title="Buyer Name"><input required autoComplete="name" value={form.buyerName} disabled={Boolean(form.buyerId)}
       maxLength={120} placeholder="Full name" aria-invalid={nameError} onChange={e=>change("buyerName",e.target.value)}/>{nameError&&<small className="sales-error">At least 2 characters required.</small>}</Field>
-     <Field title="Mobile (required)"><input required autoComplete="tel" inputMode="tel" maxLength={20} disabled={Boolean(form.buyerId)&&Boolean(form.buyerMobile.trim())}
+     <Field title="Mobile (required)"><input required autoComplete="tel" inputMode="tel" maxLength={20} disabled={Boolean(form.buyerId)&&!buyerMissingMobile}
       placeholder="+91 Mobile" value={form.buyerMobile} aria-invalid={mobileError} onChange={e=>change("buyerMobile",e.target.value)}/>{(mobileError||missingMobile)&&<small className="sales-error">Buyer mobile is required (10–15 digits).</small>}</Field>
      <Field title="Buyer Address (required)" wide><textarea required minLength={8} rows={2} maxLength={600} autoComplete="street-address"
-      placeholder="Buyer full address" disabled={Boolean(form.buyerId)&&Boolean(form.buyerAddress.trim())} value={form.buyerAddress} onChange={e=>change("buyerAddress",e.target.value)}/>{missingAddress&&<small className="sales-error">Enter the full address (at least 8 characters).</small>}</Field>
+      placeholder="Buyer full address" disabled={Boolean(form.buyerId)&&!buyerMissingAddress} value={form.buyerAddress} onChange={e=>change("buyerAddress",e.target.value)}/>{missingAddress&&<small className="sales-error">Enter the full address (at least 8 characters).</small>}</Field>
     </div>
    </div>
    <div className="sales-form-section">
