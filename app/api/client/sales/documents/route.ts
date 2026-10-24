@@ -9,7 +9,7 @@ export async function GET(request:Request){
  if(!saleId)return salesResponse({error:"Sale ID required"},400);
  const documentId=salesId(url.searchParams.get("documentId"));
  if(documentId){
-  const row=await env.DB.prepare("SELECT file_name AS fileName,content_type AS contentType,object_key AS objectKey FROM sale_documents WHERE project_id=? AND sale_id=? AND id=? LIMIT 1")
+  const row=await env.DB.prepare("SELECT file_name AS fileName,content_type AS contentType,object_key AS objectKey FROM sale_documents WHERE project_id=? AND sale_id=? AND id=? AND archived_at IS NULL LIMIT 1")
    .bind(projectId,saleId,documentId).first<{fileName:string;contentType:string;objectKey:string}>();
   if(!row)return salesResponse({error:"Document not found"},404);
   const obj=await env.BUCKET.get(row.objectKey);
@@ -20,7 +20,7 @@ export async function GET(request:Request){
    "cache-control":"private, no-store","x-content-type-options":"nosniff"}});
  }
  const rows=await env.DB.prepare(`SELECT id,kind,file_name AS fileName,content_type AS contentType,
-   size_bytes AS sizeBytes,sha256,uploaded_at AS uploadedAt
+   size_bytes AS sizeBytes,sha256,uploaded_at AS uploadedAt,archived_at AS archivedAt
    FROM sale_documents WHERE project_id=? AND sale_id=? ORDER BY uploaded_at DESC,id`)
   .bind(projectId,saleId).all();
  return salesResponse({documents:rows.results});
@@ -56,4 +56,30 @@ export async function POST(request:Request){
   try{await salesAudit(access.context,"sales.document_uploaded",saleId,{documentId:id,kind,hash});}catch{console.error("Document saved but audit failed",{id});}
   return salesResponse({ok:true,documentId:id},201);
  }catch(error){console.error("Private document upload failed",error);return salesResponse({error:"Document upload failed"},500);}
+}
+
+export async function PATCH(request:Request){
+ if(!sameOrigin(request))return salesResponse({error:"Invalid origin"},403);
+ const access=await clientSalesAccess();if(!access.ok)return access.response;
+ if(!canEdit(access.context.role))return salesResponse({error:"Editor permission required"},403);
+ const body=await request.json().catch(()=>null) as {action?:string;saleId?:string;documentId?:string;reason?:string}|null;
+ const saleId=salesId(body?.saleId),documentId=salesId(body?.documentId);
+ const reason=typeof body?.reason==="string"?body.reason.trim():"";
+ if(!saleId||!documentId||reason.length<3||reason.length>300)
+  return salesResponse({error:"Document and reason required"},400);
+ const {projectId,userId}=access.context;
+ const archive=body?.action==="archive",restore=body?.action==="restore";
+ if(!archive&&!restore)return salesResponse({error:"Unsupported document action"},400);
+ try{
+  const result=await env.DB.prepare(`UPDATE sale_documents SET
+    archived_at=?,archived_by=?,archive_reason=?
+    WHERE project_id=? AND id=? AND sale_id=?
+      AND ${archive?"archived_at IS NULL":"archived_at IS NOT NULL"}
+      AND EXISTS(SELECT 1 FROM property_sales s WHERE s.project_id=sale_documents.project_id
+        AND s.id=sale_documents.sale_id AND s.state='active')`)
+   .bind(archive?new Date().toISOString():null,archive?userId:null,archive?reason:null,projectId,documentId,saleId).run();
+  if(!result.meta.changes)return salesResponse({error:"Document unavailable or already changed"},409);
+  try{await salesAudit(access.context,archive?"sales.document_archived":"sales.document_restored",saleId,{documentId,reason})}catch{console.error("Document correction audit unavailable",{documentId})}
+  return salesResponse({ok:true});
+ }catch(error){console.error("Document archive/restore failed",error);return salesResponse({error:"Document correction failed"},409)}
 }
