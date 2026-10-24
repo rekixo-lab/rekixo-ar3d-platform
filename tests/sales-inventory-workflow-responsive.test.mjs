@@ -17,7 +17,7 @@ test("Plot area data is scoped and excludes inactive plots; finance stays separa
  assert.match(summary,/SUM\(CASE WHEN sqft IS NOT NULL AND sqft>=0 THEN sqft ELSE 0 END\)/);
  assert.match(summary,/missingAreaCount/);
  assert.match(summary,/netSalesPaise:total,receivedPaise:received,outstandingPaise:total-received/);
- assert.match(ui,/Project Plot Inventory/);
+ assert.match(ui,/प्लॉट Area देखें/);
  assert.match(ui,/inventory\.available\.areaSqft/);
  assert.match(ui,/inventory\.booked\.areaSqft/);
  assert.match(ui,/inventory\.sold\.areaSqft/);
