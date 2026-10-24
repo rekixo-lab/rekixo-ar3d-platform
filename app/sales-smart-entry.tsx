@@ -1,7 +1,7 @@
 "use client";
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import {displayPlotId} from "./plot-display-id";
-import {moneyFromPaise,parseMoneyPaise} from "./sales-accounts-core";
+import {moneyFromPaise,parseMoneyPaise,validSaleDate} from "./sales-accounts-core";
 import {hasSaleDraft,localSaleDate,suggestedAgreement,type ExistingBuyer,type SalesPlotChoice} from "./sales-smart-entry-policy";
 
 type Draft={plotId:string;buyerId:string;buyerName:string;buyerMobile:string;buyerAddress:string;agreementAmount:string;saleDate:string;markSold:boolean;expectedPlotStatus:string};
@@ -75,8 +75,11 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty}:{onSaved:(saleI
   return()=>{active=false;clearTimeout(t);ctrl.abort()}
  },[buyerSearch,showBuyers]);
  const suggestion=useMemo(()=>suggestedAgreement(plot),[plot]);
+ const mobileError=Boolean(form.buyerMobile.trim()&&!/^\\+?[0-9()\\-\\s]{7,20}$/.test(form.buyerMobile.trim()));
+ const amountError=Boolean(form.agreementAmount&&parseMoneyPaise(form.agreementAmount)===null);
+ const nameError=Boolean(form.buyerName.trim()&&form.buyerName.trim().length<2);
  const canReview=Boolean(plot&&!plot.activeSaleId&&form.plotId&&form.buyerName.trim().length>=2&&
-  parseMoneyPaise(form.agreementAmount)!==null&&form.saleDate);
+  !mobileError&&!amountError&&parseMoneyPaise(form.agreementAmount)!==null&&validSaleDate(form.saleDate));
  const change=useCallback((key:keyof Draft,value:string|boolean)=>{
   setForm(s=>({...s,[key]:value}));setStage("edit");setError("");
  },[]);
@@ -150,9 +153,9 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty}:{onSaved:(saleI
     </div>}
     <div className="sales-fields">
      <Field title="Buyer Name"><input required autoComplete="name" value={form.buyerName} disabled={Boolean(form.buyerId)}
-      maxLength={120} placeholder="Full name" onChange={e=>change("buyerName",e.target.value)}/></Field>
+      maxLength={120} placeholder="Full name" aria-invalid={nameError} onChange={e=>change("buyerName",e.target.value)}/>{nameError&&<small className="sales-error">At least 2 characters required.</small>}</Field>
      <Field title="Mobile" optional><input autoComplete="tel" inputMode="tel" maxLength={20} disabled={Boolean(form.buyerId)}
-      placeholder="+91 Mobile" value={form.buyerMobile} onChange={e=>change("buyerMobile",e.target.value)}/></Field>
+      placeholder="+91 Mobile" value={form.buyerMobile} aria-invalid={mobileError} onChange={e=>change("buyerMobile",e.target.value)}/>{mobileError&&<small className="sales-error">Enter a valid phone number or leave it empty.</small>}</Field>
      <Field title="Buyer Address" optional wide><textarea rows={2} maxLength={600} autoComplete="street-address"
       placeholder="Buyer address" disabled={Boolean(form.buyerId)} value={form.buyerAddress} onChange={e=>change("buyerAddress",e.target.value)}/></Field>
     </div>
@@ -162,7 +165,8 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty}:{onSaved:(saleI
     <div className="sales-fields">
      <Field title="Final Sale Amount (₹)">
       <input required inputMode="decimal" placeholder="e.g. 1250000.00" value={form.agreementAmount}
-       onChange={e=>change("agreementAmount",e.target.value)}/>
+       onChange={e=>change("agreementAmount",e.target.value)} aria-invalid={amountError}/>
+      {amountError&&<small className="sales-error">Use a positive amount in rupees, with up to 2 decimals.</small>}
      </Field>
      <Field title="Sale Date"><input required type="date" value={form.saleDate} onChange={e=>change("saleDate",e.target.value)}/></Field>
     </div>
