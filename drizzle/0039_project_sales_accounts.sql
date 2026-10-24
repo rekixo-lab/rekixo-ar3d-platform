@@ -64,6 +64,20 @@ CREATE TABLE IF NOT EXISTS sales_installments (
  CHECK(note IS NULL OR length(note)<=400)
 );
 CREATE INDEX IF NOT EXISTS idx_sales_installments_due ON sales_installments(project_id,due_on);
+CREATE TABLE IF NOT EXISTS sale_documents (
+ project_id TEXT NOT NULL, id TEXT NOT NULL, sale_id TEXT NOT NULL,
+ kind TEXT NOT NULL, file_name TEXT NOT NULL, content_type TEXT NOT NULL,
+ size_bytes INTEGER NOT NULL, object_key TEXT NOT NULL, sha256 TEXT NOT NULL,
+ uploaded_by TEXT NOT NULL, uploaded_at TEXT NOT NULL,
+ PRIMARY KEY(project_id,id), UNIQUE(object_key),
+ FOREIGN KEY(project_id,sale_id) REFERENCES property_sales(project_id,id) ON DELETE RESTRICT,
+ CHECK(kind IN ('agreement','receipt','other')),
+ CHECK(length(file_name) BETWEEN 1 AND 160),
+ CHECK(content_type IN ('application/pdf','image/png','image/jpeg')),
+ CHECK(size_bytes BETWEEN 1 AND 8388608),
+ CHECK(length(sha256)=64)
+);
+CREATE INDEX IF NOT EXISTS idx_sale_documents_sale ON sale_documents(project_id,sale_id);
 CREATE TABLE IF NOT EXISTS sales_permissions (
  project_id TEXT NOT NULL, user_id TEXT NOT NULL, level TEXT NOT NULL,
  granted_by TEXT NOT NULL, updated_at TEXT NOT NULL,
