@@ -64,7 +64,7 @@ export async function POST(request:Request){
  const markSold=body.markSold===true;
  if(!plotId||plotId.length>80||!["available","booked","sold"].includes(String(expectedStatus))||
    (body.buyerId && !buyerId)||(!buyerId && !validSalesName(buyerName))||
-   mobile.length>20||(mobile&&!/^\\+?[0-9()\\-\\s]{7,20}$/.test(mobile))||
+   mobile.length>20||(mobile&&!/^\+?[0-9()\-\s]{7,20}$/.test(mobile))||
    address.length>600||!validSaleDate(saleDate)||amount===null||typeof body.markSold!=="boolean")
    return salesResponse({error:"Invalid plot, buyer, date, amount or status selection"},400);
  const {projectId,userId}=access.context;
