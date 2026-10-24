@@ -27,7 +27,7 @@ test("status write is read-back verified before reporting success", () => {
   const block = route.slice(statusStart, statusEnd);
   assert.ok(statusStart >= 0 && statusEnd > statusStart);
   assert.match(block, /SELECT id,status,updated_at AS updatedAt FROM plots/);
-  assert.match(block, /UPDATE plots SET status=\?, updated_at=\?/);
+  assert.match(block, /UPDATE plots\s+SET status=\?, updated_at=\?/);
   assert.match(block, /SELECT status,updated_at AS updatedAt FROM plots/);
   assert.match(block, /persisted\.status !== status/);
   assert.match(block, /x-rekixo-status-write/);
