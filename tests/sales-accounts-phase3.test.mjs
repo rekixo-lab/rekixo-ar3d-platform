@@ -28,7 +28,7 @@ test("Phase 3 adjustments and reports do not infer deposits from booking amounts
  assert.doesNotMatch(p+a+s,/booking_amount_paise/);
 });
 test("Phase 3 mobile UI has totals, stable retry key, due list and controlled reversals",()=>{
- assert.match(ui,//api/client/sales\/summary/);
+ assert.match(ui,/api\\/client\\/sales\\/summary/);
  assert.match(ui,/retryKey\.current\|\|/);
  assert.match(ui,/retryKey\.current=null/);
  assert.match(ui,/ScheduleForm/);
