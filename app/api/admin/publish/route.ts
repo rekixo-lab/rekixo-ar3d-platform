@@ -142,7 +142,7 @@ async function publishState(projectId: string) {
     }>();
   if (!project) return null;
 
-  const [plotResult, settingsResult, protectedRemovalResult] = await Promise.all([
+  const [plotResult, settingsResult, protectedRemovalResult, saleProtectedResult] = await Promise.all([
     env.DB.prepare(
       "SELECT id,polygon,dimensions,road,front,back,depth,depth2,front_label AS frontLabel,back_label AS backLabel,depth_label AS depthLabel,depth2_label AS depth2Label,side_dimensions AS sideDimensions,front_edge_index AS frontEdgeIndex,back_edge_index AS backEdgeIndex,depth_edge_index AS depthEdgeIndex,depth2_edge_index AS depth2EdgeIndex FROM plots WHERE project_id=? AND inventory_active=1 ORDER BY id",
     )
@@ -162,6 +162,10 @@ async function publishState(projectId: string) {
            OR COALESCE(TRIM(ad.broker_name),'')<>'')
        ORDER BY p.id`,
     ).bind(projectId).all<{ id: string }>(),
+    env.DB.prepare(
+      `SELECT p.id FROM plots p JOIN property_sales s ON s.project_id=p.project_id AND s.plot_id=p.id
+       WHERE p.project_id=? AND p.inventory_active=0 GROUP BY p.id ORDER BY p.id`,
+    ).bind(projectId).all<{ id: string }>(),
   ]);
 
   const settings = Object.fromEntries(
@@ -179,6 +183,12 @@ async function publishState(projectId: string) {
   if (protectedRemovalResult.results.length) {
     reasons.push(
       `${protectedRemovalResult.results.length} removed plots me saved Owner / Booking Amount / Broker details hain. In plots ko inventory me restore karke Publish karein.`,
+    );
+  }
+
+  if (saleProtectedResult.results.length) {
+    reasons.push(
+      `${saleProtectedResult.results.length} removed plots have recorded Sales/Payments. Restore them before Publish Update; financial records cannot be silently deleted.`,
     );
   }
 
