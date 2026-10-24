@@ -558,7 +558,8 @@ async function clientDetailsJourney(browser) {
     });
     const mobilePage = await mobile.newPage();
     watchPage(mobilePage, errors);
-    await mobilePage.goto(`${base}/projects/${projectSlug}/admin`, { waitUntil: "networkidle" });
+    // The dashboard performs background permission/meta reads; await visible plot rows instead of networkidle.
+    await mobilePage.goto(`${base}/projects/${projectSlug}/admin`, { waitUntil: "domcontentloaded" });
     await mobilePage.getByRole("button", { name: "Plots", exact: true }).click();
     const mobileRow = mobilePage.getByRole("article", { name: "Plot P-1", exact: true });
     await mobileRow.locator(".client-booking-mobile-owner").getByText(ownerName, { exact: true }).waitFor();
