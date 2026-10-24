@@ -39,6 +39,7 @@ CREATE TABLE plots(project_id TEXT NOT NULL,id TEXT NOT NULL,sqft REAL,polygon T
 CREATE TABLE geo_features(project_id TEXT,linked_plot_id TEXT);
 CREATE TABLE plot_edge_measurements(project_id TEXT,plot_id TEXT);
 CREATE TABLE plot_pricing(project_id TEXT,plot_id TEXT);
+CREATE TABLE property_sales(project_id TEXT,plot_id TEXT);
 INSERT INTO projects VALUES('a'),('b');
 INSERT INTO plots VALUES('a','24',1250,'[[0,0],[1,0],[1,1]]','booked',0),('b','24',900,'[[0,0],[0.5,0],[0.5,1]]','sold',1);
 INSERT INTO geo_features VALUES('a','24'),('b','24');

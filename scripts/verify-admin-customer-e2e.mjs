@@ -439,7 +439,9 @@ async function clientDetailsJourney(browser) {
   assert.equal(await row.locator("private").count(), 0, "owner content remains text, not HTML");
   await page.screenshot({ path: path.join(artifactDir, "client-details-desktop.png"), fullPage: true });
 
-  await page.reload({ waitUntil: "networkidle" });
+  // Reload must wait for HTML and actual plot readiness, not global network idle:
+  // the client dashboard now legitimately loads optional private Sales access.
+  await page.reload({ waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "Plots", exact: true }).click();
   await row.locator(".client-booking-owner dd").getByText(ownerName, { exact: true }).waitFor();
   await row.locator(".client-booking-broker dd").getByText(brokerName, { exact: true }).waitFor();
@@ -556,7 +558,14 @@ async function clientDetailsJourney(browser) {
     });
     const mobilePage = await mobile.newPage();
     watchPage(mobilePage, errors);
-    await mobilePage.goto(`${base}/projects/${projectSlug}/admin`, { waitUntil: "networkidle" });
+    // Wait for the mounted dashboard's authenticated inventory response.
+    // Clicking SSR markup before React hydration can silently lose the tab action.
+    const mobileInventoryReady = mobilePage.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname === "/api/data" && url.searchParams.get("section") === "plots" && response.status() === 200;
+    }, { timeout: 45_000 });
+    await mobilePage.goto(`${base}/projects/${projectSlug}/admin`, { waitUntil: "domcontentloaded" });
+    await mobileInventoryReady;
     await mobilePage.getByRole("button", { name: "Plots", exact: true }).click();
     const mobileRow = mobilePage.getByRole("article", { name: "Plot P-1", exact: true });
     await mobileRow.locator(".client-booking-mobile-owner").getByText(ownerName, { exact: true }).waitFor();
