@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Users,
+  WalletCards,
 } from "lucide-react";
 import ClientAdminManager from "./client-admin-manager";
 import GeoLabClone from "./geo-lab-clone";
@@ -26,6 +27,7 @@ import ProjectAssetsManager from "./project-assets-manager";
 import ProjectShareManager from "./project-share-manager";
 import ProjectStatusThemeManager from "./project-status-theme-manager";
 import MotionSwap, { MotionToast } from "./motion-swap";
+import SalesControls from "./sales-controls";
 
 type Project = {
   id: string;
@@ -35,7 +37,7 @@ type Project = {
   adminCount: number;
 };
 
-type WorkspaceTab = "clients" | "profile" | "mapper" | "mapping-controls" | "geo" | "share" | "assets";
+type WorkspaceTab = "clients" | "profile" | "mapper" | "mapping-controls" | "geo" | "share" | "assets" | "accounts";
 
 export default function SuperAdminDashboard({
   user,
@@ -131,6 +133,8 @@ export default function SuperAdminDashboard({
             ? "Mapping Controls"
             : tab === "geo"
             ? "Geo Mapper"
+              : tab === "accounts"
+                ? "Sales & Accounts Controls"
               : tab === "share"
                 ? "Share Preview Builder"
                 : "Project Assets";
@@ -145,6 +149,8 @@ export default function SuperAdminDashboard({
             ? "Mapped plots ke Dimensions, Area, Facing/Road aur Front/Back/Depth sizes ko manually aur safely update karein."
             : tab === "geo"
             ? "Project boundaries, GPS control points aur GIS exchange data ko isolated Geo workspace me manage karein."
+              : tab === "accounts"
+                ? "Per-project financial access, roles and private ledger controls."
               : tab === "share"
                 ? "Har project ka branded WhatsApp / social link preview ek jagah se manage karein."
                 : "Selected project ka recovery-ready working data, source assets aur published snapshot safely export karein.";
@@ -193,6 +199,7 @@ export default function SuperAdminDashboard({
           >
             <Globe2 /> Geo Mapper
           </button>
+          <button onClick={() => setTab("accounts")} className={tab === "accounts" ? "active" : ""}><WalletCards /> Sales &amp; Accounts</button>
           <button
             className={tab === "share" ? "active" : ""}
             onClick={() => setTab("share")}
@@ -303,6 +310,8 @@ export default function SuperAdminDashboard({
                       />
                       <GeoMapper key={projectId} projectId={projectId} notify={notify} />
                     </>
+                  ) : tab === "accounts" ? (
+                    <SalesControls key={projectId} projectId={projectId} notify={notify} />
                   ) : tab === "assets" ? (
                     <ProjectAssetsManager
                       key={`assets:${projectId}`}
