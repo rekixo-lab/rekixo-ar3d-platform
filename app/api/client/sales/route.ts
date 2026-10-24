@@ -28,8 +28,8 @@ export async function GET(request:Request){
    if(!sale)return salesResponse({error:"Sale not found"},404);
    const [payments,adjustments,installments]=await Promise.all([
     env.DB.prepare("SELECT id,kind,amount_paise AS amountPaise,paid_on AS paidOn,payment_method AS method,reference,note,reversed_payment_id AS reversedPaymentId,created_at AS createdAt FROM sales_payments WHERE project_id=? AND sale_id=? ORDER BY created_at,id").bind(projectId,saleId).all(),
-    env.DB.prepare("SELECT id,kind,amount_paise AS amountPaise,note,created_at AS createdAt FROM sales_adjustments WHERE project_id=? AND sale_id=? ORDER BY created_at,id").bind(projectId,saleId).all(),
-    env.DB.prepare("SELECT id,due_on AS dueOn,amount_paise AS amountPaise,note FROM sales_installments WHERE project_id=? AND sale_id=? ORDER BY due_on,id").bind(projectId,saleId).all()
+    env.DB.prepare("SELECT id,kind,amount_paise AS amountPaise,note,created_at AS createdAt,reverses_adjustment_id AS reversesAdjustmentId FROM sales_adjustments WHERE project_id=? AND sale_id=? ORDER BY created_at,id").bind(projectId,saleId).all(),
+    env.DB.prepare("SELECT id,due_on AS dueOn,amount_paise AS amountPaise,note,cancelled_at AS cancelledAt FROM sales_installments WHERE project_id=? AND sale_id=? ORDER BY due_on,id").bind(projectId,saleId).all()
    ]);
    return salesResponse({sale,payments:payments.results,adjustments:adjustments.results,installments:installments.results,role:access.context.role});
   }
