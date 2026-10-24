@@ -60,6 +60,10 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty,initialPlotId}:{
  const [buyerSearch,setBuyerSearch]=useState(""),[buyers,setBuyers]=useState<ExistingBuyer[]>([]);
  const [showBuyers,setShowBuyers]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const [buyerMissingMobile,setBuyerMissingMobile]=useState(false),[buyerMissingAddress,setBuyerMissingAddress]=useState(false);
+ const [firstPaymentAmount,setFirstPaymentAmount]=useState("");
+ const [firstPaymentMethod,setFirstPaymentMethod]=useState("upi");
+ const [firstPaymentDate,setFirstPaymentDate]=useState(localSaleDate());
+ const [firstPaymentReference,setFirstPaymentReference]=useState("");
  useEffect(()=>{
   if(!initialPlotId)return;
   const controller=new AbortController();
@@ -73,7 +77,7 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty,initialPlotId}:{
    }).catch(()=>{});
   return()=>controller.abort();
  },[initialPlotId]);
- const dirty=hasSaleDraft(form);
+ const dirty=hasSaleDraft(form)||Boolean(firstPaymentAmount||firstPaymentReference);
  useEffect(()=>{onDirty?.(dirty);return()=>onDirty?.(false)},[dirty,onDirty]);
  useEffect(()=>{if(!dirty)return;const before=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue=""};
   window.addEventListener("beforeunload",before);return()=>window.removeEventListener("beforeunload",before)},[dirty]);
@@ -96,8 +100,12 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty,initialPlotId}:{
  const missingAddress=form.buyerAddress.trim().length<8;
  const amountError=Boolean(form.agreementAmount&&parseMoneyPaise(form.agreementAmount)===null);
  const nameError=Boolean(form.buyerName.trim()&&form.buyerName.trim().length<2);
+ const agreementPaise=parseMoneyPaise(form.agreementAmount);
+ const firstPaise=firstPaymentAmount.trim()===""||firstPaymentAmount.trim()==="0"?0:parseMoneyPaise(firstPaymentAmount);
+ const firstPaymentError=firstPaise===null||(agreementPaise!==null&&firstPaise>agreementPaise);
  const canReview=Boolean(plot&&!plot.activeSaleId&&form.plotId&&form.buyerName.trim().length>=2&&
-  !mobileError&&!missingMobile&&!missingAddress&&!amountError&&parseMoneyPaise(form.agreementAmount)!==null&&validSaleDate(form.saleDate));
+  !mobileError&&!missingMobile&&!missingAddress&&!amountError&&agreementPaise!==null&&
+  !firstPaymentError&&validSaleDate(form.saleDate)&&validSaleDate(firstPaymentDate));
  const change=useCallback((key:keyof Draft,value:string|boolean)=>{
   setForm(s=>({...s,[key]:value}));setStage("edit");setError("");
  },[]);
@@ -121,21 +129,21 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty,initialPlotId}:{
   setBusy(true);setError("");
   try{
    const res=await fetch("/api/client/sales",{method:"POST",headers:{"content-type":"application/json"},
-    body:JSON.stringify({action:"createSale",...form})});
+    body:JSON.stringify({action:"createSale",...form,firstPaymentAmount,firstPaymentMethod,firstPaymentDate,firstPaymentReference})});
    const data=await res.json();if(!res.ok)throw Error(data.error||"Sale not saved");
-   setForm(empty());setPlot(null);await onSaved(data.saleId);
+   setForm(empty());setPlot(null);setFirstPaymentAmount("");setFirstPaymentReference("");await onSaved(data.saleId);
   }catch(e){setError(e instanceof Error?e.message:"Unable to save. Review plot / buyer.");setStage("edit")}
   finally{setBusy(false)}
  }
  return <section className="sales-entry">
   <div className="sales-section-head">
-   <div><h3>New Property Sale</h3><p>Choose the plot, confirm buyer and final sale amount. Nothing is imported as received payment.</p></div>
+   <div><h3>Quick Sale</h3><p>प्लॉट चुनें, खरीदार और बिक्री रकम भरें। पहली जमा रकम भी यहीं दर्ज कर सकते हैं।</p></div>
    <button type="button" className="sales-button sales-button-quiet" onClick={goBack} disabled={busy}>Back to Register</button>
   </div>
   {error&&<div role="alert" className="sales-error-block">{error}</div>}
   {stage==="edit"?<form className="sales-entry-form" onSubmit={e=>{e.preventDefault();if(canReview)setStage("review")}}>
    <div className="sales-form-section">
-    <h4><span>01</span> Property details</h4>
+    <h4><span>01</span> प्लॉट चुनें</h4>
     <Field title="Plot / Unit ID" wide><PlotPicker value={form.plotId} selected={plot} onSelect={selectPlot}/></Field>
     {plot&&<div className="sales-plot-summary">
      <div><b>{displayPlotId(plot.id)}</b><span className={"sales-pill "+plot.status}>{plot.status}</span></div>
@@ -154,7 +162,7 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty,initialPlotId}:{
     </div>}
    </div>
    <div className="sales-form-section">
-    <h4><span>02</span> Buyer details</h4>
+    <h4><span>02</span> खरीदार की जानकारी</h4>
     <div className="sales-buyer-tools">
      {form.buyerId?<><span className="sales-pill available">Existing buyer selected</span><button className="sales-link" type="button" onClick={clearBuyer}>Use new buyer</button></>:
       <button type="button" className="sales-button sales-button-quiet" onClick={()=>setShowBuyers(v=>!v)}>
@@ -180,7 +188,7 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty,initialPlotId}:{
     </div>
    </div>
    <div className="sales-form-section">
-    <h4><span>03</span> Sale agreement</h4>
+    <h4><span>03</span> बिक्री और जमा रकम</h4>
     <div className="sales-fields">
      <Field title="Final Sale Amount (₹)">
       <input required inputMode="decimal" placeholder="e.g. 1250000.00" value={form.agreementAmount}
@@ -189,27 +197,43 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty,initialPlotId}:{
      </Field>
      <Field title="Sale Date"><input required type="date" value={form.saleDate} onChange={e=>change("saleDate",e.target.value)}/></Field>
     </div>
+    <div className="sales-fields">
+      <Field title="अभी जमा पैसा (₹)" optional><input inputMode="decimal" value={firstPaymentAmount}
+       onChange={e=>setFirstPaymentAmount(e.target.value)} placeholder="0 — पैसा न मिला हो तो खाली रखें" />
+       {firstPaymentError&&<small className="sales-error">जमा रकम बिक्री रकम से अधिक नहीं हो सकती।</small>}</Field>
+      <Field title="Payment Mode"><select value={firstPaymentMethod} onChange={e=>setFirstPaymentMethod(e.target.value)}>
+       <option value="upi">UPI</option><option value="cash">Cash</option><option value="bank">Bank</option>
+       <option value="cheque">Cheque</option><option value="other">Other</option></select></Field>
+    </div>
+    {firstPaise!==0&&<div className="sales-fields">
+      <Field title="पैसे की तारीख"><input type="date" value={firstPaymentDate} onChange={e=>setFirstPaymentDate(e.target.value)} required/></Field>
+      <Field title="Reference" optional><input value={firstPaymentReference} maxLength={100}
+       onChange={e=>setFirstPaymentReference(e.target.value)} placeholder="UPI / bank reference"/></Field>
+    </div>}
+    {agreementPaise!==null&&<div className="sales-quick-balance"><span>बाकी रकम</span><strong>{moneyFromPaise(Math.max(0,agreementPaise-(firstPaise||0)))}</strong></div>}
     {plot&&suggestion&&<div className="sales-suggestion">
      <div><b>Suggested asking price: ₹{Number(suggestion).toLocaleString("en-IN")}</b><small>Calculated from the existing project pricing; not a confirmed agreement or paid amount.</small></div>
      <button type="button" className="sales-button sales-button-quiet" onClick={()=>change("agreementAmount",suggestion)}>Use price</button>
     </div>}
    </div>
    <div className="sales-form-actions">
-    <p>Booking amount is never auto-counted as a received payment.</p>
+    <p>पुराना Booking Amount अपने आप Received में नहीं जोड़ा जाएगा।</p>
     <button type="submit" className="sales-button sales-button-primary" disabled={!canReview||busy}>Review Sale →</button>
    </div>
   </form>:
   <div className="sales-review">
-   <h4>04 — Review before saving</h4>
+   <h4>एक बार जाँच लें</h4>
    <dl>
     <div><dt>Property</dt><dd>{displayPlotId(form.plotId)} · {Number(plot?.sqft||0).toLocaleString("en-IN")} sq.ft</dd></div>
     <div><dt>Buyer</dt><dd>{form.buyerName} · {form.buyerMobile}</dd></div>
     <div><dt>Address</dt><dd>{form.buyerAddress}</dd></div>
     <div><dt>Agreement amount</dt><dd>{moneyFromPaise(parseMoneyPaise(form.agreementAmount)||0)}</dd></div>
     <div><dt>Sale date</dt><dd>{form.saleDate}</dd></div>
+    <div><dt>पहली जमा रकम</dt><dd>{moneyFromPaise(firstPaise||0)} · {firstPaymentMethod}</dd></div>
+    <div><dt>बाकी रकम</dt><dd>{moneyFromPaise(Math.max(0,(agreementPaise||0)-(firstPaise||0)))}</dd></div>
     <div><dt>Plot status</dt><dd>{form.markSold?"Set Sold when saving":"Keep "+plot?.status}</dd></div>
    </dl>
-   <p className="sales-hint">This saves a private agreement and buyer. No payment is assumed. The customer site still follows its existing publishing process.</p>
+   <p className="sales-hint">सिर्फ यहाँ दर्ज जमा रकम Received में गिनी जाएगी। Customer Site का publish अलग है।</p>
    <div className="sales-form-actions">
     <button type="button" className="sales-button sales-button-quiet" disabled={busy} onClick={()=>setStage("edit")}>Edit Details</button>
     <button type="button" className="sales-button sales-button-primary" disabled={busy} onClick={submit}>
