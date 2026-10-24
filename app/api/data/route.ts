@@ -225,10 +225,23 @@ export async function POST(request: Request) {
         }
       }
 
-      const update=await env.DB.prepare(
-        "UPDATE plots SET status=?, updated_at=? WHERE project_id=? AND id=? AND status=?",
-      )
-        .bind(status, now, projectId, plotId, existing.status)
+      // Guard the final update in SQL as well as preflight, so two admin
+      // sessions cannot race a Sale insertion or access-toggle change.
+      const update=await env.DB.prepare(`UPDATE plots
+        SET status=?, updated_at=?
+        WHERE project_id=? AND id=? AND status=? AND inventory_active=1
+        AND (?='sold' OR NOT EXISTS(
+          SELECT 1 FROM property_sales sale
+          WHERE sale.project_id=plots.project_id AND sale.plot_id=plots.id AND sale.state='active'
+        ))
+        AND (?!='sold' OR NOT EXISTS(
+          SELECT 1 FROM settings flag
+          WHERE flag.project_id=plots.project_id AND flag.key='salesAccountsEnabled' AND flag.value='1'
+        ) OR EXISTS(
+          SELECT 1 FROM property_sales sale
+          WHERE sale.project_id=plots.project_id AND sale.plot_id=plots.id AND sale.state='active'
+        ))`)
+        .bind(status,now,projectId,plotId,existing.status,status,status)
         .run();
       if(!update.meta.changes){
         return Response.json({error:"Plot status changed in another session. Refresh and retry."},{status:409});
