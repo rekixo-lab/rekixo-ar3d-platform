@@ -2,11 +2,12 @@
 import {useCallback,useEffect,useRef,useState} from "react";
 import {moneyFromPaise} from "./sales-accounts-core";
 import SalesSmartEntry from "./sales-smart-entry";
+import SalesCorrectionsPanel from "./sales-corrections-panel";
 import {localSaleDate} from "./sales-smart-entry-policy";
 
-type Sale={id:string;plotId:string;buyerName:string;buyerMobile:string|null;buyerAddress:string|null;agreementPaise:number;receivedPaise:number;balancePaise:number;state:string;saleDate:string};
+type Sale={id:string;plotId:string;buyerName:string;buyerMobile:string|null;buyerAddress:string|null;agreementPaise:number;receivedPaise:number;balancePaise:number;state:string;saleDate:string;revision:number};
 type Payment={id:string;kind:string;amountPaise:number;paidOn:string;method:string;reference:string|null;note:string|null;reversedPaymentId:string|null};
-type Detail={sale:Sale;payments:Payment[];installments:{id:string;dueOn:string;amountPaise:number;note:string|null}[];adjustments:{id:string;kind:string;amountPaise:number;note:string}[]};
+type Detail={sale:Sale;payments:Payment[];installments:{id:string;dueOn:string;amountPaise:number;note:string|null}[];adjustments:{id:string;kind:string;amountPaise:number;note:string;reversesAdjustmentId?:string|null}[]};
 type Role="viewer"|"editor"|"approver";
 const fmt=(v:number)=>moneyFromPaise(Number(v)||0);
 export default function ClientSalesAccounts({onDraftChange,onSaleSaved,initialPlotId,onGuidedPlotConsumed}:{onDraftChange?:(dirty:boolean)=>void;onSaleSaved?:()=>void;initialPlotId?:string|null;onGuidedPlotConsumed?:()=>void}){
@@ -35,29 +36,35 @@ export default function ClientSalesAccounts({onDraftChange,onSaleSaved,initialPl
  }
  return <section className="card client-sales" style={{padding:20,display:"grid",gap:16}}>
   <header style={{display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap",alignItems:"center"}}>
-   <div><p style={{opacity:.65,fontSize:12}}>PRIVATE · PROJECT ACCOUNTING</p><h2>Sales &amp; Accounts</h2><small>{count} sales · {role} access</small>
-    <div className="sales-export-toolbar">
-     {(["sales","payments","installments","adjustments"] as const).map(kind=>
-       <a key={kind} href={"/api/client/sales/export?kind="+kind} download>Export {kind}</a>)}
-    </div>
-   </div>
-   {role!=="viewer"&&mode==="register"&&<button type="button" className="sales-button sales-button-primary" onClick={()=>setMode("new")}>+ New Sale</button>}
+   <div><h2>Sales &amp; Accounts</h2><small>{count} रिकॉर्ड · बिक्री और जमा पैसों का हिसाब</small></div>
+   {role!=="viewer"&&mode==="register"&&<button type="button" className="sales-button sales-button-primary" onClick={()=>setMode("new")}>+ नई Sale</button>}
   </header>
   {error&&<p role="alert" style={{color:"#e77"}}>{error}</p>}
   {stats&&<div className="sales-finance-grid">
-   {([["Active Sales",stats.activeSales],["Net Sales",fmt(stats.netSalesPaise)],["Received",fmt(stats.receivedPaise)],["Outstanding",fmt(stats.outstandingPaise)]] as const).map(([label,value])=><div className="sales-metric" key={label}><small>{label}</small><strong>{value}</strong></div>)}
+   {([["बिक्री रकम",fmt(stats.netSalesPaise)],["जमा रकम",fmt(stats.receivedPaise)],["बाकी रकम",fmt(stats.outstandingPaise)]] as const)
+    .map(([label,value])=><div className="sales-metric" key={label}><small>{label}</small><strong>{value}</strong></div>)}
   </div>}
-  {inventory&&<div className="sales-inventory"><div className="sales-section-head"><h3>Project Plot Inventory</h3><small>Live project status · area in sq.ft</small></div><div className="sales-inventory-grid">{([["Total",inventory.totalPlots,inventory.totalAreaSqft],["Available",inventory.available.plots,inventory.available.areaSqft],["Booked",inventory.booked.plots,inventory.booked.areaSqft],["Sold",inventory.sold.plots,inventory.sold.areaSqft]] as const).map(([label,plots,area])=><div key={label} className={"sales-inventory-item "+String(label).toLowerCase()}><span>{label}</span><strong>{Number(area).toLocaleString("en-IN",{maximumFractionDigits:2})} sq.ft</strong><small>{plots} plots</small></div>)}</div>{inventory.missingAreaCount>0&&<p className="sales-hint">{inventory.missingAreaCount} plots have missing area and are excluded from area totals (but included in plot counts).</p>}<p className="sales-hint">Inventory is based on plot status. Sale/received/outstanding are separate verified financial records.</p></div>}
+  {inventory&&mode==="register"&&<details className="sales-collapse"><summary>प्लॉट Area देखें · {inventory.totalPlots} प्लॉट</summary>
+   <div className="sales-inventory"><div className="sales-inventory-grid">{([["Total",inventory.totalPlots,inventory.totalAreaSqft],["Available",inventory.available.plots,inventory.available.areaSqft],["Booked",inventory.booked.plots,inventory.booked.areaSqft],["Sold",inventory.sold.plots,inventory.sold.areaSqft]] as const).map(([label,plots,area])=><div key={label} className={"sales-inventory-item "+String(label).toLowerCase()}><span>{label}</span><strong>{Number(area).toLocaleString("en-IN",{maximumFractionDigits:2})} sq.ft</strong><small>{plots} plots</small></div>)}</div>
+    {inventory.missingAreaCount>0&&<p className="sales-hint">{inventory.missingAreaCount} प्लॉट का Area उपलब्ध नहीं है।</p>}
+   </div></details>}
+  {mode==="register"&&<details className="sales-collapse sales-advanced"><summary>Reports / CSV Download</summary>
+    <div className="sales-export-toolbar">{(["sales","payments","installments","adjustments"] as const).map(kind=>
+      <a key={kind} href={"/api/client/sales/export?kind="+kind} download>Export {kind}</a>)}</div>
+   </details>}
   {mode==="new"?<SalesSmartEntry initialPlotId={initialPlotId||undefined} onDirty={onDraftChange} onBack={()=>{onGuidedPlotConsumed?.();setMode("register")}}
    onSaved={async saleId=>{onGuidedPlotConsumed?.();onSaleSaved?.();setMode("register");setPage(0);setRefresh(n=>n+1);await details(saleId)}}/>:
    <>
     <label className="sales-field sales-search">Search Sale / Buyer <input value={query} placeholder="Plot 12 / buyer name" onChange={e=>{setQuery(e.target.value);setPage(0)}}/></label>
     <div className="sales-register-scroll" style={{overflowX:"auto"}}>
     <table className="sales-register-table" style={{width:"100%",textAlign:"left",borderCollapse:"collapse"}}>
-     <thead><tr>{["Plot","Buyer","Sale Price","Received","Balance","Status","Details"].map(h=><th key={h} style={{padding:10}}>{h}</th>)}</tr></thead>
+     <thead><tr>{["Plot","Buyer","Sale Price","Received","Balance","Payment","Details"].map(h=><th key={h} style={{padding:10}}>{h}</th>)}</tr></thead>
      <tbody>{items.map(s=><tr key={s.id} style={{borderTop:"1px solid #70707033"}}>
        <td style={{padding:10}}>{s.plotId}</td><td>{s.buyerName}</td><td>{fmt(s.agreementPaise)}</td><td>{fmt(s.receivedPaise)}</td>
-       <td>{fmt(s.balancePaise)}</td><td>{s.state}</td><td><button className="sales-button sales-button-quiet" onClick={()=>details(s.id)}>Open</button></td>
+       <td>{s.state==="void"?"—":fmt(s.balancePaise)}</td>
+       <td><span className={"sales-pill "+(s.state==="void"?"sold":s.receivedPaise===0?"booked":s.balancePaise<=0?"available":"booked")}>
+        {s.state==="void"?"Cancelled":s.balancePaise<=0?"Paid":s.receivedPaise>0?"Part Payment":"Payment Pending"}</span></td>
+       <td><button className="sales-button sales-button-quiet" onClick={()=>details(s.id)}>Open</button></td>
      </tr>)}</tbody>
     </table></div>
     {!items.length&&<p>No sales recorded for this project.</p>}
@@ -68,25 +75,40 @@ export default function ClientSalesAccounts({onDraftChange,onSaleSaved,initialPl
     </div>
    </>
   }
-  {selected&&<SaleDetails info={selected} role={role} onClose={()=>setSelected(null)} onRefresh={async()=>{await details(selected.sale.id);setRefresh(n=>n+1)}}/>}
+  {selected&&<SaleDetails info={selected} role={role} onClose={()=>setSelected(null)} onVoided={()=>{setSelected(null);setRefresh(v=>v+1);onSaleSaved?.()}} onRefresh={async()=>{await details(selected.sale.id);setRefresh(n=>n+1)}}/>}
  </section>
 }
-function SaleDetails({info,role,onClose,onRefresh}:{info:Detail;role:Role;onClose:()=>void;onRefresh:()=>Promise<void>}){
+function SaleDetails({info,role,onClose,onRefresh,onVoided}:{info:Detail;role:Role;onClose:()=>void;onRefresh:()=>Promise<void>;onVoided:()=>void}){
  const {sale}=info;
- return <div className="sales-ledger" style={{border:"1px solid #6b728055",padding:16,borderRadius:12,display:"grid",gap:12}}>
-  <header style={{display:"flex",justifyContent:"space-between"}}><b>{sale.plotId} · {sale.buyerName}</b><button className="sales-button sales-button-quiet" onClick={onClose}>Close</button></header>
-  <p>{sale.saleDate} · Agreement {fmt(sale.agreementPaise)} · Received {fmt(sale.receivedPaise)} · <b>Due {fmt(sale.balancePaise)}</b></p>
-  <div>Buyer: {sale.buyerMobile||"No phone"} · {sale.buyerAddress||"No address"}</div>
-  <h3>Payment Ledger</h3>
-  {info.payments.length?info.payments.map(p=><div key={p.id}>{p.paidOn}: {p.kind==="reversal"?"Reversal −":"Received +"}{fmt(p.amountPaise)} · {p.method} · {p.reference||"—"}</div>):<p>No payments. Booking amount is not a receipt.</p>}
-  <h3>Due Installments</h3>
-  {info.installments.map(d=><div key={d.id}>{d.dueOn} · {fmt(d.amountPaise)} {d.note}</div>)}
-  {role!=="viewer"&&<PaymentForm saleId={sale.id} canApprove={role==="approver"} outstanding={Math.max(0,Number(sale.balancePaise)||0)} nextDue={info.installments[0]?.amountPaise||null} onRefresh={onRefresh}/>}
-  {role!=="viewer"&&<ScheduleForm saleId={sale.id} onRefresh={onRefresh}/>}
-  {role==="approver"&&<ApprovalActions saleId={sale.id} payments={info.payments} onRefresh={onRefresh}/>}
-  <DocumentPanel saleId={sale.id} canUpload={role!=="viewer"}/>
-  <button type="button" className="sales-button sales-button-quiet" onClick={()=>window.print()}>Print Ledger</button>
- </div>
+ const voided=sale.state==="void";
+ return <div className="sales-ledger">
+  <header className="sales-section-head"><div><h3>Plot {sale.plotId} · {sale.buyerName}</h3>
+   <small>{voided?"Cancelled (history preserved)":sale.saleDate+" · "+(sale.balancePaise<=0?"Paid":sale.receivedPaise>0?"Part Payment":"Payment Pending")}</small></div>
+   <button className="sales-button sales-button-quiet" onClick={onClose}>Close</button></header>
+  <div className="sales-finance-grid sales-ledger-totals">{([["बिक्री रकम",fmt(sale.agreementPaise)],["जमा रकम",fmt(sale.receivedPaise)],["बाकी रकम",voided?"—":fmt(sale.balancePaise)]] as const).map(([k,v])=>
+   <div className="sales-metric" key={k}><small>{k}</small><strong>{v}</strong></div>)}</div>
+  <p className="sales-hint">Buyer · {sale.buyerMobile||"No phone"} · {sale.buyerAddress||"No address"}</p>
+  {!voided&&role!=="viewer"&&<section className="sales-simple-payment">
+   <h3>+ पैसा जमा करें</h3><PaymentForm saleId={sale.id} canApprove={role==="approver"}
+    outstanding={Math.max(0,Number(sale.balancePaise)||0)}
+    nextDue={info.installments.find(d=>!d.cancelledAt)?.amountPaise||null} onRefresh={onRefresh}/>
+  </section>}
+  <details className="sales-collapse"><summary>Payment History ({info.payments.length})</summary>
+   <div className="sales-history">{info.payments.length?info.payments.map(p=><div key={p.id}>{p.paidOn} · {p.kind==="reversal"?"Corrected −":"Received +"}{fmt(p.amountPaise)} · {p.method}</div>):"अभी कोई पेमेंट दर्ज नहीं है।"}</div>
+  </details>
+  {!voided&&role!=="viewer"&&<details className="sales-collapse"><summary>गलती सुधारें · Edit / Undo</summary>
+   <SalesCorrectionsPanel key={sale.id+"-"+sale.revision} sale={sale} role={role} onRefresh={onRefresh} onVoided={onVoided}/>
+  </details>}
+  <details className="sales-collapse sales-advanced"><summary>More Options · Installments / Documents / Accounts</summary>
+   <div className="sales-extra-content">
+    {info.installments.length>0&&<div><h4>Due Installments</h4>{info.installments.map(i=><div key={i.id}>{i.dueOn} · {fmt(i.amountPaise)} {i.cancelledAt?"(Cancelled)":""} {i.note}</div>)}</div>}
+    {!voided&&role!=="viewer"&&<ScheduleForm saleId={sale.id} onRefresh={onRefresh}/>}
+    {!voided&&role==="approver"&&<ApprovalActions saleId={sale.id} payments={info.payments} adjustments={info.adjustments} onRefresh={onRefresh}/>}
+    <DocumentPanel saleId={sale.id} canUpload={!voided&&role!=="viewer"}/>
+    <button type="button" className="sales-button sales-button-quiet" onClick={()=>window.print()}>Print Ledger</button>
+   </div>
+  </details>
+ </div>;
 }
 function PaymentForm({saleId,canApprove,outstanding,nextDue,onRefresh}:{saleId:string;canApprove:boolean;outstanding:number;nextDue:number|null;onRefresh:()=>Promise<void>}){
  const [amount,setAmount]=useState(""),[method,setMethod]=useState("upi"),[paidOn,setPaidOn]=useState(localSaleDate());
