@@ -64,9 +64,14 @@ export async function POST(request:Request){
  const markSold=body.markSold===true;
  if(!plotId||plotId.length>80||!["available","booked","sold"].includes(String(expectedStatus))||
    (body.buyerId && !buyerId)||(!buyerId && !validSalesName(buyerName))||
-   mobile.length>20||(mobile&&!/^\+?[0-9()\-\s]{7,20}$/.test(mobile))||
-   address.length>600||!validSaleDate(saleDate)||amount===null||typeof body.markSold!=="boolean")
+   !/^\+?[0-9()\-\s]{7,20}$/.test(mobile)||
+   (mobile.replace(/\D/g,"").length<10 || mobile.replace(/\D/g,"").length>15)||
+   address.length<8||address.length>600||!validSaleDate(saleDate)||amount===null||typeof body.markSold!=="boolean")
    return salesResponse({error:"Invalid plot, buyer, date, amount or status selection"},400);
+ // A newly confirmed sale must be reflected in plot inventory. A plot already
+ // marked Sold (including historical records) stays Sold without changing data.
+ if(expectedStatus!=="sold"&&!markSold)
+  return salesResponse({error:"Confirm Mark Sold when recording a new Sale."},400);
  const {projectId,userId}=access.context;
  try{
   const plot=await env.DB.prepare("SELECT status FROM plots WHERE project_id=? AND id=? AND inventory_active=1")
@@ -74,16 +79,29 @@ export async function POST(request:Request){
   if(!plot)return salesResponse({error:"Active plot not found"},404);
   if(plot.status!==expectedStatus)
    return salesResponse({error:"Plot status changed. Refresh plot selection before saving."},409);
+  let existingBuyer:{name:string;mobile:string|null;address:string|null}|null=null;
   if(buyerId){
-   const buyer=await env.DB.prepare("SELECT id FROM sales_customers WHERE project_id=? AND id=?")
-    .bind(projectId,buyerId).first();
-   if(!buyer)return salesResponse({error:"Selected buyer is no longer available in this project"},409);
+   existingBuyer=await env.DB.prepare("SELECT name,mobile,address FROM sales_customers WHERE project_id=? AND id=?")
+    .bind(projectId,buyerId).first<{name:string;mobile:string|null;address:string|null}>();
+   if(!existingBuyer)return salesResponse({error:"Selected buyer is no longer available in this project"},409);
+   // Reused buyer details are never silently overwritten.
+   if((existingBuyer.mobile?.trim() && existingBuyer.mobile.trim()!==mobile)||
+      (existingBuyer.address?.trim() && existingBuyer.address.trim()!==address))
+      return salesResponse({error:"Saved buyer contact details differ. Refresh or select a new buyer."},409);
   }
   const saleId=crypto.randomUUID(),resolvedBuyerId=buyerId||crypto.randomUUID(),now=new Date().toISOString();
   const mutations=[];
   if(!buyerId){
    mutations.push(env.DB.prepare("INSERT INTO sales_customers(project_id,id,name,mobile,address,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)")
     .bind(projectId,resolvedBuyerId,buyerName,mobile||null,address||null,userId,now,now));
+  }
+  if(buyerId && existingBuyer && (!existingBuyer.mobile?.trim()||!existingBuyer.address?.trim())){
+   // Complete previously missing fields only; preserve all existing contact info.
+   mutations.push(env.DB.prepare(`UPDATE sales_customers
+    SET mobile=CASE WHEN mobile IS NULL OR TRIM(mobile)='' THEN ? ELSE mobile END,
+        address=CASE WHEN address IS NULL OR TRIM(address)='' THEN ? ELSE address END,
+        updated_at=?
+    WHERE project_id=? AND id=?`).bind(mobile,address,now,projectId,buyerId));
   }
   // D1.batch is transactional. Insert first, requiring the EXACT earlier plot
   // status inside the same transaction; a mismatch inserts agreement=0, which

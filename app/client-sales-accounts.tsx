@@ -9,10 +9,12 @@ type Payment={id:string;kind:string;amountPaise:number;paidOn:string;method:stri
 type Detail={sale:Sale;payments:Payment[];installments:{id:string;dueOn:string;amountPaise:number;note:string|null}[];adjustments:{id:string;kind:string;amountPaise:number;note:string}[]};
 type Role="viewer"|"editor"|"approver";
 const fmt=(v:number)=>moneyFromPaise(Number(v)||0);
-export default function ClientSalesAccounts({onDraftChange,onSaleSaved}:{onDraftChange?:(dirty:boolean)=>void;onSaleSaved?:()=>void}){
+export default function ClientSalesAccounts({onDraftChange,onSaleSaved,initialPlotId,onGuidedPlotConsumed}:{onDraftChange?:(dirty:boolean)=>void;onSaleSaved?:()=>void;initialPlotId?:string|null;onGuidedPlotConsumed?:()=>void}){
  const [items,setItems]=useState<Sale[]>([]),[count,setCount]=useState(0),[role,setRole]=useState<Role>("viewer");
  const [query,setQuery]=useState(""),[page,setPage]=useState(0),[selected,setSelected]=useState<Detail|null>(null);
  const [stats,setStats]=useState<{netSalesPaise:number;receivedPaise:number;outstandingPaise:number;activeSales:number}|null>(null);
+ type Bucket={plots:number;areaSqft:number};
+ const [inventory,setInventory]=useState<{totalPlots:number;totalAreaSqft:number;missingAreaCount:number;available:Bucket;booked:Bucket;sold:Bucket}|null>(null);
  const [mode,setMode]=useState<"register"|"new">("register");
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[refresh,setRefresh]=useState(0);
  const load=useCallback(async()=>{
@@ -23,7 +25,8 @@ export default function ClientSalesAccounts({onDraftChange,onSaleSaved}:{onDraft
   setItems(data.sales||[]);setCount(data.total||0);setRole(data.role||"viewer");
  },[page,query,refresh]);
  useEffect(()=>{let active=true;load().catch(e=>{if(active)setError(e.message)});return()=>{active=false}},[load]);
- useEffect(()=>{let open=true;fetch("/api/client/sales/summary",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(d=>{if(open)setStats(d?.stats||null)}).catch(()=>{});return()=>{open=false}},[refresh]);
+ useEffect(()=>{if(!initialPlotId)return;setSelected(null);setMode("new")},[initialPlotId]);
+ useEffect(()=>{let open=true;fetch("/api/client/sales/summary",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(d=>{if(open){setStats(d?.stats||null);setInventory(d?.inventory||null)}}).catch(()=>{});return()=>{open=false}},[refresh]);
  async function details(id:string){
   try{
    setError("");const r=await fetch("/api/client/sales?saleId="+encodeURIComponent(id),{cache:"no-store"});
@@ -41,15 +44,16 @@ export default function ClientSalesAccounts({onDraftChange,onSaleSaved}:{onDraft
    {role!=="viewer"&&mode==="register"&&<button type="button" className="sales-button sales-button-primary" onClick={()=>setMode("new")}>+ New Sale</button>}
   </header>
   {error&&<p role="alert" style={{color:"#e77"}}>{error}</p>}
-  {stats&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:10}}>
-   {([["Active Sales",stats.activeSales],["Net Sales",fmt(stats.netSalesPaise)],["Received",fmt(stats.receivedPaise)],["Outstanding",fmt(stats.outstandingPaise)]] as const).map(([label,value])=><div key={label} style={{padding:14,border:"1px solid #6b728055",borderRadius:12}}><small>{label}</small><div style={{fontWeight:700,fontSize:20}}>{value}</div></div>)}
+  {stats&&<div className="sales-finance-grid">
+   {([["Active Sales",stats.activeSales],["Net Sales",fmt(stats.netSalesPaise)],["Received",fmt(stats.receivedPaise)],["Outstanding",fmt(stats.outstandingPaise)]] as const).map(([label,value])=><div className="sales-metric" key={label}><small>{label}</small><strong>{value}</strong></div>)}
   </div>}
-  {mode==="new"?<SalesSmartEntry onDirty={onDraftChange} onBack={()=>setMode("register")}
-   onSaved={async saleId=>{onSaleSaved?.();setMode("register");setPage(0);setRefresh(n=>n+1);await details(saleId)}}/>:
+  {inventory&&<div className="sales-inventory"><div className="sales-section-head"><h3>Project Plot Inventory</h3><small>Live project status · area in sq.ft</small></div><div className="sales-inventory-grid">{([["Total",inventory.totalPlots,inventory.totalAreaSqft],["Available",inventory.available.plots,inventory.available.areaSqft],["Booked",inventory.booked.plots,inventory.booked.areaSqft],["Sold",inventory.sold.plots,inventory.sold.areaSqft]] as const).map(([label,plots,area])=><div key={label} className={"sales-inventory-item "+String(label).toLowerCase()}><span>{label}</span><strong>{Number(area).toLocaleString("en-IN",{maximumFractionDigits:2})} sq.ft</strong><small>{plots} plots</small></div>)}</div>{inventory.missingAreaCount>0&&<p className="sales-hint">{inventory.missingAreaCount} plots have missing area and are excluded from area totals (but included in plot counts).</p>}<p className="sales-hint">Inventory is based on plot status. Sale/received/outstanding are separate verified financial records.</p></div>}
+  {mode==="new"?<SalesSmartEntry initialPlotId={initialPlotId||undefined} onDirty={onDraftChange} onBack={()=>{onGuidedPlotConsumed?.();setMode("register")}}
+   onSaved={async saleId=>{onGuidedPlotConsumed?.();onSaleSaved?.();setMode("register");setPage(0);setRefresh(n=>n+1);await details(saleId)}}/>:
    <>
     <label className="sales-field sales-search">Search Sale / Buyer <input value={query} placeholder="Plot 12 / buyer name" onChange={e=>{setQuery(e.target.value);setPage(0)}}/></label>
-    <div style={{overflowX:"auto"}}>
-    <table style={{width:"100%",textAlign:"left",borderCollapse:"collapse"}}>
+    <div className="sales-register-scroll" style={{overflowX:"auto"}}>
+    <table className="sales-register-table" style={{width:"100%",textAlign:"left",borderCollapse:"collapse"}}>
      <thead><tr>{["Plot","Buyer","Sale Price","Received","Balance","Status","Details"].map(h=><th key={h} style={{padding:10}}>{h}</th>)}</tr></thead>
      <tbody>{items.map(s=><tr key={s.id} style={{borderTop:"1px solid #70707033"}}>
        <td style={{padding:10}}>{s.plotId}</td><td>{s.buyerName}</td><td>{fmt(s.agreementPaise)}</td><td>{fmt(s.receivedPaise)}</td>

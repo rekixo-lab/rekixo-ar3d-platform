@@ -54,11 +54,25 @@ function PlotPicker({value,onSelect,selected}:{value:string;onSelect:(plot:Sales
   {selected?.activeSaleId&&<p className="sales-error">This plot already has an active Sale. Open it from the Register instead of creating a duplicate.</p>}
  </div>;
 }
-export default function SalesSmartEntry({onSaved,onBack,onDirty}:{onSaved:(saleId:string)=>Promise<void>;onBack:()=>void;onDirty?:(dirty:boolean)=>void}){
+export default function SalesSmartEntry({onSaved,onBack,onDirty,initialPlotId}:{onSaved:(saleId:string)=>Promise<void>;onBack:()=>void;onDirty?:(dirty:boolean)=>void;initialPlotId?:string}){
  const [form,setForm]=useState<Draft>(empty);
  const [plot,setPlot]=useState<SalesPlotChoice|null>(null),[stage,setStage]=useState<"edit"|"review">("edit");
  const [buyerSearch,setBuyerSearch]=useState(""),[buyers,setBuyers]=useState<ExistingBuyer[]>([]);
  const [showBuyers,setShowBuyers]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState("");
+ const [buyerMissingMobile,setBuyerMissingMobile]=useState(false),[buyerMissingAddress,setBuyerMissingAddress]=useState(false);
+ useEffect(()=>{
+  if(!initialPlotId)return;
+  const controller=new AbortController();
+  fetch("/api/client/sales/assist?plotId="+encodeURIComponent(initialPlotId),{cache:"no-store",signal:controller.signal})
+   .then(r=>r.ok?r.json():Promise.reject(new Error("Plot lookup failed")))
+   .then((d:{plot?:SalesPlotChoice|null})=>{
+    if(!d.plot)return;
+    setPlot(d.plot);
+    setForm(v=>({...v,plotId:d.plot!.id,expectedPlotStatus:d.plot!.status,
+     markSold:d.plot!.status!=="sold",agreementAmount:""}));
+   }).catch(()=>{});
+  return()=>controller.abort();
+ },[initialPlotId]);
  const dirty=hasSaleDraft(form);
  useEffect(()=>{onDirty?.(dirty);return()=>onDirty?.(false)},[dirty,onDirty]);
  useEffect(()=>{if(!dirty)return;const before=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue=""};
@@ -75,23 +89,28 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty}:{onSaved:(saleI
   return()=>{active=false;clearTimeout(t);ctrl.abort()}
  },[buyerSearch,showBuyers]);
  const suggestion=useMemo(()=>suggestedAgreement(plot),[plot]);
- const mobileError=Boolean(form.buyerMobile.trim()&&!/^\+?[0-9()\-\s]{7,20}$/.test(form.buyerMobile.trim()));
+ const mobileError=Boolean(form.buyerMobile.trim()&&
+  (!/^\+?[0-9()\-\s]{7,20}$/.test(form.buyerMobile.trim())||
+   form.buyerMobile.replace(/\D/g,"").length<10||form.buyerMobile.replace(/\D/g,"").length>15));
+ const missingMobile=!form.buyerMobile.trim();
+ const missingAddress=form.buyerAddress.trim().length<8;
  const amountError=Boolean(form.agreementAmount&&parseMoneyPaise(form.agreementAmount)===null);
  const nameError=Boolean(form.buyerName.trim()&&form.buyerName.trim().length<2);
  const canReview=Boolean(plot&&!plot.activeSaleId&&form.plotId&&form.buyerName.trim().length>=2&&
-  !mobileError&&!amountError&&parseMoneyPaise(form.agreementAmount)!==null&&validSaleDate(form.saleDate));
+  !mobileError&&!missingMobile&&!missingAddress&&!amountError&&parseMoneyPaise(form.agreementAmount)!==null&&validSaleDate(form.saleDate));
  const change=useCallback((key:keyof Draft,value:string|boolean)=>{
   setForm(s=>({...s,[key]:value}));setStage("edit");setError("");
  },[]);
  const selectPlot=(next:SalesPlotChoice)=>{
-  setPlot(next);setForm(s=>({...s,plotId:next.id,expectedPlotStatus:next.status,markSold:false,agreementAmount:""}));
+  setPlot(next);setForm(s=>({...s,plotId:next.id,expectedPlotStatus:next.status,markSold:next.status!=="sold",agreementAmount:""}));
   setError("");setStage("edit");
  };
  const chooseBuyer=(buyer:ExistingBuyer)=>{
+  setBuyerMissingMobile(!buyer.mobile?.trim());setBuyerMissingAddress(!buyer.address?.trim());
   setForm(s=>({...s,buyerId:buyer.id,buyerName:buyer.name,buyerMobile:buyer.mobile||"",buyerAddress:buyer.address||""}));
   setShowBuyers(false);setStage("edit");
  };
- const clearBuyer=()=>setForm(s=>({...s,buyerId:"",buyerName:"",buyerMobile:"",buyerAddress:""}));
+ const clearBuyer=()=>{setBuyerMissingMobile(false);setBuyerMissingAddress(false);setForm(s=>({...s,buyerId:"",buyerName:"",buyerMobile:"",buyerAddress:""}))};
  function goBack(){
   if(busy)return;
   if(dirty&&!window.confirm("Discard unsaved Sale details?"))return;
@@ -128,10 +147,10 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty}:{onSaved:(saleI
      </dl>
      <p>These are existing private plot details, not confirmed buyer information or received payments.</p>
      {plot.activeSaleId&&<p className="sales-error">Existing active sale — use the Sales Register.</p>}
-     {!plot.activeSaleId&&plot.status!=="sold"&&<label className="sales-checkbox">
-      <input type="checkbox" checked={form.markSold} onChange={e=>change("markSold",e.target.checked)}/>
-      Mark this plot Sold when saving this Sale (optional, requires confirmation)
-     </label>}
+     {!plot.activeSaleId&&plot.status!=="sold"&&<p className="sales-sync-notice">
+      Confirm & Save Sale will also mark this plot <strong>Sold</strong> in inventory.
+      Buyer, amount and the Sold change are reviewed together. No payment is auto-recorded.
+     </p>}
     </div>}
    </div>
    <div className="sales-form-section">
@@ -154,10 +173,10 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty}:{onSaved:(saleI
     <div className="sales-fields">
      <Field title="Buyer Name"><input required autoComplete="name" value={form.buyerName} disabled={Boolean(form.buyerId)}
       maxLength={120} placeholder="Full name" aria-invalid={nameError} onChange={e=>change("buyerName",e.target.value)}/>{nameError&&<small className="sales-error">At least 2 characters required.</small>}</Field>
-     <Field title="Mobile" optional><input autoComplete="tel" inputMode="tel" maxLength={20} disabled={Boolean(form.buyerId)}
-      placeholder="+91 Mobile" value={form.buyerMobile} aria-invalid={mobileError} onChange={e=>change("buyerMobile",e.target.value)}/>{mobileError&&<small className="sales-error">Enter a valid phone number or leave it empty.</small>}</Field>
-     <Field title="Buyer Address" optional wide><textarea rows={2} maxLength={600} autoComplete="street-address"
-      placeholder="Buyer address" disabled={Boolean(form.buyerId)} value={form.buyerAddress} onChange={e=>change("buyerAddress",e.target.value)}/></Field>
+     <Field title="Mobile (required)"><input required autoComplete="tel" inputMode="tel" maxLength={20} disabled={Boolean(form.buyerId)&&!buyerMissingMobile}
+      placeholder="+91 Mobile" value={form.buyerMobile} aria-invalid={mobileError} onChange={e=>change("buyerMobile",e.target.value)}/>{(mobileError||missingMobile)&&<small className="sales-error">Buyer mobile is required (10–15 digits).</small>}</Field>
+     <Field title="Buyer Address (required)" wide><textarea required minLength={8} rows={2} maxLength={600} autoComplete="street-address"
+      placeholder="Buyer full address" disabled={Boolean(form.buyerId)&&!buyerMissingAddress} value={form.buyerAddress} onChange={e=>change("buyerAddress",e.target.value)}/>{missingAddress&&<small className="sales-error">Enter the full address (at least 8 characters).</small>}</Field>
     </div>
    </div>
    <div className="sales-form-section">
@@ -184,7 +203,8 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty}:{onSaved:(saleI
    <h4>04 — Review before saving</h4>
    <dl>
     <div><dt>Property</dt><dd>{displayPlotId(form.plotId)} · {Number(plot?.sqft||0).toLocaleString("en-IN")} sq.ft</dd></div>
-    <div><dt>Buyer</dt><dd>{form.buyerName}{form.buyerMobile?" · "+form.buyerMobile:""}</dd></div>
+    <div><dt>Buyer</dt><dd>{form.buyerName} · {form.buyerMobile}</dd></div>
+    <div><dt>Address</dt><dd>{form.buyerAddress}</dd></div>
     <div><dt>Agreement amount</dt><dd>{moneyFromPaise(parseMoneyPaise(form.agreementAmount)||0)}</dd></div>
     <div><dt>Sale date</dt><dd>{form.saleDate}</dd></div>
     <div><dt>Plot status</dt><dd>{form.markSold?"Set Sold when saving":"Keep "+plot?.status}</dd></div>

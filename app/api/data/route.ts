@@ -201,11 +201,51 @@ export async function POST(request: Request) {
         );
       }
 
-      await env.DB.prepare(
-        "UPDATE plots SET status=?, updated_at=? WHERE project_id=? AND id=?",
-      )
-        .bind(status, now, projectId, plotId)
+      if (existing.status !== status) {
+        // Existing financial records are never silently detached from plot stock.
+        const sale=await env.DB.prepare(
+          "SELECT id FROM property_sales WHERE project_id=? AND plot_id=? AND state='active' LIMIT 1",
+        ).bind(projectId,plotId).first<{id:string}>();
+        if(sale && status!=="sold"){
+          return Response.json({
+            error:"Active Sales Ledger exists for this plot. Its status cannot be changed to Available/Booked.",
+            code:"ACTIVE_SALE_STATUS_PROTECTED",saleId:sale.id,
+          },{status:409,headers:{"cache-control":"no-store"}});
+        }
+        if(status==="sold" && !sale){
+          const flag=await env.DB.prepare(
+            "SELECT value FROM settings WHERE project_id=? AND key='salesAccountsEnabled'",
+          ).bind(projectId).first<{value:string}>();
+          if(flag?.value==="1"){
+            return Response.json({
+              error:"Create and confirm the buyer's Sale in Sales & Accounts before marking this plot Sold.",
+              code:"SALE_DETAILS_REQUIRED",plotId,
+            },{status:409,headers:{"cache-control":"no-store"}});
+          }
+        }
+      }
+
+      // Guard the final update in SQL as well as preflight, so two admin
+      // sessions cannot race a Sale insertion or access-toggle change.
+      const update=await env.DB.prepare(`UPDATE plots
+        SET status=?, updated_at=?
+        WHERE project_id=? AND id=? AND status=? AND inventory_active=1
+        AND (?='sold' OR NOT EXISTS(
+          SELECT 1 FROM property_sales sale
+          WHERE sale.project_id=plots.project_id AND sale.plot_id=plots.id AND sale.state='active'
+        ))
+        AND (?!='sold' OR NOT EXISTS(
+          SELECT 1 FROM settings flag
+          WHERE flag.project_id=plots.project_id AND flag.key='salesAccountsEnabled' AND flag.value='1'
+        ) OR EXISTS(
+          SELECT 1 FROM property_sales sale
+          WHERE sale.project_id=plots.project_id AND sale.plot_id=plots.id AND sale.state='active'
+        ))`)
+        .bind(status,now,projectId,plotId,existing.status,status,status)
         .run();
+      if(!update.meta.changes){
+        return Response.json({error:"Plot status changed in another session. Refresh and retry."},{status:409});
+      }
 
       const persisted = await env.DB.prepare(
         "SELECT status,updated_at AS updatedAt FROM plots WHERE project_id=? AND id=? LIMIT 1",
