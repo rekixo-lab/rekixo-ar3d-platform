@@ -1,5 +1,5 @@
 "use client";
-import {useCallback,useEffect,useState} from "react";
+import {useCallback,useEffect,useRef,useState} from "react";
 import {moneyFromPaise} from "./sales-accounts-core";
 
 type Sale={id:string;plotId:string;buyerName:string;buyerMobile:string|null;buyerAddress:string|null;agreementPaise:number;receivedPaise:number;balancePaise:number;state:string;saleDate:string};
@@ -11,6 +11,7 @@ const fmt=(v:number)=>moneyFromPaise(Number(v)||0);
 export default function ClientSalesAccounts(){
  const [items,setItems]=useState<Sale[]>([]),[count,setCount]=useState(0),[role,setRole]=useState<Role>("viewer");
  const [query,setQuery]=useState(""),[page,setPage]=useState(0),[selected,setSelected]=useState<Detail|null>(null);
+ const [stats,setStats]=useState<{netSalesPaise:number;receivedPaise:number;outstandingPaise:number;activeSales:number}|null>(null);
  const [form,setForm]=useState(emptyForm),[mode,setMode]=useState<"register"|"new">("register");
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[refresh,setRefresh]=useState(0);
  const load=useCallback(async()=>{
@@ -21,6 +22,7 @@ export default function ClientSalesAccounts(){
   setItems(data.sales||[]);setCount(data.total||0);setRole(data.role||"viewer");
  },[page,query,refresh]);
  useEffect(()=>{let active=true;load().catch(e=>{if(active)setError(e.message)});return()=>{active=false}},[load]);
+ useEffect(()=>{let open=true;fetch("/api/client/sales/summary",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(d=>{if(open)setStats(d?.stats||null)}).catch(()=>{});return()=>{open=false}},[refresh]);
  async function details(id:string){
   try{
    setError("");const r=await fetch("/api/client/sales?saleId="+encodeURIComponent(id),{cache:"no-store"});
@@ -41,6 +43,9 @@ export default function ClientSalesAccounts(){
    {role!=="viewer"&&<button type="button" className="primary-btn" onClick={()=>setMode(mode==="new"?"register":"new")}>{mode==="new"?"Back to Register":"New Sale"}</button>}
   </header>
   {error&&<p role="alert" style={{color:"#e77"}}>{error}</p>}
+  {stats&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:10}}>
+   {([["Active Sales",stats.activeSales],["Net Sales",fmt(stats.netSalesPaise)],["Received",fmt(stats.receivedPaise)],["Outstanding",fmt(stats.outstandingPaise)]] as const).map(([label,value])=><div key={label} style={{padding:14,border:"1px solid #6b728055",borderRadius:12}}><small>{label}</small><div style={{fontWeight:700,fontSize:20}}>{value}</div></div>)}
+  </div>}
   {mode==="new"?
    <form onSubmit={createSale} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:12}}>
     {([["plotId","Plot / Unit ID"],["buyerName","Buyer Name"],["buyerMobile","Mobile (optional)"],["buyerAddress","Address (optional)"],["agreementAmount","Agreement Amount (₹)"],["saleDate","Sale Date"]] as const).map(([key,label])=>
@@ -82,28 +87,79 @@ function SaleDetails({info,role,onClose,onRefresh}:{info:Detail;role:Role;onClos
   <h3>Due Installments</h3>
   {info.installments.map(d=><div key={d.id}>{d.dueOn} · {fmt(d.amountPaise)} {d.note}</div>)}
   {role!=="viewer"&&<PaymentForm saleId={sale.id} canApprove={role==="approver"} onRefresh={onRefresh}/>}
+  {role!=="viewer"&&<ScheduleForm saleId={sale.id} onRefresh={onRefresh}/>}
+  {role==="approver"&&<ApprovalActions saleId={sale.id} payments={info.payments} onRefresh={onRefresh}/>}
+  <button type="button" onClick={()=>window.print()}>Print Ledger</button>
  </div>
 }
 function PaymentForm({saleId,canApprove,onRefresh}:{saleId:string;canApprove:boolean;onRefresh:()=>Promise<void>}){
  const [amount,setAmount]=useState(""),[method,setMethod]=useState("upi"),[paidOn,setPaidOn]=useState(new Date().toISOString().slice(0,10));
  const [reference,setReference]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
+ const retryKey=useRef<string|null>(null);
  async function save(e:React.FormEvent){
   e.preventDefault();setBusy(true);setMessage("");
   try{
-   const key=crypto.randomUUID();
+   const key=retryKey.current||(retryKey.current=crypto.randomUUID());
    const r=await fetch("/api/client/sales/payments",{method:"POST",headers:{"content-type":"application/json"},
     body:JSON.stringify({action:"receive",saleId,amount,method,paidOn,reference,idempotencyKey:key})});
    const data=await r.json();if(!r.ok)throw Error(data.error||"Payment failed");
-   setAmount("");setReference("");await onRefresh();setMessage("Payment recorded");
+   retryKey.current=null;setAmount("");setReference("");await onRefresh();setMessage("Payment recorded");
   }catch(err){setMessage(err instanceof Error?err.message:"Payment not saved")}finally{setBusy(false)}
  }
  return <form onSubmit={save} style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"end"}}>
-  <label>Received ₹<input required value={amount} onChange={e=>setAmount(e.target.value)}/></label>
-  <label>Date<input type="date" value={paidOn} onChange={e=>setPaidOn(e.target.value)} required/></label>
-  <label>Mode<select value={method} onChange={e=>setMethod(e.target.value)}><option value="upi">UPI</option><option value="bank">Bank</option><option value="cash">Cash</option><option value="cheque">Cheque</option><option value="other">Other</option></select></label>
-  <label>Reference<input value={reference} maxLength={100} onChange={e=>setReference(e.target.value)}/></label>
+  <label>Received ₹<input required value={amount} onChange={e=>{retryKey.current=null;setAmount(e.target.value)}}/></label>
+  <label>Date<input type="date" value={paidOn} onChange={e=>{retryKey.current=null;setPaidOn(e.target.value)}} required/></label>
+  <label>Mode<select value={method} onChange={e=>{retryKey.current=null;setMethod(e.target.value)}}><option value="upi">UPI</option><option value="bank">Bank</option><option value="cash">Cash</option><option value="cheque">Cheque</option><option value="other">Other</option></select></label>
+  <label>Reference<input value={reference} maxLength={100} onChange={e=>{retryKey.current=null;setReference(e.target.value)}}/></label>
   <button disabled={busy}>Add Payment</button>
   <span role="status">{message}</span>
   {canApprove&&<small>Corrections and reversals are controlled separately.</small>}
  </form>
+}
+
+function ScheduleForm({saleId,onRefresh}:{saleId:string;onRefresh:()=>Promise<void>}){
+ const [amount,setAmount]=useState(""),[dueOn,setDueOn]=useState(""),[note,setNote]=useState(""),[message,setMessage]=useState("");
+ async function save(e:React.FormEvent){
+  e.preventDefault();
+  const res=await fetch("/api/client/sales/adjustments",{method:"POST",headers:{"content-type":"application/json"},
+   body:JSON.stringify({action:"installment",saleId,amount,dueOn,note})});
+  const d=await res.json();setMessage(res.ok?"Installment saved":d.error||"Failed");
+  if(res.ok){setAmount("");setNote("");await onRefresh()}
+ }
+ return <form onSubmit={save} style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+  <label>Next Due Date<input type="date" required value={dueOn} onChange={e=>setDueOn(e.target.value)}/></label>
+  <label>Due Amount ₹<input value={amount} required onChange={e=>setAmount(e.target.value)}/></label>
+  <label>Note<input value={note} onChange={e=>setNote(e.target.value)}/></label>
+  <button>Schedule Installment</button><span role="status">{message}</span>
+ </form>
+}
+function ApprovalActions({saleId,payments,onRefresh}:{saleId:string;payments:Payment[];onRefresh:()=>Promise<void>}){
+ const [kind,setKind]=useState("discount"),[amount,setAmount]=useState(""),[reason,setReason]=useState(""),[message,setMessage]=useState("");
+ const reversed=new Set(payments.filter(p=>p.reversedPaymentId).map(p=>p.reversedPaymentId));
+ const receipts=payments.filter(p=>p.kind==="receipt"&&!reversed.has(p.id));
+ async function adjust(e:React.FormEvent){
+  e.preventDefault();
+  const r=await fetch("/api/client/sales/adjustments",{method:"POST",headers:{"content-type":"application/json"},
+   body:JSON.stringify({action:"adjust",saleId,kind,amount,note:reason})});
+  const d=await r.json();setMessage(r.ok?"Adjustment saved":d.error||"Failed");if(r.ok){setAmount("");setReason("");await onRefresh()}
+ }
+ async function reverse(paymentId:string){
+  const reason=window.prompt("Reason for reversing this receipt (minimum 3 characters):");
+  if(!reason||reason.trim().length<3)return;
+  const r=await fetch("/api/client/sales/payments",{method:"POST",headers:{"content-type":"application/json"},
+   body:JSON.stringify({action:"reverse",saleId,paymentId,reason,idempotencyKey:crypto.randomUUID()})});
+  const d=await r.json();setMessage(r.ok?"Receipt reversed":d.error||"Failed");if(r.ok)await onRefresh();
+ }
+ return <section style={{borderTop:"1px solid #8886",paddingTop:12}}>
+  <h3>Approver Controls</h3>
+  <form onSubmit={adjust} style={{display:"flex",gap:9,flexWrap:"wrap"}}>
+   <select value={kind} onChange={e=>setKind(e.target.value)}><option value="discount">Discount</option><option value="charge">Charge</option></select>
+   <input aria-label="Adjustment amount rupees" placeholder="Amount ₹" required value={amount} onChange={e=>setAmount(e.target.value)}/>
+   <input aria-label="Reason" placeholder="Reason required" required minLength={3} value={reason} onChange={e=>setReason(e.target.value)}/>
+   <button>Save Adjustment</button>
+  </form>
+  <h4>Reverse Recorded Payment</h4>
+  {receipts.map(p=><div key={p.id}>{p.paidOn} · {fmt(p.amountPaise)} <button onClick={()=>reverse(p.id)}>Reverse</button></div>)}
+  <span role="status">{message}</span>
+ </section>
 }
