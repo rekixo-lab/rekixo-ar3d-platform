@@ -41,7 +41,7 @@ test("Visible form borders, mobile fields, review, buyer reuse and draft safety"
  assert.match(css,/@media\(max-width:700px\)/);
  assert.match(parent,/sales-inline-form/);
  assert.match(entry,/buyerId:buyer\.id/);
- assert.match(entry,/Review before saving/);
+ assert.match(entry,/एक बार जाँच लें/);
  assert.match(entry,/window\.addEventListener\("beforeunload"/);
  assert.match(admin,/salesDraft\.current&&!window\.confirm/);
  assert.match(admin,/onSaleSaved=\{\(\)=>setPlotRefresh/);
