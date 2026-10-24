@@ -5,10 +5,6 @@ export type SalesPlotChoice={
  activeSaleId:string|null;
 };
 export type ExistingBuyer={id:string;name:string;mobile:string|null;address:string|null};
-export function indiaToday(date:Date=new Date()){
- return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"})
-  .format(date).split("/").reverse().join("-"); // overwritten below when locale returns ISO
-}
 export function localSaleDate(date:Date=new Date()){
  const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",day:"2-digit",month:"2-digit",year:"numeric"}).formatToParts(date);
  const get=(kind:string)=>parts.find(p=>p.type===kind)?.value||"";
