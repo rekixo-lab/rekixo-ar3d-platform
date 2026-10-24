@@ -73,6 +73,7 @@ type PlotInventoryDiff = {
   missingNonAvailableIds: string[];
   missingPricedIds: string[];
   missingAdminDetailsIds: string[];
+  missingSalesIds: string[];
   confirmationRequired: boolean;
   confirmationToken: string;
 };
@@ -123,7 +124,10 @@ async function plotInventoryDiff(
            AND (COALESCE(TRIM(ad.owner_name),'')<>''
              OR ad.booking_amount_paise IS NOT NULL
              OR COALESCE(TRIM(ad.broker_name),'')<>'')
-       ) THEN 1 ELSE 0 END AS hasAdminDetails
+       ) THEN 1 ELSE 0 END AS hasAdminDetails,
+       CASE WHEN EXISTS (
+         SELECT 1 FROM property_sales sale WHERE sale.project_id=p.project_id AND sale.plot_id=p.id
+       ) THEN 1 ELSE 0 END AS hasSales
      FROM plots p
      WHERE p.project_id=?
      ORDER BY p.id`,
@@ -136,6 +140,7 @@ async function plotInventoryDiff(
       polygon: string | null;
       priced: number;
       hasAdminDetails: number;
+      hasSales: number;
     }>();
 
   const rows = result.results;
@@ -171,6 +176,9 @@ async function plotInventoryDiff(
       .map((row) => row.id),
     missingAdminDetailsIds: missingRows
       .filter((row) => Boolean(row.hasAdminDetails))
+      .map((row) => row.id),
+    missingSalesIds: missingRows
+      .filter((row) => Boolean(row.hasSales))
       .map((row) => row.id),
     confirmationRequired: missingRows.length > 0,
     confirmationToken,
@@ -1365,6 +1373,16 @@ export async function POST(request: Request) {
       const quality = assessPlotSheetRows(rows);
       const incomingIds = Array.from(new Set(rows.map((row) => row.id)));
       const inventory = await plotInventoryDiff(projectId, incomingIds);
+      if (inventory.missingSalesIds.length) {
+        return Response.json(
+          {
+            error: "Existing Sale/Ledger wale plots cannot be removed from inventory. Retain these plot IDs or migrate financial records through an approved audited process.",
+            code: "SALES_LEDGER_PLOT_REMOVAL_BLOCKED",
+            protectedPlotIds: inventory.missingSalesIds,
+          },
+          { status: 409 },
+        );
+      }
       if (inventory.missingAdminDetailsIds.length) {
         return Response.json(
           {
@@ -1419,6 +1437,16 @@ export async function POST(request: Request) {
       const quality = assessPlotSheetRows(rows);
       const incomingIds = Array.from(new Set(rows.map((row) => row.id)));
       const inventory = await plotInventoryDiff(projectId, incomingIds);
+      if (inventory.missingSalesIds.length) {
+        return Response.json(
+          {
+            error: "Existing Sale/Ledger wale plots cannot be removed from inventory. Retain these plot IDs or migrate financial records through an approved audited process.",
+            code: "SALES_LEDGER_PLOT_REMOVAL_BLOCKED",
+            protectedPlotIds: inventory.missingSalesIds,
+          },
+          { status: 409 },
+        );
+      }
       if (inventory.missingAdminDetailsIds.length) {
         return Response.json(
           {
