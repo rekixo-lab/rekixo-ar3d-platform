@@ -46,7 +46,7 @@ export async function PATCH(request:Request){
      RETURNING id`).bind(name,mobile,address,now,projectId,sale.customerId,projectId,id,revision+1)
    ]);
    if(!res[0].results?.length||!res[1].results?.length)throw Error("Buyer correction not applied");
-   await salesAudit(access.context,"sales.buyer_corrected",id,{reason});
+   try{await salesAudit(access.context,"sales.buyer_corrected",id,{reason})}catch{console.error("Buyer correction audit write failed",{id})}
    return salesResponse({ok:true});
   }
   if(action==="updateSaleDate"){
@@ -57,7 +57,7 @@ export async function PATCH(request:Request){
      WHERE project_id=? AND id=? AND revision=? AND state='active'`)
     .bind(body.saleDate,projectId,id,revision).run();
    if(!res.meta.changes)return salesResponse({error:"Sale changed. Refresh."},409);
-   await salesAudit(access.context,"sales.date_corrected",id,{reason,date:body.saleDate});
+   try{await salesAudit(access.context,"sales.date_corrected",id,{reason,date:body.saleDate})}catch{console.error("Sale date audit write failed",{id})}
    return salesResponse({ok:true});
   }
   if(action==="voidSale"){
@@ -75,7 +75,7 @@ export async function PATCH(request:Request){
        AND r.kind='reversal' AND r.reversed_payment_id=p.id))
     RETURNING id`).bind(projectId,id,revision).first();
    if(!result)return salesResponse({error:"Cancel blocked: reverse all received payments first or refresh the sale."},409);
-   await salesAudit(access.context,"sales.sale_voided",id,{reason,plotId:sale.plotId});
+   try{await salesAudit(access.context,"sales.sale_voided",id,{reason,plotId:sale.plotId})}catch{console.error("Void audit write failed",{id})}
    return salesResponse({ok:true,plotId:sale.plotId,plotStatusUnchanged:true});
   }
   return salesResponse({error:"Unsupported correction"},400);
