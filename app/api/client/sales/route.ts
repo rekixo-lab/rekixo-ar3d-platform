@@ -1,6 +1,6 @@
 import {env} from "cloudflare:workers";
 import {sameOrigin} from "@/modules/auth";
-import {clientSalesAccess,canEdit,readSalesBody,salesResponse,salesAudit} from "@/app/sales-accounts-server";
+import {clientSalesAccess,canEdit,readSalesBody,salesResponse,salesAudit,salesId} from "@/app/sales-accounts-server";
 import {parseMoneyPaise,validSaleDate,validSalesName,safeNote} from "@/app/sales-accounts-core";
 
 const sums=`(s.agreement_paise
@@ -50,8 +50,7 @@ export async function GET(request:Request){
 }
 export async function POST(request:Request){
  if(!sameOrigin(request))return salesResponse({error:"Invalid origin"},403);
- const access=await clientSalesAccess();
- if(!access.ok)return access.response;
+ const access=await clientSalesAccess();if(!access.ok)return access.response;
  if(!canEdit(access.context.role))return salesResponse({error:"Sales write permission required"},403);
  const body=await readSalesBody(request);
  if(!body||body.action!=="createSale")return salesResponse({error:"Invalid sale request"},400);
@@ -59,28 +58,56 @@ export async function POST(request:Request){
  const buyerName=typeof body.buyerName==="string"?body.buyerName.trim():"";
  const mobile=typeof body.buyerMobile==="string"?body.buyerMobile.trim():"";
  const address=typeof body.buyerAddress==="string"?body.buyerAddress.trim():"";
- const saleDate=body.saleDate;
- const amount=parseMoneyPaise(body.agreementAmount);
- if(!plotId||plotId.length>80||!validSalesName(buyerName)||
-    mobile.length>20||(mobile&&!/^\+?[0-9()\-\s]{7,20}$/.test(mobile))||
-    address.length>600||!validSaleDate(saleDate)||amount===null)
-    return salesResponse({error:"Invalid buyer, plot, date or agreement amount"},400);
+ const buyerId=body.buyerId===undefined||body.buyerId===null||body.buyerId===""?null:salesId(body.buyerId);
+ const saleDate=body.saleDate,amount=parseMoneyPaise(body.agreementAmount);
+ const expectedStatus=body.expectedPlotStatus;
+ const markSold=body.markSold===true;
+ if(!plotId||plotId.length>80||!["available","booked","sold"].includes(String(expectedStatus))||
+   (body.buyerId && !buyerId)||(!buyerId && !validSalesName(buyerName))||
+   mobile.length>20||(mobile&&!/^\+?[0-9()\-\s]{7,20}$/.test(mobile))||
+   address.length>600||!validSaleDate(saleDate)||amount===null||typeof body.markSold!=="boolean")
+   return salesResponse({error:"Invalid plot, buyer, date, amount or status selection"},400);
  const {projectId,userId}=access.context;
  try{
-  const plot=await env.DB.prepare("SELECT status FROM plots WHERE project_id=? AND id=? AND inventory_active=1").bind(projectId,plotId).first<{status:string}>();
+  const plot=await env.DB.prepare("SELECT status FROM plots WHERE project_id=? AND id=? AND inventory_active=1")
+   .bind(projectId,plotId).first<{status:string}>();
   if(!plot)return salesResponse({error:"Active plot not found"},404);
-  const saleId=crypto.randomUUID(),buyerId=crypto.randomUUID(),now=new Date().toISOString();
-  await env.DB.batch([
-   env.DB.prepare("INSERT INTO sales_customers(project_id,id,name,mobile,address,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)")
-    .bind(projectId,buyerId,buyerName,mobile||null,address||null,userId,now,now),
-   env.DB.prepare("INSERT INTO property_sales(project_id,id,plot_id,customer_id,agreement_paise,sale_date,state,created_by,created_at) VALUES(?,?,?,?,?,?,'active',?,?)")
-    .bind(projectId,saleId,plotId,buyerId,amount,saleDate,userId,now)
-  ]);
-  try { await salesAudit(access.context,"sales.sale_created",saleId,{plotId}); }
-  catch { console.error("Sale saved, separate audit write failed", { projectId, saleId }); }
-  return salesResponse({ok:true,saleId,buyerId},201);
+  if(plot.status!==expectedStatus)
+   return salesResponse({error:"Plot status changed. Refresh plot selection before saving."},409);
+  if(buyerId){
+   const buyer=await env.DB.prepare("SELECT id FROM sales_customers WHERE project_id=? AND id=?")
+    .bind(projectId,buyerId).first();
+   if(!buyer)return salesResponse({error:"Selected buyer is no longer available in this project"},409);
+  }
+  const saleId=crypto.randomUUID(),resolvedBuyerId=buyerId||crypto.randomUUID(),now=new Date().toISOString();
+  const mutations=[];
+  if(!buyerId){
+   mutations.push(env.DB.prepare("INSERT INTO sales_customers(project_id,id,name,mobile,address,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)")
+    .bind(projectId,resolvedBuyerId,buyerName,mobile||null,address||null,userId,now,now));
+  }
+  // D1.batch is transactional. Insert first, requiring the EXACT earlier plot
+  // status inside the same transaction; a mismatch inserts agreement=0, which
+  // violates the positive-amount CHECK and rolls back the entire buyer + sale
+  // batch. No orphan buyer or unintended status change can survive a conflict.
+  const saleMutationIndex=mutations.length;
+  mutations.push(env.DB.prepare(`INSERT INTO property_sales
+   (project_id,id,plot_id,customer_id,agreement_paise,sale_date,state,created_by,created_at)
+   VALUES(?,?,?,?,CASE WHEN EXISTS(
+     SELECT 1 FROM plots p WHERE p.project_id=? AND p.id=? AND p.inventory_active=1 AND p.status=?
+   ) THEN ? ELSE 0 END,?,'active',?,?) RETURNING id`)
+   .bind(projectId,saleId,plotId,resolvedBuyerId,projectId,plotId,expectedStatus,amount,saleDate,userId,now));
+  if(markSold && plot.status!=="sold"){
+   mutations.push(env.DB.prepare(`UPDATE plots SET status='sold',updated_at=?
+      WHERE project_id=? AND id=? AND inventory_active=1 AND status=?`)
+    .bind(now,projectId,plotId,expectedStatus));
+  }
+  const results=await env.DB.batch(mutations);
+  if(!results[saleMutationIndex]?.results?.length)throw Error("Sale could not be persisted");
+  try{await salesAudit(access.context,"sales.sale_created",saleId,{plotId,markSold,previousStatus:plot.status});}
+  catch{console.error("Sale saved, separate audit write failed",{projectId,saleId});}
+  return salesResponse({ok:true,saleId,buyerId:resolvedBuyerId,plotStatus:markSold?"sold":plot.status},201);
  }catch(error){
   console.error("Sale create failure",error);
-  return salesResponse({error:"Sale could not be created; check for an existing active sale on the plot"},409);
+  return salesResponse({error:"Sale not created. Plot status, duplicate sale or customer selection changed. Refresh and retry."},409);
  }
 }
