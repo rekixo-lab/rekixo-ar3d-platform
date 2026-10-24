@@ -2,6 +2,7 @@
 import {useCallback,useEffect,useRef,useState} from "react";
 import {moneyFromPaise} from "./sales-accounts-core";
 import SalesSmartEntry from "./sales-smart-entry";
+import {localSaleDate} from "./sales-smart-entry-policy";
 
 type Sale={id:string;plotId:string;buyerName:string;buyerMobile:string|null;buyerAddress:string|null;agreementPaise:number;receivedPaise:number;balancePaise:number;state:string;saleDate:string};
 type Payment={id:string;kind:string;amountPaise:number;paidOn:string;method:string;reference:string|null;note:string|null;reversedPaymentId:string|null};
@@ -84,7 +85,7 @@ function SaleDetails({info,role,onClose,onRefresh}:{info:Detail;role:Role;onClos
  </div>
 }
 function PaymentForm({saleId,canApprove,outstanding,nextDue,onRefresh}:{saleId:string;canApprove:boolean;outstanding:number;nextDue:number|null;onRefresh:()=>Promise<void>}){
- const [amount,setAmount]=useState(""),[method,setMethod]=useState("upi"),[paidOn,setPaidOn]=useState(new Date().toISOString().slice(0,10));
+ const [amount,setAmount]=useState(""),[method,setMethod]=useState("upi"),[paidOn,setPaidOn]=useState(localSaleDate());
  const [reference,setReference]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
  const retryKey=useRef<string|null>(null);
  async function save(e:React.FormEvent){
@@ -104,7 +105,7 @@ function PaymentForm({saleId,canApprove,outstanding,nextDue,onRefresh}:{saleId:s
   <label>Reference<input placeholder="UPI / bank reference (optional)" value={reference} maxLength={100} onChange={e=>{retryKey.current=null;setReference(e.target.value)}}/></label>
   <div className="sales-payment-shortcuts">
    <button type="button" className="sales-button sales-button-quiet" disabled={!outstanding} onClick={()=>{retryKey.current=null;setAmount((outstanding/100).toFixed(2))}}>Full balance · {fmt(outstanding)}</button>
-   {nextDue!==null&&<button type="button" className="sales-button sales-button-quiet" onClick={()=>{retryKey.current=null;setAmount((Math.min(outstanding,nextDue)/100).toFixed(2))}}>Next installment</button>}
+   {nextDue!==null&&<button type="button" className="sales-button sales-button-quiet" onClick={()=>{retryKey.current=null;setAmount((Math.min(outstanding,nextDue)/100).toFixed(2))}}>Scheduled amount (reference)</button>}
   </div>
   <button className="sales-button sales-button-primary" disabled={busy||outstanding<=0}>Add Payment</button>
   <span role="status">{message}</span>
