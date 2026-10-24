@@ -76,7 +76,8 @@ export async function POST(request:Request){
    env.DB.prepare("INSERT INTO property_sales(project_id,id,plot_id,customer_id,agreement_paise,sale_date,state,created_by,created_at) VALUES(?,?,?,?,?,?,'active',?,?)")
     .bind(projectId,saleId,plotId,buyerId,amount,saleDate,userId,now)
   ]);
-  await salesAudit(access.context,"sales.sale_created",saleId,{plotId});
+  try { await salesAudit(access.context,"sales.sale_created",saleId,{plotId}); }
+  catch { console.error("Sale saved, separate audit write failed", { projectId, saleId }); }
   return salesResponse({ok:true,saleId,buyerId},201);
  }catch(error){
   console.error("Sale create failure",error);
