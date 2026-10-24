@@ -224,7 +224,7 @@ function ApprovalActions({saleId,payments,adjustments,onRefresh}:{saleId:string;
 }
 
 function DocumentPanel({saleId,canUpload}:{saleId:string;canUpload:boolean}){
- const [rows,setRows]=useState<{id:string;kind:string;fileName:string;uploadedAt:string}[]>([]);
+ const [rows,setRows]=useState<{id:string;kind:string;fileName:string;uploadedAt:string;archivedAt:string|null}[]>([]);
  const [kind,setKind]=useState("agreement"),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
  async function load(){
   const r=await fetch("/api/client/sales/documents?saleId="+encodeURIComponent(saleId),{cache:"no-store"});
@@ -243,8 +243,19 @@ function DocumentPanel({saleId,canUpload}:{saleId:string;canUpload:boolean}){
  }
  return <section style={{display:"grid",gap:10}}>
   <h3>Private Sale Documents</h3>
-  {rows.map(d=><a key={d.id} href={"/api/client/sales/documents?saleId="+encodeURIComponent(saleId)+"&documentId="+encodeURIComponent(d.id)} download>
-    {d.kind} · {d.fileName} · {d.uploadedAt.slice(0,10)}</a>)}
+  {rows.map(d=><div key={d.id} className="sales-history-line">
+    {d.archivedAt?<span className="sales-hint">Archived · {d.fileName}</span>:
+     <a href={"/api/client/sales/documents?saleId="+encodeURIComponent(saleId)+"&documentId="+encodeURIComponent(d.id)} download>
+      {d.kind} · {d.fileName} · {d.uploadedAt.slice(0,10)}</a>}
+    {canUpload&&<button type="button" className="sales-button sales-button-quiet" onClick={async()=>{
+     const action=d.archivedAt?"restore":"archive";
+     const reason=window.prompt(action==="archive"?"Why hide this document?":"Why restore this document?");
+     if(!reason||reason.trim().length<3)return;
+     const r=await fetch("/api/client/sales/documents",{method:"PATCH",headers:{"content-type":"application/json"},
+      body:JSON.stringify({action,saleId,documentId:d.id,reason})});
+     if(r.ok)await load();else setMessage((await r.json()).error||"Could not update document");
+    }}>{d.archivedAt?"Restore":"Archive"}</button>}
+   </div>)}
   {!rows.length&&<small>No sale documents uploaded yet.</small>}
   {canUpload&&<form className="sales-inline-form" onSubmit={upload}>
    <select name="kind" value={kind} onChange={e=>setKind(e.target.value)}><option value="agreement">Agreement</option><option value="receipt">Receipt</option><option value="other">Other</option></select>
