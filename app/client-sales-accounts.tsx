@@ -39,7 +39,12 @@ export default function ClientSalesAccounts(){
  }
  return <section className="card" style={{padding:20,display:"grid",gap:16}}>
   <header style={{display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap",alignItems:"center"}}>
-   <div><p style={{opacity:.65,fontSize:12}}>PRIVATE · PROJECT ACCOUNTING</p><h2>Sales &amp; Accounts</h2><small>{count} sales · {role} access</small></div>
+   <div><p style={{opacity:.65,fontSize:12}}>PRIVATE · PROJECT ACCOUNTING</p><h2>Sales &amp; Accounts</h2><small>{count} sales · {role} access</small>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}>
+     {(["sales","payments","installments","adjustments"] as const).map(kind=>
+       <a key={kind} href={"/api/client/sales/export?kind="+kind} download>Export {kind}</a>)}
+    </div>
+   </div>
    {role!=="viewer"&&<button type="button" className="primary-btn" onClick={()=>setMode(mode==="new"?"register":"new")}>{mode==="new"?"Back to Register":"New Sale"}</button>}
   </header>
   {error&&<p role="alert" style={{color:"#e77"}}>{error}</p>}
