@@ -8,7 +8,7 @@ type Payment={id:string;kind:string;amountPaise:number;paidOn:string;method:stri
 type Detail={sale:Sale;payments:Payment[];installments:{id:string;dueOn:string;amountPaise:number;note:string|null}[];adjustments:{id:string;kind:string;amountPaise:number;note:string}[]};
 type Role="viewer"|"editor"|"approver";
 const fmt=(v:number)=>moneyFromPaise(Number(v)||0);
-export default function ClientSalesAccounts({onDraftChange}:{onDraftChange?:(dirty:boolean)=>void}){
+export default function ClientSalesAccounts({onDraftChange,onSaleSaved}:{onDraftChange?:(dirty:boolean)=>void;onSaleSaved?:()=>void}){
  const [items,setItems]=useState<Sale[]>([]),[count,setCount]=useState(0),[role,setRole]=useState<Role>("viewer");
  const [query,setQuery]=useState(""),[page,setPage]=useState(0),[selected,setSelected]=useState<Detail|null>(null);
  const [stats,setStats]=useState<{netSalesPaise:number;receivedPaise:number;outstandingPaise:number;activeSales:number}|null>(null);
@@ -44,7 +44,7 @@ export default function ClientSalesAccounts({onDraftChange}:{onDraftChange?:(dir
    {([["Active Sales",stats.activeSales],["Net Sales",fmt(stats.netSalesPaise)],["Received",fmt(stats.receivedPaise)],["Outstanding",fmt(stats.outstandingPaise)]] as const).map(([label,value])=><div key={label} style={{padding:14,border:"1px solid #6b728055",borderRadius:12}}><small>{label}</small><div style={{fontWeight:700,fontSize:20}}>{value}</div></div>)}
   </div>}
   {mode==="new"?<SalesSmartEntry onDirty={onDraftChange} onBack={()=>setMode("register")}
-   onSaved={async saleId=>{setMode("register");setPage(0);setRefresh(n=>n+1);await details(saleId)}}/>:
+   onSaved={async saleId=>{onSaleSaved?.();setMode("register");setPage(0);setRefresh(n=>n+1);await details(saleId)}}/>:
    <>
     <label className="sales-field sales-search">Search Sale / Buyer <input value={query} placeholder="Plot 12 / buyer name" onChange={e=>{setQuery(e.target.value);setPage(0)}}/></label>
     <div style={{overflowX:"auto"}}>
