@@ -18,7 +18,7 @@ test("Phase 2 sale create strictly derives projectId from client session",()=>{
 });
 test("Phase 2 UI is gated and private buyer data cannot enter public payload",()=>{
  assert.match(admin,/salesAccess\?\[/);
- assert.match(admin,/tab==="sales"&&salesAccess&&<ClientSalesAccounts onDraftChange=/);
+ assert.match(admin,/tab==="sales"&&salesAccess&&<ClientSalesAccounts initialPlotId=/);
  assert.match(ui,/\/api\/client\/sales\?/);
  assert.match(ui,/<SalesSmartEntry onDirty=/);
  assert.match(read("../app/sales-smart-entry.tsx"),/action:"createSale"/);
