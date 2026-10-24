@@ -75,7 +75,7 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty}:{onSaved:(saleI
   return()=>{active=false;clearTimeout(t);ctrl.abort()}
  },[buyerSearch,showBuyers]);
  const suggestion=useMemo(()=>suggestedAgreement(plot),[plot]);
- const mobileError=Boolean(form.buyerMobile.trim()&&!/^\\+?[0-9()\\-\\s]{7,20}$/.test(form.buyerMobile.trim()));
+ const mobileError=Boolean(form.buyerMobile.trim()&&!/^\+?[0-9()\-\s]{7,20}$/.test(form.buyerMobile.trim()));
  const amountError=Boolean(form.agreementAmount&&parseMoneyPaise(form.agreementAmount)===null);
  const nameError=Boolean(form.buyerName.trim()&&form.buyerName.trim().length<2);
  const canReview=Boolean(plot&&!plot.activeSaleId&&form.plotId&&form.buyerName.trim().length>=2&&
