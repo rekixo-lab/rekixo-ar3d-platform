@@ -147,10 +147,10 @@ export default function SalesSmartEntry({onSaved,onBack,onDirty,initialPlotId}:{
      </dl>
      <p>These are existing private plot details, not confirmed buyer information or received payments.</p>
      {plot.activeSaleId&&<p className="sales-error">Existing active sale — use the Sales Register.</p>}
-     {!plot.activeSaleId&&plot.status!=="sold"&&<label className="sales-checkbox">
-      <input type="checkbox" checked={form.markSold} onChange={e=>change("markSold",e.target.checked)}/>
-      Mark this plot Sold when saving this Sale (optional, requires confirmation)
-     </label>}
+     {!plot.activeSaleId&&plot.status!=="sold"&&<p className="sales-sync-notice">
+      Confirm & Save Sale will also mark this plot <strong>Sold</strong> in inventory.
+      Buyer, amount and the Sold change are reviewed together. No payment is auto-recorded.
+     </p>}
     </div>}
    </div>
    <div className="sales-form-section">
