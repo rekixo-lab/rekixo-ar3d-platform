@@ -48,7 +48,7 @@ test("Visible form borders, mobile fields, review, buyer reuse and draft safety"
 });
 test("Backend keeps sale status, buyer reuse and public privacy scoped",()=>{
  assert.match(backend,/body\.markSold===true/);
- assert.match(backend,/SELECT id FROM sales_customers WHERE project_id=\? AND id=\?/);
+ assert.match(backend,/SELECT name,mobile,address FROM sales_customers WHERE project_id=\? AND id=\?/);
  assert.match(backend,/const results=await env\.DB\.batch\(mutations\)/);
  assert.match(backend,/CASE WHEN EXISTS\(/);
  assert.match(backend,/THEN \? ELSE 0 END/);
