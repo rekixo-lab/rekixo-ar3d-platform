@@ -23,8 +23,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Diagnose live WhatsApp public metadata (read only)
-        run: node scripts/diagnose-live-whatsapp-preview.mjs
       - run: npm ci
       - run: npm run build
       - name: Full source regression suite
