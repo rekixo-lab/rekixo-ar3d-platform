@@ -333,6 +333,11 @@ async function customerJourney(browser) {
     assert.match(head, /property="og:description"/, "crawler OG description is in raw head");
     assert.match(head, /property="og:image"/, "crawler OG image is in raw head");
     assert.match(head, /property="og:url"/, "crawler OG URL is in raw head");
+    // A stale ?share= link must still return a stable canonical og:url; only
+    // the immutable og:image gets the current published revision counter.
+    const ogUrlTag = head.match(/<meta\b[^>]*property="og:url"[^>]*>/i)?.[0] || "";
+    assert.ok(!ogUrlTag.includes("?share="), "canonical OG URL must not contain revision counters");
+
   } finally {
     await crawlerContext.close();
   }
