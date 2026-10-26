@@ -20,21 +20,22 @@ test("publish readiness still requires share metadata and a saved share image", 
 });
 
 test("Open Graph uses the versioned public share asset endpoint without fake dimensions", async () => {
-  const page = await readFile(
-    new URL("../app/projects/[slug]/page.tsx", import.meta.url),
-    "utf8",
-  );
+  const [page, metadata] = await Promise.all([
+    readFile(new URL("../app/projects/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/project-share-metadata.ts", import.meta.url), "utf8"),
+  ]);
 
-  assert.ok(page.includes("hasShareImage"));
-  assert.ok(page.includes('const images = meta.imageUrl'));
-  assert.ok(page.includes('{ url: meta.imageUrl, alt: meta.title }'));
-  assert.ok(page.includes("/api/project-asset/shareCard?"));
-  assert.ok(page.includes("project.id"));
-  assert.ok(page.includes("settings.shareVersion"));
-  assert.ok(page.includes("&public=1"));
-  assert.ok(!page.includes("/share-image/"));
-  assert.ok(!page.includes("width: 1200"));
-  assert.ok(!page.includes("height: 630"));
-  assert.ok(page.includes("icons: meta.logoUrl"));
-  assert.ok(page.includes('card: meta.hasShareImage ? "summary_large_image" : "summary"'));
+  assert.ok(page.includes("generatePublishedProjectMetadata(slug)"));
+  assert.ok(metadata.includes("hasShareImage"));
+  assert.ok(metadata.includes('const images = meta.imageUrl'));
+  assert.ok(metadata.includes('{ url: meta.imageUrl, alt: meta.title }'));
+  assert.ok(metadata.includes("/api/project-asset/shareCard?"));
+  assert.ok(metadata.includes("project.id"));
+  assert.ok(metadata.includes("settings.shareVersion"));
+  assert.ok(metadata.includes("&public=1"));
+  assert.ok(!metadata.includes("/share-image/"));
+  assert.ok(!metadata.includes("width: 1200"));
+  assert.ok(!metadata.includes("height: 630"));
+  assert.ok(metadata.includes("icons: meta.logoUrl"));
+  assert.ok(metadata.includes('card: meta.hasShareImage ? "summary_large_image" : "summary"'));
 });

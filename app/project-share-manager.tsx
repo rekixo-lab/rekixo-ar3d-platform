@@ -354,26 +354,35 @@ async function prepareBrandedShareImage(file: File) {
       brandBitmap.close();
     }
 
-    // WhatsApp link previews document an image limit below 600 KB.
-    // Keep a little headroom so the public social card remains crawler-safe.
+    // WhatsApp crawlers are most compatible with JPEG images. If necessary,
+    // scale the entire composed poster (including its AR3D footer) without cropping.
     let blob: Blob | null = null;
-    for (const quality of [0.86, 0.78, 0.7, 0.62, 0.54, 0.46]) {
-      blob = await canvasBlob(canvas, "image/jpeg", quality);
-      if (blob && blob.size <= MAX_WHATSAPP_SHARE_IMAGE_BYTES) break;
-    }
-    if (!blob || blob.size > MAX_WHATSAPP_SHARE_IMAGE_BYTES) {
-      for (const quality of [0.82, 0.72, 0.62, 0.52]) {
-        blob = await canvasBlob(canvas, "image/webp", quality);
-        if (blob && blob.size <= MAX_WHATSAPP_SHARE_IMAGE_BYTES) break;
+    for (const ratio of [1, 0.9, 0.8, 0.7, 0.6, 0.5]) {
+      let outputCanvas = canvas;
+      if (ratio < 1) {
+        outputCanvas = document.createElement("canvas");
+        outputCanvas.width = Math.max(1, Math.round(canvas.width * ratio));
+        outputCanvas.height = Math.max(1, Math.round(canvas.height * ratio));
+        const scaledContext = outputCanvas.getContext("2d", { alpha: false });
+        if (!scaledContext) throw new Error("Share image resize nahi ho payi");
+        scaledContext.drawImage(canvas, 0, 0, outputCanvas.width, outputCanvas.height);
       }
+      for (const quality of [0.86, 0.76, 0.66, 0.56, 0.46]) {
+        const candidate = await canvasBlob(outputCanvas, "image/jpeg", quality);
+        if (
+          candidate?.type === "image/jpeg" &&
+          candidate.size <= MAX_WHATSAPP_SHARE_IMAGE_BYTES
+        ) {
+          blob = candidate;
+          break;
+        }
+      }
+      if (blob) break;
     }
-    if (!blob || blob.size > MAX_WHATSAPP_SHARE_IMAGE_BYTES)
-      throw new Error("WhatsApp share image 550 KB ke andar optimize nahi hui");
+    if (!blob)
+      throw new Error("WhatsApp JPEG image 550 KB ke andar optimize nahi hui");
 
-    const extension = blob.type === "image/jpeg" ? "jpg" : "webp";
-    return new File([blob], `share-branded.${extension}`, {
-      type: blob.type,
-    });
+    return new File([blob], "share-branded.jpg", { type: "image/jpeg" });
   } finally {
     sourceBitmap.close();
   }

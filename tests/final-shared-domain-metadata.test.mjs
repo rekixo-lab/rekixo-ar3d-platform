@@ -10,15 +10,18 @@ test("generic client shell has no Tiyansh/Raigarh metadata bleed", async () => {
 });
 
 test("canonical shared project path owns project-specific metadata", async () => {
-  const page = await readFile(
-    new URL("../app/projects/[slug]/page.tsx", import.meta.url),
-    "utf8",
-  );
+  const [page, metadata, home] = await Promise.all([
+    readFile(new URL("../app/projects/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/project-share-metadata.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+  ]);
   assert.match(page, /generateMetadata/);
-  assert.match(page, /shareTitle/);
-  assert.match(page, /shareDescription/);
-  assert.match(page, /shareImage/);
+  assert.match(page, /generatePublishedProjectMetadata/);
+  assert.match(metadata, /shareTitle/);
+  assert.match(metadata, /shareDescription/);
+  assert.match(metadata, /shareImage/);
   assert.match(page, /projectSlug/);
+  assert.match(home, /generatePublishedProjectMetadata/);
 });
 
 test("legacy short project path redirects to canonical projects path", async () => {

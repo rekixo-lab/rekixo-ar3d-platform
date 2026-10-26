@@ -366,6 +366,13 @@ export async function GET(
     if (wantsOriginalMasterplan)
       headers.set("x-rekixo-original-fidelity", sourceIsOriginal ? "original" : "optimized-fallback");
   }
+  if (kind === "shareCard") {
+    // OG images should be directly fetchable by unauthenticated social crawlers.
+    headers.set("content-disposition", "inline");
+    headers.set("content-length", String(object.size));
+    headers.set("cross-origin-resource-policy", "cross-origin");
+    headers.set("access-control-allow-origin", "*");
+  }
   if (kind === "sourceCad" || kind === "plotSheet" || kind === "masterplanOriginal")
     headers.set("content-disposition", "attachment");
   if (object.httpEtag) headers.set("etag", object.httpEtag);
