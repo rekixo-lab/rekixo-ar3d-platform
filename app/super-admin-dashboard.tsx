@@ -28,6 +28,7 @@ import ProjectShareManager from "./project-share-manager";
 import ProjectStatusThemeManager from "./project-status-theme-manager";
 import MotionSwap, { MotionToast } from "./motion-swap";
 import SalesControls from "./sales-controls";
+import ProjectAdminStudioManager from "./project-admin-studio-manager";
 
 type Project = {
   id: string;
@@ -37,7 +38,7 @@ type Project = {
   adminCount: number;
 };
 
-type WorkspaceTab = "clients" | "profile" | "mapper" | "mapping-controls" | "geo" | "share" | "assets" | "accounts";
+type WorkspaceTab = "clients" | "profile" | "mapper" | "mapping-controls" | "geo" | "share" | "assets" | "accounts" | "studio";
 
 export default function SuperAdminDashboard({
   user,
@@ -135,6 +136,8 @@ export default function SuperAdminDashboard({
             ? "Geo Mapper"
               : tab === "accounts"
                 ? "Sales & Accounts Controls"
+              : tab === "studio"
+                ? "Project Admin Studio"
               : tab === "share"
                 ? "Share Preview Builder"
                 : "Project Assets";
@@ -151,6 +154,8 @@ export default function SuperAdminDashboard({
             ? "Project boundaries, GPS control points aur GIS exchange data ko isolated Geo workspace me manage karein."
               : tab === "accounts"
                 ? "Per-project financial access, roles and private ledger controls."
+              : tab === "studio"
+                ? "Per-project workflows, modules and custom fields without changing other builders."
               : tab === "share"
                 ? "Har project ka branded WhatsApp / social link preview ek jagah se manage karein."
                 : "Selected project ka recovery-ready working data, source assets aur published snapshot safely export karein.";
@@ -200,6 +205,7 @@ export default function SuperAdminDashboard({
             <Globe2 /> Geo Mapper
           </button>
           <button onClick={() => setTab("accounts")} className={tab === "accounts" ? "active" : ""}><WalletCards /> Sales &amp; Accounts</button>
+          <button onClick={() => setTab("studio")} className={tab === "studio" ? "active" : ""}><SlidersHorizontal /> Admin Studio</button>
           <button
             className={tab === "share" ? "active" : ""}
             onClick={() => setTab("share")}
@@ -312,6 +318,8 @@ export default function SuperAdminDashboard({
                     </>
                   ) : tab === "accounts" ? (
                     <SalesControls key={projectId} projectId={projectId} notify={notify} />
+                  ) : tab === "studio" ? (
+                    <ProjectAdminStudioManager key={projectId} projectId={projectId} notify={notify} />
                   ) : tab === "assets" ? (
                     <ProjectAssetsManager
                       key={`assets:${projectId}`}
