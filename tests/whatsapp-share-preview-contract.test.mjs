@@ -61,7 +61,7 @@ test("Link preview tags stay in HTML head for unrecognized crawler agents", asyn
     source("../next.config.ts"),
     source("../app/project-share-metadata.ts"),
   ]);
-  assert.match(config, /htmlLimitedBots:\\s*\/\.\*\//);
+  assert.match(config, /htmlLimitedBots:\s*\/\.\*\//);
   assert.match(metadata, /canonicalShareUrl/);
   assert.match(metadata, /url: meta\.canonicalShareUrl \|\| undefined/);
   assert.match(metadata, /settings\.shareVersion/);
