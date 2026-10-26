@@ -179,7 +179,7 @@ async function journey(target) {
     window.__nativeCrops = [];
     const drawImage = CanvasRenderingContext2D.prototype.drawImage;
     CanvasRenderingContext2D.prototype.drawImage = function (...args) {
-      if (args.length === 9 && args[0]?.naturalWidth === 12000) {
+      if (args.length === 9 && args[0]?.naturalWidth === 12000 && !this.canvas?.classList?.contains('master-native-tile')) {
         window.__nativeCrops.push({ sourceWidth: args[3], sourceHeight: args[4], width: args[7], height: args[8] });
       }
       return drawImage.apply(this, args);
@@ -228,12 +228,28 @@ async function journey(target) {
       assert.equal(state.requests.filter(v => v === "original").length, 1, "missing original is probed only once, never downloaded");
       assert.equal(await page.locator("#masterplanQuality").count(), 0, "customer masterplan quality badge is removed");
     } else {
-      await page.waitForFunction(width => document.querySelector(".master")?.naturalWidth === width, originalWidth);
+      await page.waitForFunction(() => {
+        const master=document.querySelector(".master");
+        return master?.dataset.originalSrc?.includes('variant=original') &&
+          document.querySelectorAll(".master-native-tile").length > 0;
+      });
+      assert.equal(await page.locator(".master").evaluate(el=>el.naturalWidth),previewWidth,
+        "the reliable preview remains permanently rendered behind native original tiles");
+      const tileDetails=await page.locator(".master-native-tile").evaluateAll(tiles=>
+        tiles.map(t=>({width:t.width,height:t.height,painted:t.width>0&&t.height>0})));
+      assert.ok(tileDetails.length>0&&tileDetails.every(t=>t.painted&&t.width<=1536&&t.height<=1536),
+        "original 2D tiles fit GPU budget and paint at an adaptive display resolution");
+      const sampledTile=await page.locator(".master-native-tile").first().evaluate(tile=>{
+        const pixel=tile.getContext("2d").getImageData(Math.floor(tile.width/2),Math.floor(tile.height/2),1,1).data;
+        return [...pixel];
+      });
+      assert.ok(sampledTile[3]===255&&sampledTile[0]>50&&sampledTile[1]>50,
+        "original 2D tile contains real painted source pixels rather than a blank transparent canvas");
       assert.equal(await page.locator("#masterplanQuality").count(), 0, "customer original HD text and background are removed");
       assert.ok(state.requests.filter(v => v === "original").length >= 2, "original metadata is verified before downloading the image");
-      const response = await context.request.get(await page.locator(".master").getAttribute("src"));
+      const response = await context.request.get(new URL(await page.locator(".master").getAttribute("data-original-src"),base).href);
       assert.equal(response.status(), 200);
-      assert.equal(createHash("sha256").update(await response.body()).digest("hex"), createHash("sha256").update(originalPng).digest("hex"), "display source is byte-identical to uploaded fixture");
+      assert.equal(createHash("sha256").update(await response.body()).digest("hex"), createHash("sha256").update(originalPng).digest("hex"), "2D native tile source is byte-identical to uploaded original fixture");
     }
     sameGeometry(before, await geometry(page), target.name);
     await assertPlotHit(page, target.name);

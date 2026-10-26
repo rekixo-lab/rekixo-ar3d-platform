@@ -8,16 +8,28 @@ const three = await readFile(new URL("../public/project/three-view.js", import.m
 const mapSource = html.slice(html.indexOf("  function setMapDimensions("), html.indexOf("  // The metadata probe is tiny."));
 const upgradeSource = html.slice(html.indexOf("  function upgradeMasterplanImage("), html.indexOf("  function displaySize("));
 
-function imageHarness() {
-  const requests = [];
+function imageHarness({ failTiles=false }={}) {
+  const requests = [], tiles = [];
   let sourceOriginal = true;
+  const layer={className:"",setAttribute(){},appendChild(canvas){tiles.push(canvas)},remove(){}};
   const sandbox = {
-    AbortController,
-    URL,
+    AbortController, URL,
     location: { href: "https://example.test/project/index.html" },
     fetch: async () => ({ ok: true, json: async () => ({ original: sourceOriginal }) }),
-    document: { getElementById: () => null },
     setMasterplanQuality() {},
+    refreshNativeMasterplan: () => {},
+    window: {devicePixelRatio:1},
+    viewport: {getBoundingClientRect:()=>({width:900,height:700})},
+    W:1200,H:600,scale:1,pan:{x:0,y:0},publicRotation:0,mode3D:false,
+    rotateOffset:(x,y)=>({x,y}),svg:{},
+    requestAnimationFrame:fn=>fn(),
+    document: {
+      getElementById:()=>null,
+      createElement:tag=>tag==="div"?layer:{
+        className:"",width:0,height:0,style:{},remove(){},
+        getContext:()=>({drawImage(){if(failTiles)throw Error("GPU failure")}}),
+      },
+    },
     Image: class {
       constructor() { this.naturalWidth = 16000; this.naturalHeight = 8000; requests.push(this); }
     },
@@ -25,8 +37,8 @@ function imageHarness() {
   vm.runInNewContext(upgradeSource, sandbox);
   const unchanged = { pan: { x: 37, y: -18 }, scale: 3.25, rotation: 90, polygon: [[100, 200], [400, 200], [400, 500]] };
   let oldLoads = 0, oldErrors = 0;
-  const master = { src: "preview.webp", onload: () => oldLoads++, onerror: () => oldErrors++ };
-  return { sandbox, requests, master, unchanged,
+  const master = { src: "preview.webp", dataset:{}, parentNode:{insertBefore:()=>layer}, onload: () => oldLoads++, onerror: () => oldErrors++ };
+  return { sandbox, requests, master, unchanged, tiles,
     setSourceOriginal: value => { sourceOriginal = value; },
     counts: () => ({ oldLoads, oldErrors }) };
 }
@@ -50,14 +62,15 @@ test("giant raster dimensions preserve aspect and normalized plot positions", ()
   assert.equal(sandbox.H, 2133);
 });
 
-test("decoded original promotion preserves current viewport and selection geometry", async () => {
+test("decoded original native tiles preserve current viewport and selection geometry", async () => {
   const h = imageHarness(), before = JSON.stringify(h.unchanged), upgrades = [];
   h.sandbox.upgradeMasterplanImage(h.master, "original.png", 2, src => upgrades.push(src));
   assert.equal(h.master.src, "preview.webp");
-  await new Promise(resolve => setImmediate(resolve)); // let the metadata probe resolve
+  await new Promise(resolve => setImmediate(resolve));
   h.requests[0].onload();
-  assert.equal(h.master.src, "original.png");
-  h.master.onload();
+  assert.equal(h.master.src, "preview.webp", "working preview stays painted after HD ready");
+  assert.equal(h.master.dataset.originalSrc, "original.png");
+  assert.ok(h.tiles.length > 0 && h.tiles.every(t => t.width <= 1536 && t.height <= 1536));
   assert.deepEqual(upgrades, ["original.png"]);
   assert.equal(JSON.stringify(h.unchanged), before);
   assert.deepEqual(h.counts(), { oldLoads: 0, oldErrors: 0 });
@@ -79,15 +92,15 @@ test("failed, wrong-aspect and superseded originals keep the decoded preview", a
   }
 });
 
-test("a display failure after preloading restores the preview", async () => {
-  const h = imageHarness();
-  h.sandbox.upgradeMasterplanImage(h.master, "original.png", 2, () => assert.fail("must not promote"));
+test("a canvas rendering failure never discards the preview", async () => {
+  const h = imageHarness({failTiles:true}), upgrades = [];
+  h.sandbox.upgradeMasterplanImage(h.master, "original.png", 2, src => upgrades.push(src));
   await new Promise(resolve => setImmediate(resolve));
   h.requests[0].onload();
-  h.master.onerror();
   assert.equal(h.master.src, "preview.webp");
-  h.master.onload();
-  assert.equal(h.counts().oldLoads, 0);
+  assert.equal(h.master.dataset.originalSrc, undefined);
+  assert.deepEqual(upgrades, []);
+  assert.deepEqual(h.counts(), {oldLoads:0,oldErrors:0});
 });
 
 test("optimized fallback probe prevents starting an original image download", async () => {

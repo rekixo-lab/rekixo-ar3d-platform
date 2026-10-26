@@ -54,7 +54,11 @@ html.rekixo-project-error .rekixo-boot-error{display:grid}
 .map{position:relative;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#040812;cursor:grab;contain:layout paint}.map.dragging{cursor:grabbing}
 .map.master-loading::after{content:"Loading masterplan…";position:absolute;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);padding:10px 14px;border:1px solid #23304a;border-radius:999px;background:#07101fdd;color:#9db0d4;font-size:12px;font-weight:800;box-shadow:0 8px 28px #0008;pointer-events:none}
 .world{position:absolute;left:50%;top:50%;width:var(--map-w,1200px);height:var(--map-h,2133px);transform-origin:center center;will-change:transform;user-select:none;backface-visibility:hidden;contain:layout paint style;transform:translateZ(0)}
-.master,.hotspots{position:absolute;inset:0;width:var(--map-w,1200px);height:var(--map-h,2133px);display:block}.master{pointer-events:none;-webkit-user-drag:none;backface-visibility:hidden;transform:translateZ(0);image-rendering:auto}.hotspots{z-index:2;overflow:visible}
+.master,.hotspots{position:absolute;inset:0;width:var(--map-w,1200px);height:var(--map-h,2133px);display:block}.master{pointer-events:none;-webkit-user-drag:none;image-rendering:auto}
+/* Keep the small preview painted under independent native-pixel canvas tiles.
+   Do not promote a huge <img> into the transformed GPU layer. */
+.master-native-tiles{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden}
+.master-native-tiles canvas{position:absolute;display:block;pointer-events:none;image-rendering:auto}.hotspots{z-index:2;overflow:visible}
 .map.dragging .plot{transition:none}.map.dragging .plot.selected{filter:none}
 .map.gesture-active .hotspots{visibility:hidden}
 .map.gesture-active .world{will-change:transform}
@@ -1472,7 +1476,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   let selected = null, showAll = false, statusExpanded = true, statusFilter = null;
   let toastTimer = null, mode3D = false, engine3D = null, mapRaf = 0, resizeRaf = 0;
   let PUBLIC_READY = false, HAS_MASTERPLAN = false;
-  let cancelMasterplanUpgrade=()=>{},masterplanGeneration=0;
+  let cancelMasterplanUpgrade=()=>{},masterplanGeneration=0,refreshNativeMasterplan=()=>{};
   let publicRotation = 0;
   let publicNorthSourceAngle = 0;
   let publicInitialViewMode='legacy', publicInitialFocusX=.5, publicInitialFocusY=.5;
@@ -1546,13 +1550,97 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     indicator.textContent=label;
     indicator.title=explanation||label;
   }
+  // REKIXO_NATIVE_2D_MASTERPLAN_TILES_V1
+  // Keep the published preview as a permanent, reliable background. Crops are
+  // decoded from the ORIGINAL upload (no recompression or interpolation at zoom).
+  // Bounded canvases prevent 10k+ images becoming one oversized GPU texture.
   function upgradeMasterplanImage(master,src,expectedAspect,onUpgrade,isCurrent=()=>true,expectedWidth=0,expectedHeight=0){
     const image=new Image(),controller=new AbortController();
-    let cancelled=false,promoted=false;
+    let cancelled=false,layer=null,scheduled=false,painted=false,originalHandedOff=false;
+    const handoffOriginal=()=>{
+      if(originalHandedOff||!current())return;
+      originalHandedOff=true;
+      master.dataset.originalSrc=src;
+      onUpgrade?.(src);
+    };
+    const tiles=new Map(),tileSize=1536;
     image.decoding='async';
     const current=()=>!cancelled&&isCurrent();
+    const paint=()=>{
+      if(!current()||!layer||mode3D||!image.naturalWidth||!image.naturalHeight)return;
+      const rect=viewport.getBoundingClientRect();
+      if(!rect.width||!rect.height||!Number.isFinite(scale)||scale<=0)return;
+      // Invert the SAME world translation/scale/quarter-rotation used by render().
+      // The resulting image rectangle is independent of the viewport aspect ratio.
+      const corners=[[0,0],[rect.width,0],[rect.width,rect.height],[0,rect.height]];
+      let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+      for(const [cx,cy] of corners){
+        const dx=(cx-rect.width/2-pan.x)/scale,dy=(cy-rect.height/2-pan.y)/scale;
+        const pt=rotateOffset(dx,dy,(4-publicRotation)%4);
+        const px=(pt.x+W/2)*image.naturalWidth/W;
+        const py=(pt.y+H/2)*image.naturalHeight/H;
+        x0=Math.min(x0,px);x1=Math.max(x1,px);
+        y0=Math.min(y0,py);y1=Math.max(y1,py);
+      }
+      // A native pixel is never replaced with a lower-resolution *source*.
+      // The canvas raster resolution merely tracks physical display density,
+      // redrawing from ORIGINAL pixels whenever zoom requires more detail.
+      const displayDensity=Math.min(2,Math.max(1,window.devicePixelRatio||1));
+      const required=Math.min(1,Math.max(1/32,scale*W/image.naturalWidth*displayDensity));
+      const density=Math.min(1,Math.pow(2,Math.ceil(Math.log2(required))));
+      const visible={
+        x0:Math.max(0,Math.floor((x0-1)/tileSize)*tileSize),
+        y0:Math.max(0,Math.floor((y0-1)/tileSize)*tileSize),
+        x1:Math.min(image.naturalWidth,Math.ceil((x1+1)/tileSize)*tileSize),
+        y1:Math.min(image.naturalHeight,Math.ceil((y1+1)/tileSize)*tileSize),
+      };
+      const needed=new Set();
+      try{
+        for(let y=visible.y0;y<visible.y1;y+=tileSize){
+          for(let x=visible.x0;x<visible.x1;x+=tileSize){
+            const width=Math.min(tileSize,image.naturalWidth-x);
+            const height=Math.min(tileSize,image.naturalHeight-y);
+            if(width<=0||height<=0)continue;
+            const key=[x,y,density].join(':');
+            needed.add(key);
+            if(tiles.has(key))continue;
+            const canvas=document.createElement('canvas');
+            canvas.className='master-native-tile';
+            canvas.width=Math.max(1,Math.ceil(width*density));
+            canvas.height=Math.max(1,Math.ceil(height*density));
+            const ctx=canvas.getContext('2d',{alpha:true});
+            if(!ctx)throw Error('Native image canvas unavailable');
+            // Crop unmodified original pixels; never draw the compressed preview.
+            ctx.drawImage(image,x,y,width,height,0,0,canvas.width,canvas.height);
+            canvas.style.left=(100*x/image.naturalWidth)+'%';
+            canvas.style.top=(100*y/image.naturalHeight)+'%';
+            canvas.style.width=(100*width/image.naturalWidth)+'%';
+            canvas.style.height=(100*height/image.naturalHeight)+'%';
+            layer.appendChild(canvas);
+            tiles.set(key,canvas);
+          }
+        }
+        for(const [key,canvas] of tiles){
+          if(!needed.has(key)){canvas.remove();canvas.width=0;canvas.height=0;tiles.delete(key)}
+        }
+        if(!painted&&tiles.size){
+          painted=true;
+          setMasterplanQuality('original','Original HD',image.naturalWidth+' × '+image.naturalHeight+' px');
+          handoffOriginal();
+        }
+      }catch(error){
+        // Canvases are transparent and the usable preview remains underneath.
+        console.warn('Native masterplan tile render failed; keeping preview',error);
+        if(!painted)setMasterplanQuality('preview','Preview only','HD tile rendering unavailable.');
+      }
+    };
+    const refresh=()=>{
+      if(!current()||!layer||scheduled)return;
+      scheduled=true;
+      requestAnimationFrame(()=>{scheduled=false;paint()});
+    };
     image.onload=()=>{
-      if(!current()||promoted||!image.naturalWidth||!image.naturalHeight)return;
+      if(!current()||!image.naturalWidth||!image.naturalHeight)return;
       const aspectError=Math.abs((image.naturalWidth/image.naturalHeight)/expectedAspect-1);
       const dimensionsMismatch=(expectedWidth>0&&expectedHeight>0)&&
         (Math.abs(image.naturalWidth/expectedWidth-1)>0.015||
@@ -1561,23 +1649,16 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         setMasterplanQuality('preview','Preview only','Original image dimensions do not match the published map.');
         return;
       }
-      promoted=true;
-      const previousSrc=master.src,previousLoad=master.onload,previousError=master.onerror;
-      master.onload=()=>{
-        if(!current())return;
-        master.onload=previousLoad;master.onerror=previousError;
-        setMasterplanQuality('original','Original HD',image.naturalWidth+' × '+image.naturalHeight+' px');
-        onUpgrade?.(master.src);
-      };
-      master.onerror=()=>{
-        if(!current())return;
-        setMasterplanQuality('preview','Preview only','Original could not be rendered.');
-        master.onload=()=>{master.onload=previousLoad;master.onerror=previousError};
-        master.onerror=previousError;
-        master.src=previousSrc;
-      };
-      // Only the raster changes: keep map plane, polygons, pan, zoom and rotation intact.
-      master.src=image.src;
+      // Never replace master.src after preview was revealed: Chrome can discard
+      // the old raster while an enormous replacement fails GPU compositing.
+      layer=document.createElement('div');
+      layer.className='master-native-tiles';
+      layer.setAttribute('aria-hidden','true');
+      master.parentNode.insertBefore(layer,svg);
+      refreshNativeMasterplan=refresh;
+      // 3D can consume the verified original even if its 2D layer is hidden.
+      if(mode3D)handoffOriginal();
+      refresh();
     };
     image.onerror=()=>{if(current())setMasterplanQuality('preview','Preview only','Original could not be decoded.')};
     const probe=new URL(src,location.href);
@@ -1599,7 +1680,12 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         if(current())setMasterplanQuality('preview','Preview only','High resolution source unavailable; preview is retained.');
       }
     })();
-    return()=>{cancelled=true;controller.abort();image.onload=null;image.onerror=null};
+    return()=>{
+      cancelled=true;controller.abort();image.onload=null;image.onerror=null;
+      if(refreshNativeMasterplan===refresh)refreshNativeMasterplan=()=>{};
+      for(const canvas of tiles.values()){canvas.remove();canvas.width=0;canvas.height=0}
+      tiles.clear();layer?.remove();layer=null;
+    };
   }
 
   function displaySize(){return publicRotation%2?{w:H,h:W}:{w:W,h:H}}
@@ -1682,6 +1768,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     world.style.transform = `translate3d(calc(-50% + ${pan.x}px),calc(-50% + ${pan.y}px),0) scale(${scale}) rotate(${publicRotation*90}deg)`;
     const percent=Math.round(scale/fit*100);
     if(percent!==lastPercent){lastPercent=percent;percentEl.textContent=percent+'%'}
+    refreshNativeMasterplan();
   }
   function scheduleRender(){if(!mapRaf)mapRaf=requestAnimationFrame(()=>{mapRaf=0;render()})}
   // REKIXO_PROJECT_START_VIEW_V1
@@ -2497,7 +2584,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     cancelPlotPeekPress(true);hidePlotPeek();pointers.clear();gesture=null;viewport.classList.remove('dragging');
     if(mode3D){
       close();
-      if(!engine3D){try{engine3D=new RekixoPlot3D(q('#threeHost'),{plots,imageSrc:q('.master').src,previewImageSrc:q('.master').dataset.previewSrc,mapWidth:W,mapHeight:H,onSelect:p=>{selected=p;setSelected(p.id);openPlot(p,false)},onPreview:(p,x,y)=>showPlotPeek(p,x,y),onPreviewEnd:()=>hidePlotPeek(),onCamera:hud3D})}catch(e){mode3D=false;viewport.classList.remove('mode3d');q('#view3d').textContent='3D';toast('3D is not supported on this device');return}}
+      if(!engine3D){try{engine3D=new RekixoPlot3D(q('#threeHost'),{plots,imageSrc:q('.master').dataset.originalSrc||q('.master').src,previewImageSrc:q('.master').dataset.previewSrc,mapWidth:W,mapHeight:H,onSelect:p=>{selected=p;setSelected(p.id);openPlot(p,false)},onPreview:(p,x,y)=>showPlotPeek(p,x,y),onPreviewEnd:()=>hidePlotPeek(),onCamera:hud3D})}catch(e){mode3D=false;viewport.classList.remove('mode3d');q('#view3d').textContent='3D';toast('3D is not supported on this device');return}}
       engine3D.setShowAll(showAll);engine3D.setStatusFilter?.(statusFilter);engine3D.activate();if(selected)engine3D.select(selected.id,false,false);hud3D({yaw:engine3D.cam.yaw,zoomPercent:Math.round(34*engine3D.baseDistance/engine3D.cam.distance)});
     }else{
       engine3D?.deactivate();
@@ -2640,6 +2727,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     let preferredMasterUrl='',canonicalMasterUrl='',originalMasterUrl='';
     if(master){
       if(s.masterplanName){
+        delete master.dataset.originalSrc;
         const masterVersion=String(data.publishVersion??s.masterplanName??'1');
         const baseParams=new URLSearchParams((window.REKIXO_PROJECT_QUERY||'').replace(/^\?/,''));
         const publicParams=new URLSearchParams(baseParams);
