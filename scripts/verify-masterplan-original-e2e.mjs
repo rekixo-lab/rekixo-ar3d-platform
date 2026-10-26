@@ -241,7 +241,7 @@ async function journey(target) {
         "original 2D tiles fit GPU budget and paint at an adaptive display resolution");
       assert.equal(await page.locator("#masterplanQuality").count(), 0, "customer original HD text and background are removed");
       assert.ok(state.requests.filter(v => v === "original").length >= 2, "original metadata is verified before downloading the image");
-      const response = await context.request.get(await page.locator(".master").getAttribute("data-original-src"));
+      const response = await context.request.get(new URL(await page.locator(".master").getAttribute("data-original-src"),base).href);
       assert.equal(response.status(), 200);
       assert.equal(createHash("sha256").update(await response.body()).digest("hex"), createHash("sha256").update(originalPng).digest("hex"), "2D native tile source is byte-identical to uploaded original fixture");
     }
