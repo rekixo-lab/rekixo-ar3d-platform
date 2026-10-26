@@ -87,13 +87,15 @@ async function readProjectMeta(slug: string) {
   const proto = requestHeaders.get("x-forwarded-proto") || "https";
   const origin = host ? `${proto}://${host}` : "";
 
-  // A real public OG URL is required by social scrapers. Keep it versioned
-  // with the published share card and correct for platform paths/custom roots.
+  // Keep the canonical Open Graph URL stable across share-image publishes.
+  // WhatsApp's crawler uses og:url to identify content; it should NOT contain
+  // image revision counters or stale draft/published share versions.
+  // Only og:image uses the versioned immutable R2 URL.
   const projectPath = isPlatformAccessHost(host)
     ? `/projects/${encodeURIComponent(project.slug)}`
     : "/";
   const canonicalShareUrl = origin
-    ? new URL(`${projectPath}?share=${encodeURIComponent(settings.shareVersion || "1")}`, origin).toString()
+    ? new URL(projectPath, origin).toString()
     : "";
 
   const logoPath = settings.logoName
