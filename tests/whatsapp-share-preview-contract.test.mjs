@@ -55,3 +55,15 @@ test("Share images are JPEG, size bounded, not cropped and publicly fetchable", 
   assert.ok(asset.includes('headers.set("cross-origin-resource-policy", "cross-origin")'));
   assert.ok(asset.includes('headers.set("access-control-allow-origin", "*")'));
 });
+
+test("Link preview tags stay in HTML head for unrecognized crawler agents", async () => {
+  const [config, metadata] = await Promise.all([
+    source("../next.config.ts"),
+    source("../app/project-share-metadata.ts"),
+  ]);
+  assert.match(config, /htmlLimitedBots:\\s*\/\.\*\//);
+  assert.match(metadata, /canonicalShareUrl/);
+  assert.match(metadata, /url: meta\.canonicalShareUrl \|\| undefined/);
+  assert.match(metadata, /settings\.shareVersion/);
+  assert.match(metadata, /isPlatformAccessHost\(host\)/);
+});
