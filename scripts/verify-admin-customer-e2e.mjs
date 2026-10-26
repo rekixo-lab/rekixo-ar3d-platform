@@ -469,7 +469,20 @@ async function clientDetailsJourney(browser) {
     assert.equal(response.status(), 400, item.label);
   }
   assert.equal((await patch({ ownerName }, blank.details.revision, "P-1", {}, "https://outside.example")).status(), 403, "cross-origin private write denied");
-  assert.equal((await patch({ ownerName }, 0, "OTHER-ONLY")).status(), 404, "other-project-only plot is inaccessible");
+  // An occasionally restarting local Cloudflare workerd can return a transient
+  // 503 even after successful authenticated writes. Retry only this harmless
+  // cross-tenant rejection probe, never accept 503 as an authorization result.
+  let foreignPlotResponse;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    foreignPlotResponse = await patch({ ownerName }, 0, "OTHER-ONLY");
+    if (foreignPlotResponse.status() !== 503) break;
+    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+  }
+  assert.equal(
+    foreignPlotResponse.status(),
+    404,
+    `other-project-only plot is inaccessible; body: ${(await foreignPlotResponse.text()).slice(0, 350)}`,
+  );
   assert.deepEqual((await savedPlot()).adminDetails, blank.details, "rejected requests preserve existing details");
 
   const scoped = await list(context.request, "&projectId=e2e-details-other");
