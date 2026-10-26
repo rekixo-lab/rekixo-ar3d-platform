@@ -234,3 +234,66 @@ export const project3dLinks = sqliteTable("project_3d_links", {
   engineSlugUnique:uniqueIndex("project_3d_links_engine_slug_unique").on(table.engineSlug),
   statusIndex:index("project_3d_links_status").on(table.status,table.publicEnabled)
 }));
+
+
+// Project Admin Studio — additive private configuration. Never part of public plot snapshots.
+export const projectAdminFeatures = sqliteTable("project_admin_features",{
+  projectId:text("project_id").notNull().references(()=>projects.id,{onDelete:"restrict"}),
+  featureKey:text("feature_key").notNull(),
+  enabled:integer("enabled").notNull().default(0),
+  updatedAt:text("updated_at").notNull()
+},t=>({pk:primaryKey({columns:[t.projectId,t.featureKey]})}));
+export const projectDealStages=sqliteTable("project_deal_stages",{
+  projectId:text("project_id").notNull().references(()=>projects.id,{onDelete:"restrict"}),
+  slug:text("slug").notNull(),
+  label:text("label").notNull(),
+  sortOrder:integer("sort_order").notNull().default(0),
+  enabled:integer("enabled").notNull().default(1),
+  requiresSale:integer("requires_sale").notNull().default(0),
+  updatedAt:text("updated_at").notNull()
+},t=>({pk:primaryKey({columns:[t.projectId,t.slug]})}));
+export const plotDealStates=sqliteTable("plot_deal_states",{
+  projectId:text("project_id").notNull(),
+  plotId:text("plot_id").notNull(),
+  stageSlug:text("stage_slug"),
+  holdUntil:text("hold_until"),
+  note:text("note").notNull().default(""),
+  revision:integer("revision").notNull().default(1),
+  updatedAt:text("updated_at").notNull(),
+  updatedBy:text("updated_by").notNull()
+},t=>({
+  pk:primaryKey({columns:[t.projectId,t.plotId]}),
+  plotFk:foreignKey({columns:[t.projectId,t.plotId],foreignColumns:[plots.projectId,plots.id]}).onDelete("restrict"),
+  stageFk:foreignKey({columns:[t.projectId,t.stageSlug],foreignColumns:[projectDealStages.projectId,projectDealStages.slug]}).onDelete("restrict")
+}));
+export const plotDealEvents=sqliteTable("plot_deal_events",{
+  projectId:text("project_id").notNull(),id:text("id").notNull(),
+  plotId:text("plot_id").notNull(),previousStage:text("previous_stage"),
+  nextStage:text("next_stage"),note:text("note").notNull().default(""),
+  holdUntil:text("hold_until"),actorId:text("actor_id").notNull(),
+  createdAt:text("created_at").notNull()
+},t=>({
+  pk:primaryKey({columns:[t.projectId,t.id]}),
+  plotFk:foreignKey({columns:[t.projectId,t.plotId],foreignColumns:[plots.projectId,plots.id]}).onDelete("restrict"),
+  history:index("idx_plot_deal_events_history").on(t.projectId,t.plotId,t.createdAt)
+}));
+export const projectCustomFields=sqliteTable("project_custom_fields",{
+  projectId:text("project_id").notNull().references(()=>projects.id,{onDelete:"restrict"}),
+  fieldKey:text("field_key").notNull(),label:text("label").notNull(),
+  fieldType:text("field_type").notNull(),choicesJson:text("choices_json").notNull().default("[]"),
+  sortOrder:integer("sort_order").notNull().default(0),
+  required:integer("required").notNull().default(0),
+  enabled:integer("enabled").notNull().default(1),
+  updatedAt:text("updated_at").notNull()
+},t=>({pk:primaryKey({columns:[t.projectId,t.fieldKey]})}));
+export const plotCustomValues=sqliteTable("plot_custom_values",{
+  projectId:text("project_id").notNull(),plotId:text("plot_id").notNull(),
+  fieldKey:text("field_key").notNull(),fieldValue:text("field_value").notNull(),
+  revision:integer("revision").notNull().default(1),
+  updatedAt:text("updated_at").notNull(),updatedBy:text("updated_by").notNull()
+},t=>({
+  pk:primaryKey({columns:[t.projectId,t.plotId,t.fieldKey]}),
+  plotFk:foreignKey({columns:[t.projectId,t.plotId],foreignColumns:[plots.projectId,plots.id]}).onDelete("restrict"),
+  fieldFk:foreignKey({columns:[t.projectId,t.fieldKey],foreignColumns:[projectCustomFields.projectId,projectCustomFields.fieldKey]}).onDelete("restrict"),
+  plotIndex:index("idx_plot_custom_values_plot").on(t.projectId,t.plotId)
+}));
