@@ -63,6 +63,8 @@ test("Link preview tags stay in HTML head for unrecognized crawler agents", asyn
   ]);
   assert.match(config, /htmlLimitedBots:\s*\/\.\*\//);
   assert.match(metadata, /canonicalShareUrl/);
+  assert.match(metadata, /new URL\(projectPath, origin\)/);
+  assert.doesNotMatch(metadata, /new URL\(`\$\{projectPath\}\?share=/);
   assert.match(metadata, /url: meta\.canonicalShareUrl \|\| undefined/);
   assert.match(metadata, /settings\.shareVersion/);
   assert.match(metadata, /isPlatformAccessHost\(host\)/);
