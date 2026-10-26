@@ -1599,6 +1599,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
             needed.add(key);
             if(tiles.has(key))continue;
             const canvas=document.createElement('canvas');
+            canvas.className='master-native-tile';
             canvas.width=Math.max(1,Math.ceil(width*density));
             canvas.height=Math.max(1,Math.ceil(height*density));
             const ctx=canvas.getContext('2d',{alpha:true});
