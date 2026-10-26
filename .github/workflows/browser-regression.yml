@@ -25,6 +25,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Share preview and metadata regression
+        run: node --test tests/whatsapp-share-preview-contract.test.mjs tests/public-share-crawler.test.mjs tests/final-shared-domain-metadata.test.mjs tests/project-share-publish-guard.test.mjs tests/project-share-profile.test.mjs tests/project-share-original-image.test.mjs
       - name: 2D status overlay regression
         run: node --test tests/public-status-overlay-contrast-v2.test.mjs
       - name: Mapping Controls publish dimension regression
