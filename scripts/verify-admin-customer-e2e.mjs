@@ -318,6 +318,25 @@ async function adminJourney(browser) {
 }
 
 async function customerJourney(browser) {
+  // Real SSR regression: unrecognized link-preview crawlers must receive all
+  // essential OG metadata directly in <head>, not in Vinext's streamed <body>.
+  const crawlerContext = await browser.newContext();
+  try {
+    const crawlerResponse = await crawlerContext.request.get(
+      `${base}/projects/${projectSlug}?share=1`,
+      { headers: { "user-agent": "UnknownLinkPreviewFetcher/1.0" } },
+    );
+    assert.equal(crawlerResponse.status(), 200, "crawler can open published project");
+    const html = await crawlerResponse.text();
+    const head = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i)?.[1] || "";
+    assert.match(head, /property="og:title"/, "crawler OG title is in raw head");
+    assert.match(head, /property="og:description"/, "crawler OG description is in raw head");
+    assert.match(head, /property="og:image"/, "crawler OG image is in raw head");
+    assert.match(head, /property="og:url"/, "crawler OG URL is in raw head");
+  } finally {
+    await crawlerContext.close();
+  }
+
   for (const target of [
     { name: "desktop", viewport: { width: 1440, height: 1000 } },
     { name: "mobile", viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
