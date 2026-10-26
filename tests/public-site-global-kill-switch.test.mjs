@@ -15,6 +15,7 @@ const [
   assets,
   gallery,
   shareImage,
+  shareMetadata,
 ] = await Promise.all([
   read("../app/public-site-access.ts"),
   read("../app/page.tsx"),
@@ -26,6 +27,7 @@ const [
   read("../app/api/project-asset/[kind]/route.ts"),
   read("../app/api/gallery/[id]/route.ts"),
   read("../app/projects/[slug]/share-image/[version]/route.ts"),
+  read("../app/project-share-metadata.ts"),
 ]);
 
 test("central public kill switch is default-on and returns a no-store 503", () => {
@@ -50,9 +52,13 @@ test("custom-domain and shared public pages hide customer content while paused",
     /if \(!\(await publicSiteEnabled\(project\.id\)\)\)/,
   );
   assert.match(sharedPage, /Project Temporarily Unavailable/);
-  assert.match(sharedPage, /paused: true as const/);
-  assert.match(sharedPage, /imageUrl: ""/);
-  assert.match(sharedPage, /logoUrl: ""/);
+  // Paused OG metadata was extracted into a shared helper so custom domains
+  // and /projects/[slug] cannot accidentally expose published share images.
+  assert.match(sharedPage, /generatePublishedProjectMetadata/);
+  assert.match(shareMetadata, /paused: true as const/);
+  assert.match(shareMetadata, /imageUrl: ""/);
+  assert.match(shareMetadata, /logoUrl: ""/);
+  assert.match(shareMetadata, /publicSiteEnabled\(project\.id\)/);
 });
 
 test("all public data and media endpoints enforce the same kill switch", () => {
