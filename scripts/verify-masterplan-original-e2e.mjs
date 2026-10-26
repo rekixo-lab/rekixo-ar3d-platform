@@ -239,6 +239,12 @@ async function journey(target) {
         tiles.map(t=>({width:t.width,height:t.height,painted:t.width>0&&t.height>0})));
       assert.ok(tileDetails.length>0&&tileDetails.every(t=>t.painted&&t.width<=1536&&t.height<=1536),
         "original 2D tiles fit GPU budget and paint at an adaptive display resolution");
+      const sampledTile=await page.locator(".master-native-tile").first().evaluate(tile=>{
+        const pixel=tile.getContext("2d").getImageData(Math.floor(tile.width/2),Math.floor(tile.height/2),1,1).data;
+        return [...pixel];
+      });
+      assert.ok(sampledTile[3]===255&&sampledTile[0]>50&&sampledTile[1]>50,
+        "original 2D tile contains real painted source pixels rather than a blank transparent canvas");
       assert.equal(await page.locator("#masterplanQuality").count(), 0, "customer original HD text and background are removed");
       assert.ok(state.requests.filter(v => v === "original").length >= 2, "original metadata is verified before downloading the image");
       const response = await context.request.get(new URL(await page.locator(".master").getAttribute("data-original-src"),base).href);
