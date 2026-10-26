@@ -71,6 +71,7 @@ const sharedDomainRoutes = platformHost
       // Status/pricing are intentionally live (no Publish Update), while gallery is
       // loaded lazily from the public shell. Keep these explicit on the shared host.
       `${platformHost}/api/public-live*`,
+      `${platformHost}/api/public-plot-notices*`,
       `${platformHost}/api/public-gallery*`,
       // Customer Satellite Map data + promoted transparent masterplan asset.
       // Prefix wildcard keeps projectSlug/token query strings on the Client Worker.

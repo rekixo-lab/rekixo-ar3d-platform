@@ -297,3 +297,23 @@ export const plotCustomValues=sqliteTable("plot_custom_values",{
   fieldFk:foreignKey({columns:[t.projectId,t.fieldKey],foreignColumns:[projectCustomFields.projectId,projectCustomFields.fieldKey]}).onDelete("restrict"),
   plotIndex:index("idx_plot_custom_values_plot").on(t.projectId,t.plotId)
 }));
+
+
+export const projectPlotNoticeSettings=sqliteTable("project_plot_notice_settings",{
+  projectId:text("project_id").primaryKey().references(()=>projects.id,{onDelete:"restrict"}),
+  enabled:integer("enabled").notNull().default(0),updatedAt:text("updated_at").notNull()
+});
+export const projectPlotNotices=sqliteTable("project_plot_notices",{
+  projectId:text("project_id").notNull().references(()=>projects.id,{onDelete:"restrict"}),
+  id:text("id").notNull(),eventDate:text("event_date").notNull(),
+  category:text("category").notNull(),label:text("label").notNull(),
+  plotIdsJson:text("plot_ids_json").notNull(),
+  state:text("state").notNull().default("draft"),source:text("source").notNull(),
+  sourceEventId:text("source_event_id"),createdBy:text("created_by").notNull(),
+  createdAt:text("created_at").notNull(),publishedAt:text("published_at"),
+  updatedAt:text("updated_at").notNull()
+},t=>({
+  pk:primaryKey({columns:[t.projectId,t.id]}),
+  sourceEventUnique:uniqueIndex("project_plot_notice_source_unique").on(t.projectId,t.sourceEventId),
+  publicIndex:index("idx_project_plot_notices_public").on(t.projectId,t.state,t.eventDate,t.createdAt)
+}));

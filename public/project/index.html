@@ -987,6 +987,37 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
 
 </style>
 
+<style id="rekixo-plot-news-styles">
+/* REKIXO_PROJECT_PLOT_NEWS_V1 — isolated from masterplan layers. */
+.header{position:relative}
+.plot-news-bell{position:relative;width:39px;height:39px;flex:none;padding:9px;border-radius:12px;background:rgba(16,34,57,.96);color:#c8efff;border:1px solid #31506b;cursor:pointer;display:grid;place-items:center}
+.plot-news-bell svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.plot-news-bell .plot-news-dot{position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:#36df9b;box-shadow:0 0 9px #36df9b}
+.plot-news-bell[hidden],.plot-news-banner[hidden],.plot-news-history[hidden]{display:none!important}
+.plot-news-bell:focus-visible,.plot-news-close:focus-visible,.plot-news-banner:focus-visible,.plot-news-history button:focus-visible{outline:2px solid #7bf6c2;outline-offset:2px}
+.plot-news-banner{position:absolute;top:calc(100% - 1px);left:50%;width:min(470px,calc(100vw - 24px));min-height:39px;z-index:27;display:flex;align-items:center;gap:8px;box-sizing:border-box;border:1px solid rgba(66,203,145,.62);border-radius:0 0 12px 12px;padding:6px 8px 6px 12px;background:rgba(9,24,42,.97);box-shadow:0 12px 30px #000b;white-space:nowrap;overflow:hidden;opacity:0;pointer-events:none;transform:translate(-50%,-130%);transition:transform .56s cubic-bezier(.2,.85,.18,1),opacity .18s ease}
+.plot-news-banner.is-shown{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
+.plot-news-banner .plot-news-spark{width:15px;height:15px;flex:none;color:#5be5a5}
+.plot-news-banner .plot-news-date{font-size:10px;color:#9cbbd1;flex:none;font-weight:700}
+.plot-news-banner .plot-news-line{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:12px;color:#eefcf9;font-weight:750;letter-spacing:0}
+.plot-news-close{border:0;color:#a9c0d6;background:transparent;border-radius:5px;font-size:17px;flex:none;padding:3px 5px;cursor:pointer}
+.plot-news-history{position:absolute;z-index:28;top:calc(100% + 7px);right:12px;width:min(365px,calc(100vw - 24px));max-height:min(410px,52vh);overflow-y:auto;overscroll-behavior:contain;padding:11px;border-radius:14px;border:1px solid #355d66;background:rgba(8,20,39,.99);color:#eaf6fc;box-shadow:0 18px 45px #000d;font-size:12px;box-sizing:border-box}
+.plot-news-history-head{display:flex;justify-content:space-between;align-items:center;gap:8px;position:sticky;top:-11px;background:#0a1a2d;padding:5px 2px 10px;z-index:2}
+.plot-news-history-head strong{font-size:13px}
+.plot-news-day{font-size:10px;color:#74d9b0;font-weight:800;letter-spacing:.06em;padding:13px 4px 7px;border-top:1px solid #2a4057}
+.plot-news-item{font-size:12px;line-height:1.45;margin:0 0 6px;background:#142942;border:1px solid #2a415a;border-radius:9px;padding:9px 10px;overflow-wrap:anywhere}
+.plot-news-item strong{color:#dff9e8}
+.plot-news-caption{font-size:10px;color:#9eb7cd;line-height:1.5;padding:6px 2px}
+@media(max-width:700px){
+ .plot-news-bell{width:34px;height:34px;padding:7px;border-radius:9px}
+ .plot-news-bell svg{width:17px;height:17px}
+ .plot-news-banner{width:min(410px,calc(100vw - 18px));min-height:36px;padding:5px 6px 5px 9px;gap:6px;border-radius:0 0 11px 11px}
+ .plot-news-banner .plot-news-date{font-size:9px}
+ .plot-news-banner .plot-news-line{font-size:10.5px}
+ .plot-news-history{right:9px;max-height:min(350px,44vh)}
+}
+@media(prefers-reduced-motion:reduce){.plot-news-banner{transition:none!important}}
+</style>
 </head>
 <body>
 <section class="rekixo-boot-error" id="rekixoBootError" role="alert" aria-live="assertive" aria-atomic="true">
@@ -1002,6 +1033,9 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
     <div class="brandmark"><img class="project-logo" id="projectLogo" alt="" hidden><div class="monogram">TPS<small>TIYANSH</small></div></div>
     <div class="brand"><b>TIYANSH — THE PRIME SQUARE</b><small class="brand-subtitle" id="brandSubtitle"><span class="brand-subtitle-track" id="brandSubtitleTrack">RAIGARH, CHHATTISGARH</span></small></div>
     <div class="head-actions">
+      <button class="plot-news-bell" id="plotNewsBell" type="button" aria-label="Plot update notifications" aria-expanded="false" aria-controls="plotNewsHistory" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span class="plot-news-dot"></span>
+      </button>
       <button class="icon" id="callTop" aria-label="Call">
         <svg viewBox="0 0 24 24"><path d="M7.2 3.5 4.6 5.3c-.8.6-.9 1.8-.4 3 2.2 5.4 6.1 9.3 11.5 11.5 1.2.5 2.4.4 3-.4l1.8-2.6-4-3-1.8 1.8c-2.6-1.1-5.2-3.7-6.3-6.3l1.8-1.8-3-4Z"/></svg>
       </button>
@@ -1019,6 +1053,16 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
     <input id="searchInput" placeholder="Search plot number" autocomplete="off">
     <button class="go">GO</button>
   </form>
+  <div class="plot-news-banner" id="plotNewsBanner" role="status" aria-live="polite" hidden>
+    <svg class="plot-news-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3 4 14h7l-1 7 10-12h-8V3Z"/></svg>
+    <span class="plot-news-date" id="plotNewsDate"></span><span class="plot-news-line" id="plotNewsLine"></span>
+    <button type="button" class="plot-news-close" id="plotNewsClose" aria-label="Dismiss update">×</button>
+  </div>
+  <div class="plot-news-history" id="plotNewsHistory" aria-label="Previous plot updates" hidden>
+    <div class="plot-news-history-head"><strong>Plot Status Updates</strong><button class="plot-news-close" type="button" id="plotNewsHistoryClose" aria-label="Close update history">×</button></div>
+    <div class="plot-news-caption">Date-wise approved updates. Older information may not reflect current availability.</div>
+    <div id="plotNewsContent"></div>
+  </div>
 </header>
 
 <main class="map" id="viewport">
@@ -1163,6 +1207,111 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
   </div>
 </section>
 <section class="image-lightbox" id="imageLightbox" aria-hidden="true" aria-label="Full size gallery image"><button type="button" class="lightbox-close" id="lightboxClose" aria-label="Close full size image">×</button><figure class="lightbox-figure"><img class="lightbox-image" id="lightboxImage" alt=""><figcaption class="lightbox-caption" id="lightboxCaption"></figcaption></figure></section>
+<script id="rekixo-plot-news-runtime">
+(()=>{"use strict";
+ const bell=document.getElementById("plotNewsBell");
+ const banner=document.getElementById("plotNewsBanner");
+ const line=document.getElementById("plotNewsLine");
+ const day=document.getElementById("plotNewsDate");
+ const close=document.getElementById("plotNewsClose");
+ const panel=document.getElementById("plotNewsHistory");
+ const content=document.getElementById("plotNewsContent");
+ const historyClose=document.getElementById("plotNewsHistoryClose");
+ if(!bell||!banner||!line||!day||!close||!panel||!content)return;
+ let groups=[],current=0,rotateTimer=0,hideTimer=0,pollTimer=0,loadedFor="",lastSignature="",expanded=false,closedByVisitor=false,run=0;
+ const displayDate=date=>{
+   const d=new Date(String(date)+"T00:00:00Z");
+   return Number.isFinite(d.getTime())?new Intl.DateTimeFormat("en-IN",{day:"numeric",month:"short",timeZone:"UTC"}).format(d):"Update";
+ };
+ const sortedPlotIds=ids=>ids.slice().sort((a,b)=>String(a).localeCompare(String(b),"en",{numeric:true,sensitivity:"base"}));
+ function groupData(items){
+  const groupsByKey=new Map();
+  for(const notice of items){
+    if(!notice||typeof notice.label!=="string"||typeof notice.eventDate!=="string"||!Array.isArray(notice.plotIds))continue;
+    const ids=notice.plotIds.filter(x=>typeof x==="string"&&x.length>0&&x.length<=80);
+    if(!ids.length)continue;
+    const key=[notice.eventDate,notice.label,notice.category].join("|");
+    if(!groupsByKey.has(key))groupsByKey.set(key,{date:notice.eventDate,label:notice.label,category:notice.category,ids:new Set()});
+    for(const id of ids)groupsByKey.get(key).ids.add(id);
+  }
+  return Array.from(groupsByKey.values()).map(g=>({...g,ids:sortedPlotIds(Array.from(g.ids))})).sort((a,b)=>b.date.localeCompare(a.date)||a.label.localeCompare(b.label));
+ }
+ function showBanner(){
+  if(!groups.length||closedByVisitor||expanded)return;
+  const entry=groups[current%groups.length];
+  day.textContent=displayDate(entry.date);
+  line.textContent=entry.label+" · Plot "+entry.ids.join(", ");
+  banner.hidden=false;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>banner.classList.add("is-shown")));
+  clearTimeout(hideTimer);
+  hideTimer=setTimeout(()=>{if(!expanded)hideBanner()},groups.length>1?11000:9000);
+ }
+ function hideBanner(){banner.classList.remove("is-shown");clearTimeout(hideTimer)}
+ function history(){
+  content.replaceChildren();
+  let last="";
+  for(const item of groups){
+   if(item.date!==last){
+    last=item.date;const date=document.createElement("div");date.className="plot-news-day";
+    date.textContent=new Intl.DateTimeFormat("en-IN",{day:"numeric",month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(item.date+"T00:00:00Z")).toUpperCase();
+    content.appendChild(date);
+   }
+   const entry=document.createElement("div");entry.className="plot-news-item";
+   const heading=document.createElement("strong");heading.textContent=item.label;
+   const number=document.createElement("span");number.textContent=" · Plot "+item.ids.join(", ");
+   entry.append(heading,number);content.appendChild(entry);
+  }
+ }
+ function toggleHistory(open){
+  expanded=open;
+  panel.hidden=!open;bell.setAttribute("aria-expanded",String(open));
+  if(open){hideBanner();history();historyClose.focus()}else bell.focus();
+ }
+ function reset(){
+  clearInterval(rotateTimer);clearInterval(pollTimer);clearTimeout(hideTimer);hideBanner();
+  banner.hidden=true;panel.hidden=true;bell.hidden=true;groups=[];current=0;expanded=false;closedByVisitor=false;lastSignature="";
+ }
+ async function fetchUpdates(projectId){
+  const thisRun=run;
+  const params=new URLSearchParams({projectId});
+  try{
+   const response=await fetch("/api/public-plot-notices?"+params.toString(),{cache:"no-store",headers:{"accept":"application/json"}});
+   if(!response.ok||run!==thisRun)return;
+   const result=await response.json();
+   if(run!==thisRun)return;
+   const items=Array.isArray(result.notices)?result.notices:[];
+   const fresh=result.enabled===true?groupData(items):[];
+   const signature=JSON.stringify(fresh.map(x=>[x.date,x.label,x.category,x.ids]));
+   if(signature===lastSignature)return;
+   const had=Boolean(lastSignature),hasNew=Boolean(fresh.length);
+   lastSignature=signature;groups=fresh;current=0;
+   bell.hidden=!hasNew;
+   if(!hasNew){hideBanner();panel.hidden=true;return}
+   history();
+   if(!had){closedByVisitor=false;showBanner()}
+   else if(!closedByVisitor&&!expanded)showBanner();
+  }catch(_error){/* Never interfere with map loading, gestures or HD textures. */}
+ }
+ window.REKIXO_PLOT_NOTICES_INIT=data=>{
+  const projectId=String(data&&data.projectId||"");
+  if(!projectId||data.preview)return;
+  if(projectId!==loadedFor){run++;reset();loadedFor=projectId}
+  void fetchUpdates(projectId);
+  if(!pollTimer)pollTimer=setInterval(()=>{if(!document.hidden)void fetchUpdates(loadedFor)},60000);
+  if(!rotateTimer)rotateTimer=setInterval(()=>{
+   if(groups.length>1&&!expanded&&!closedByVisitor&&document.visibilityState==="visible"){
+     current=(current+1)%groups.length;hideBanner();
+     setTimeout(()=>{if(!closedByVisitor&&!expanded)showBanner()},240);
+   }
+  },12000);
+ };
+ bell.addEventListener("click",()=>{closedByVisitor=true;toggleHistory(!expanded)});
+ close.addEventListener("click",()=>{closedByVisitor=true;hideBanner();close.blur()});
+ historyClose.addEventListener("click",()=>toggleHistory(false));
+ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&expanded)toggleHistory(false)});
+ document.addEventListener("pointerdown",e=>{if(expanded&&!panel.contains(e.target)&&!bell.contains(e.target))toggleHistory(false)});
+})();
+</script>
 <script src="project-geometry.js"></script>
 <script src="three-view.js"></script>
 <script>
@@ -2627,6 +2776,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     setMasterplanQuality('preview','Preview','Waiting for published masterplan.');
     window.REKIXO_PUBLIC_DATA=data;
     ACTIVE_PROJECT_ID=String(data.projectId||'').trim();
+    window.REKIXO_PLOT_NOTICES_INIT?.(data);
     REKIXO_LIVE_STATE_ENABLED=!Boolean(data&&data.preview);
 
     // public-data is the canonical tenant resolver. After it returns, every

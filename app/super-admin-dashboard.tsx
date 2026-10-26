@@ -29,6 +29,7 @@ import ProjectStatusThemeManager from "./project-status-theme-manager";
 import MotionSwap, { MotionToast } from "./motion-swap";
 import SalesControls from "./sales-controls";
 import ProjectAdminStudioManager from "./project-admin-studio-manager";
+import ProjectPlotNoticeManager from "./project-plot-notice-manager";
 
 type Project = {
   id: string;
@@ -319,7 +320,10 @@ export default function SuperAdminDashboard({
                   ) : tab === "accounts" ? (
                     <SalesControls key={projectId} projectId={projectId} notify={notify} />
                   ) : tab === "studio" ? (
-                    <ProjectAdminStudioManager key={projectId} projectId={projectId} notify={notify} />
+                    <>
+                      <ProjectAdminStudioManager key={projectId} projectId={projectId} notify={notify} />
+                      <ProjectPlotNoticeManager key={`notices:${projectId}`} projectId={projectId} notify={notify} />
+                    </>
                   ) : tab === "assets" ? (
                     <ProjectAssetsManager
                       key={`assets:${projectId}`}

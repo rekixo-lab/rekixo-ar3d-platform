@@ -5,6 +5,7 @@ import { and, desc, eq, like, sql } from "drizzle-orm";
 import { sameOrigin, validAdminSession } from "@/modules/auth";
 import { isClientEditableSettingKey, pickClientVisibleSettings, validClientPlotStatus } from "@/modules/auth";
 import { writeAudit } from "@/modules/audit";
+import { recordPrivatePlotNotice } from "@/app/project-plot-notices";
 import { validateProjectContactPatch } from "@/modules/projects";
 import { canonicalPlotAdminDetails } from "@/app/plot-admin-details";
 
@@ -265,6 +266,7 @@ export async function POST(request: Request) {
         );
       }
 
+      await recordPrivatePlotNotice(projectId,plotId,"inventory",status==="booked"?"Booked":status==="sold"?"Sold":"Available",`inventory:${plotId}:${now}`,session.id,now);
       await writeAudit(session, "project.plot_status_updated", projectId, plotId, {
         previousStatus: existing.status,
         status,

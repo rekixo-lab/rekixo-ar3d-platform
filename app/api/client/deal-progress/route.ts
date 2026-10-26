@@ -1,6 +1,7 @@
 import {env} from "cloudflare:workers";
 import {validAdminSession,sameOrigin} from "@/modules/auth";
 import {writeAudit} from "@/modules/audit";
+import {recordPrivatePlotNotice} from "@/app/project-plot-notices";
 import {fieldsOf,stagesOf,validDate,validateCustomValue,type CustomField} from "@/app/project-admin-studio-policy";
 
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{"cache-control":"private, no-store"}});
@@ -47,7 +48,12 @@ export async function GET(request:Request){
     const offsetValue=Number(url.searchParams.get("offset")||0),offset=Number.isSafeInteger(offsetValue)&&offsetValue>=0?Math.min(offsetValue,2000):0;
     const params=q?[projectId,"%"+q+"%",offset]:[projectId,offset];
     const plotRows=await env.DB.prepare(
-      "SELECT p.id,p.status,p.sqft,s.stage_slug AS stageSlug,s.hold_until AS holdUntil,s.revision FROM plots p LEFT JOIN plot_deal_states s ON s.project_id=p.project_id AND s.plot_id=p.id WHERE p.project_id=? AND p.inventory_active=1 "+(q?"AND p.id LIKE ? ":"")+"ORDER BY p.id COLLATE NOCASE LIMIT 50 OFFSET ?"
+      "SELECT p.id,p.status,p.sqft,s.stage_slug AS stageSlug,s.hold_until AS holdUntil,s.revision FROM plots p LEFT JOIN plot_deal_states s ON s.project_id=p.project_id AND s.plot_id=p.id WHERE p.project_id=? AND p.inventory_active=1 "+(q?"AND p.id LIKE ? ":"")+"ORDER BY CASE WHEN p.id GLOB '[0-9]*' AND p.id NOT GLOB '*[^0-9]*' THEN 0 WHEN p.id GLOB '[A-Za-z]-[0-9]*' AND SUBSTR(p.id,3) NOT GLOB '*[^0-9]*' THEN 1 WHEN p.id GLOB '[A-Za-z][0-9]*' AND SUBSTR(p.id,2) NOT GLOB '*[^0-9]*' THEN 2 ELSE 3 END, "+
+      "CASE WHEN p.id GLOB '[0-9]*' AND p.id NOT GLOB '*[^0-9]*' THEN CAST(p.id AS INTEGER) END, "+
+      "CASE WHEN p.id GLOB '[A-Za-z]-[0-9]*' AND SUBSTR(p.id,3) NOT GLOB '*[^0-9]*' THEN SUBSTR(p.id,1,2) COLLATE NOCASE END, "+
+      "CASE WHEN p.id GLOB '[A-Za-z]-[0-9]*' AND SUBSTR(p.id,3) NOT GLOB '*[^0-9]*' THEN CAST(SUBSTR(p.id,3) AS INTEGER) END, "+
+      "CASE WHEN p.id GLOB '[A-Za-z][0-9]*' AND SUBSTR(p.id,2) NOT GLOB '*[^0-9]*' THEN SUBSTR(p.id,1,1) COLLATE NOCASE END, "+
+      "CASE WHEN p.id GLOB '[A-Za-z][0-9]*' AND SUBSTR(p.id,2) NOT GLOB '*[^0-9]*' THEN CAST(SUBSTR(p.id,2) AS INTEGER) END, p.id COLLATE NOCASE,p.id LIMIT 50 OFFSET ?"
     ).bind(...params).all();
     return reply({enabled:true,features,stages,fields,plots:plotRows.results,offset,hasMore:plotRows.results.length===50});
   }catch(error){console.error("Deal Progress read failed",error);return reply({error:"Could not load private workflow"},500)}
@@ -97,6 +103,10 @@ export async function PATCH(request:Request){
         .bind(projectId,crypto.randomUUID(),plotId,before?.stageSlug||null,slug||null,note,holdUntil,session.id,now,projectId,plotId,newRevision,slug,session.id,now);
       const results=await env.DB.batch([update,event]);
       if(!results[0].results?.length||results[1].meta.changes!==1)return reply({error:"Workflow changed; refresh and retry"},409);
+      if(slug&&slug!==(before?.stageSlug||"")){
+        const stageLabel=await env.DB.prepare("SELECT label FROM project_deal_stages WHERE project_id=? AND slug=?").bind(projectId,slug).first<{label:string}>();
+        await recordPrivatePlotNotice(projectId,plotId,"deal",stageLabel?.label||slug,"deal:"+plotId+":"+now,session.id,now);
+      }
       try{await writeAudit(session,"project.deal_stage_updated",projectId,plotId,{before:before?.stageSlug||null,after:slug||null,holdUntil});}
       catch{console.error("Workflow saved; optional audit log unavailable",{projectId,plotId})}
       return reply({ok:true,revision:newRevision,stageSlug:slug,holdUntil,note});
