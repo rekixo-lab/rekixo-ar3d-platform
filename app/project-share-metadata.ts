@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { env } from "cloudflare:workers";
 import { headers } from "next/headers";
-import { projectBySlug } from "@/modules/public-project";
+import { isPlatformAccessHost, projectBySlug } from "@/modules/public-project";
 import { publicSiteEnabled } from "@/modules/public-site-access";
 
 // Shared public metadata for /projects/[slug] and standalone custom-domain /.
@@ -21,6 +21,7 @@ function unavailableMeta(project: Awaited<ReturnType<typeof projectBySlug>>) {
     hasShareImage: false,
     brandName: "Rekixo",
     origin: "",
+    canonicalShareUrl: "",
   };
 }
 
@@ -86,6 +87,15 @@ async function readProjectMeta(slug: string) {
   const proto = requestHeaders.get("x-forwarded-proto") || "https";
   const origin = host ? `${proto}://${host}` : "";
 
+  // A real public OG URL is required by social scrapers. Keep it versioned
+  // with the published share card and correct for platform paths/custom roots.
+  const projectPath = isPlatformAccessHost(host)
+    ? `/projects/${encodeURIComponent(project.slug)}`
+    : "/";
+  const canonicalShareUrl = origin
+    ? new URL(`${projectPath}?share=${encodeURIComponent(settings.shareVersion || "1")}`, origin).toString()
+    : "";
+
   const logoPath = settings.logoName
     ? `/api/project-asset/logo?projectId=${encodeURIComponent(project.id)}&variant=public&v=${encodeURIComponent(settings.logoVersion || settings.logoName)}`
     : "";
@@ -112,6 +122,7 @@ async function readProjectMeta(slug: string) {
     hasShareImage: Boolean(settings.shareImage),
     brandName: settings.brandName || "AR 3D Vision",
     origin,
+    canonicalShareUrl,
   };
 }
 
@@ -138,6 +149,7 @@ export async function generatePublishedProjectMetadata(slug: string): Promise<Me
       : undefined,
     openGraph: {
       type: "website",
+      url: meta.canonicalShareUrl || undefined,
       siteName: meta.brandName,
       title: meta.title,
       description: meta.description,
