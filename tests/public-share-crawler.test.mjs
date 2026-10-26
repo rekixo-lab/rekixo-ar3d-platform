@@ -3,18 +3,19 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 test("Open Graph share image uses the versioned public asset API", async () => {
-  const page = await readFile(
-    new URL("../app/projects/[slug]/page.tsx", import.meta.url),
-    "utf8",
-  );
+  const [page, metadata] = await Promise.all([
+    readFile(new URL("../app/projects/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/project-share-metadata.ts", import.meta.url), "utf8"),
+  ]);
 
-  assert.ok(page.includes("'shareVersion'"));
-  assert.ok(page.includes("/api/project-asset/shareCard?"));
-  assert.ok(page.includes("project.id"));
-  assert.ok(page.includes("settings.shareVersion"));
-  assert.ok(page.includes("&public=1"));
-  assert.ok(page.includes("versioned R2"));
-  assert.ok(!page.includes("/share-image/"));
+  assert.ok(page.includes("generatePublishedProjectMetadata(slug)"));
+  assert.ok(metadata.includes("'shareVersion'"));
+  assert.ok(metadata.includes("/api/project-asset/shareCard?"));
+  assert.ok(metadata.includes("project.id"));
+  assert.ok(metadata.includes("settings.shareVersion"));
+  assert.ok(metadata.includes("&public=1"));
+  assert.ok(metadata.includes("versioned R2"));
+  assert.ok(!metadata.includes("/share-image/"));
 });
 
 test("legacy public share-image route remains session-free, GET+HEAD capable and immutable", async () => {
