@@ -1556,7 +1556,13 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   // Bounded canvases prevent 10k+ images becoming one oversized GPU texture.
   function upgradeMasterplanImage(master,src,expectedAspect,onUpgrade,isCurrent=()=>true,expectedWidth=0,expectedHeight=0){
     const image=new Image(),controller=new AbortController();
-    let cancelled=false,layer=null,scheduled=false,painted=false;
+    let cancelled=false,layer=null,scheduled=false,painted=false,originalHandedOff=false;
+    const handoffOriginal=()=>{
+      if(originalHandedOff||!current())return;
+      originalHandedOff=true;
+      master.dataset.originalSrc=src;
+      onUpgrade?.(src);
+    };
     const tiles=new Map(),tileSize=1536;
     image.decoding='async';
     const current=()=>!cancelled&&isCurrent();
@@ -1619,9 +1625,8 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         }
         if(!painted&&tiles.size){
           painted=true;
-          master.dataset.originalSrc=src;
           setMasterplanQuality('original','Original HD',image.naturalWidth+' × '+image.naturalHeight+' px');
-          onUpgrade?.(src);
+          handoffOriginal();
         }
       }catch(error){
         // Canvases are transparent and the usable preview remains underneath.
@@ -1651,6 +1656,8 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       layer.setAttribute('aria-hidden','true');
       master.parentNode.insertBefore(layer,svg);
       refreshNativeMasterplan=refresh;
+      // 3D can consume the verified original even if its 2D layer is hidden.
+      if(mode3D)handoffOriginal();
       refresh();
     };
     image.onerror=()=>{if(current())setMasterplanQuality('preview','Preview only','Original could not be decoded.')};
