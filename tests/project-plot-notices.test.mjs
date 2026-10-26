@@ -34,7 +34,7 @@ test("client admin can publish without Super Admin; public map unchanged",()=>{
  assert.match(dashboard,/Plot Updates/);
  assert.match(dashboard,/tab==="notices"&&plotUpdatesEnabled/);
  const page=read("public/project/index.html");
- assert.match(page,/REKIXO_PROJECT_PLOT_NEWS_V1/);
+ assert.match(page,/REKIXO_PROJECT_PLOT_NEWS_V2/);
  assert.match(page,/plot-news-banner\.is-shown/);
  assert.match(page,/prefers-reduced-motion:reduce/);
  assert.match(page,/REKIXO_PLOT_NOTICES_INIT\?\.\(data\)/);
@@ -48,7 +48,7 @@ test("plot mutations create private draft candidates only",()=>{
  assert.match(read("app/api/data/route.ts"),/recordPrivatePlotNotice/);
  assert.match(read("app/api/client/deal-progress/route.ts"),/recordPrivatePlotNotice/);
  const ui=read("app/client-plot-notice-drafts.tsx");
- assert.match(ui,/changeNoticeState/);
+ assert.match(ui,/applyGroupState/);
  assert.match(ui,/Publish/);
  assert.match(ui,/Unpublish/);
  assert.match(ui,/Hide/);

@@ -190,6 +190,20 @@ try {
        target.name+" notice must stay within viewport width");
     assert.equal(plotNoticeGeometry.nowrap,true,target.name+" update must be single-line");
     assert.equal(plotNoticeGeometry.ellipsis,"ellipsis",target.name+" long notice text must truncate");
+    const newsVisual=await page.locator("#plotNewsBanner").evaluate(el=>{
+      const title=el.querySelector(".plot-news-title"),text=el.querySelector(".plot-news-line"),spark=el.querySelector(".plot-news-spark");
+      return {background:getComputedStyle(el).backgroundColor,
+        title:title?.textContent?.replace(/\s+/g," ").trim(),
+        titleColor:title?getComputedStyle(title).color:"",
+        contentColor:text?getComputedStyle(text).color:"",
+        sparkColor:spark?getComputedStyle(spark).color:"",
+        singleLine:getComputedStyle(el).whiteSpace==="nowrap"};
+    });
+    assert.equal(newsVisual.background,"rgb(255, 235, 0)",target.name+" yellow header notice");
+    assert.match(newsVisual.title||"",/New Updates In.*Plot Status/i);
+    for(const color of [newsVisual.titleColor,newsVisual.contentColor,newsVisual.sparkColor])
+      assert.equal(color,"rgb(185, 28, 28)",target.name+" red title, text and lightning");
+    assert.equal(newsVisual.singleLine,true);
     await page.locator("#plotNewsBell").click();
     await page.locator("#plotNewsHistory").waitFor({state:"visible"});
     assert.match(await page.locator("#plotNewsContent").innerText(),/Agreement Done/);

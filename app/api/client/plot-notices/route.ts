@@ -31,7 +31,45 @@ export async function PATCH(req:Request){
  if(!sameOrigin(req))return answer({error:"Invalid origin"},403);
  const session=await actor();if(!session)return answer({error:"Client Admin login required"},401);
  if(!await feature(session.projectId))return answer({error:"Notifications disabled for this project"},403);
- let b:Record<string,unknown>;try{const raw=await req.text();if(raw.length>1500)throw Error();b=JSON.parse(raw);if(!b||typeof b!=="object"||Array.isArray(b))throw Error()}catch{return answer({error:"Invalid request"},400)}
+ let b:Record<string,unknown>;try{const raw=await req.text();if(raw.length>8000)throw Error();b=JSON.parse(raw);if(!b||typeof b!=="object"||Array.isArray(b))throw Error()}catch{return answer({error:"Invalid request"},400)}
+ // Client-owned reviewed bulk publish: one transaction, strictly this session's project.
+ // The UI shows grouped updates, but each underlying event remains auditable.
+ if(Array.isArray(b.ids)){
+  const ids=b.ids;
+  const nextState=String(b.state||"");
+  if(!["published","draft","hidden"].includes(nextState)||ids.length<1||ids.length>50||
+     !ids.every(id=>typeof id==="string"&&id.length>0&&id.length<=110)||
+     new Set(ids).size!==ids.length)return answer({error:"Choose 1 to 50 valid draft updates"},400);
+  const placeholders=ids.map(()=>"?").join(",");
+  const rows=await env.DB.prepare(
+   "SELECT id,event_date AS eventDate,label,plot_ids_json AS plotIdsJson,state FROM project_plot_notices WHERE project_id=? AND id IN ("+placeholders+")"
+  ).bind(session.projectId,...ids).all<{id:string;eventDate:string;label:string;plotIdsJson:string;state:string}>();
+  if(rows.results.length!==ids.length||rows.results.some(r=>r.state===nextState))
+   return answer({error:"Some updates have changed. Refresh before updating."},409);
+  if(nextState==="published"){
+   for(const item of rows.results){
+    let parsed:unknown;try{parsed=JSON.parse(item.plotIdsJson)}catch{return answer({error:"Invalid draft"},409)}
+    const plotIds=noticeIds(parsed);
+    if(!plotIds||!noticeDate(item.eventDate)||!noticeLabel(item.label))
+     return answer({error:"Invalid draft data"},409);
+    const actual=await env.DB.prepare(
+     "SELECT COUNT(*) AS total FROM plots WHERE project_id=? AND inventory_active=1 AND id IN ("+plotIds.map(()=>"?").join(",")+")"
+    ).bind(session.projectId,...plotIds).first<{total:number}>();
+    if(Number(actual?.total)!==plotIds.length)
+     return answer({error:"A draft contains inactive or missing plot numbers. Correct it before publication."},409);
+   }
+  }
+  const now=new Date().toISOString();
+  const previousById=new Map(rows.results.map(row=>[row.id,row.state]));
+  const statements=ids.map(id=>env.DB.prepare(
+   "UPDATE project_plot_notices SET state=?,published_at=CASE WHEN ?='published' THEN COALESCE(published_at,?) ELSE published_at END,updated_at=? WHERE project_id=? AND id=? AND state=? RETURNING id"
+  ).bind(nextState,nextState,now,now,session.projectId,id,previousById.get(id)));
+  const results=await env.DB.batch(statements);
+  if(results.some(result=>!result.results?.length))
+   return answer({error:"Some entries changed. Refresh to see their latest state."},409);
+  await writeAudit(session,"project.plot_notice_bulk_state",session.projectId,"batch",{count:ids.length,ids,state:nextState});
+  return answer({ok:true,updated:ids.length,state:nextState});
+ }
  const id=typeof b.id==="string"?b.id:"",state=String(b.state||"");
  if(!id||id.length>110||!["published","draft","hidden"].includes(state))return answer({error:"Invalid update"},400);
  const existing=await env.DB.prepare("SELECT event_date AS eventDate,label,plot_ids_json AS plotIdsJson,state FROM project_plot_notices WHERE project_id=? AND id=?").bind(session.projectId,id).first<{eventDate:string;label:string;plotIdsJson:string;state:string}>();
