@@ -988,31 +988,35 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
 </style>
 
 <style id="rekixo-plot-news-styles">
-/* REKIXO_PROJECT_PLOT_NEWS_V1 — isolated from masterplan layers. */
+/* REKIXO_PROJECT_PLOT_NEWS_V2 — gold/red compact ticker; original masterplan untouched. */
 .header{position:relative}
 .plot-news-bell{position:relative;width:39px;height:39px;flex:none;padding:9px;border-radius:12px;background:rgba(16,34,57,.96);color:#c8efff;border:1px solid #31506b;cursor:pointer;display:grid;place-items:center}
 .plot-news-bell svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.plot-news-bell .plot-news-dot{position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:#36df9b;box-shadow:0 0 9px #36df9b}
+.plot-news-bell .plot-news-dot{position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:#ffea00;box-shadow:0 0 9px #ffea00}
 .plot-news-bell[hidden],.plot-news-banner[hidden],.plot-news-history[hidden]{display:none!important}
 .plot-news-bell:focus-visible,.plot-news-close:focus-visible,.plot-news-banner:focus-visible,.plot-news-history button:focus-visible{outline:2px solid #7bf6c2;outline-offset:2px}
-.plot-news-banner{position:absolute;top:calc(100% - 1px);left:50%;width:min(470px,calc(100vw - 24px));min-height:39px;z-index:27;display:flex;align-items:center;gap:8px;box-sizing:border-box;border:1px solid rgba(66,203,145,.62);border-radius:0 0 12px 12px;padding:6px 8px 6px 12px;background:rgba(9,24,42,.97);box-shadow:0 12px 30px #000b;white-space:nowrap;overflow:hidden;opacity:0;pointer-events:none;transform:translate(-50%,-130%);transition:transform .56s cubic-bezier(.2,.85,.18,1),opacity .18s ease}
+.plot-news-banner{position:absolute;top:calc(100% - 1px);left:50%;width:min(490px,calc(100vw - 24px));min-height:39px;z-index:27;display:flex;align-items:center;gap:8px;box-sizing:border-box;border:1px solid #dfa500;border-radius:0 0 12px 12px;padding:6px 8px 6px 12px;background:#ffeb00;box-shadow:0 12px 30px #000b;white-space:nowrap;overflow:hidden;opacity:0;pointer-events:none;transform:translate(-50%,-130%);transition:transform .56s cubic-bezier(.2,.85,.18,1),opacity .18s ease}
 .plot-news-banner.is-shown{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
-.plot-news-banner .plot-news-spark{width:15px;height:15px;flex:none;color:#5be5a5}
-.plot-news-banner .plot-news-date{font-size:10px;color:#9cbbd1;flex:none;font-weight:700}
-.plot-news-banner .plot-news-line{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:12px;color:#eefcf9;font-weight:750;letter-spacing:0}
-.plot-news-close{border:0;color:#a9c0d6;background:transparent;border-radius:5px;font-size:17px;flex:none;padding:3px 5px;cursor:pointer}
-.plot-news-history{position:absolute;z-index:28;top:calc(100% + 7px);right:12px;width:min(365px,calc(100vw - 24px));max-height:min(410px,52vh);overflow-y:auto;overscroll-behavior:contain;padding:11px;border-radius:14px;border:1px solid #355d66;background:rgba(8,20,39,.99);color:#eaf6fc;box-shadow:0 18px 45px #000d;font-size:12px;box-sizing:border-box}
-.plot-news-history-head{display:flex;justify-content:space-between;align-items:center;gap:8px;position:sticky;top:-11px;background:#0a1a2d;padding:5px 2px 10px;z-index:2}
+.plot-news-banner .plot-news-spark{width:15px;height:15px;flex:none;color:#b91c1c}
+.plot-news-banner .plot-news-title{color:#b91c1c;font-size:10px;font-weight:900;letter-spacing:.015em;text-transform:uppercase;white-space:nowrap;flex:none}
+.plot-news-banner .plot-news-title-detail{font-size:9px}
+.plot-news-banner .plot-news-date{font-size:10px;color:#9f1515;flex:none;font-weight:800}
+.plot-news-banner .plot-news-line{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#b91c1c;font-weight:800;letter-spacing:0}
+ .plot-news-close{border:0;color:#991b1b;background:transparent;border-radius:5px;font-size:17px;flex:none;padding:3px 5px;cursor:pointer}
+.plot-news-history{position:absolute;z-index:28;top:calc(100% + 7px);right:12px;width:min(365px,calc(100vw - 24px));max-height:min(410px,52vh);overflow-y:auto;overscroll-behavior:contain;padding:11px;border-radius:14px;border:1px solid #e2b900;background:#fffbe1;color:#991b1b;box-shadow:0 18px 45px #000d;font-size:12px;box-sizing:border-box}
+.plot-news-history-head{display:flex;justify-content:space-between;align-items:center;gap:8px;position:sticky;top:-11px;background:#fff6bf;padding:5px 2px 10px;z-index:2}
 .plot-news-history-head strong{font-size:13px}
-.plot-news-day{font-size:10px;color:#74d9b0;font-weight:800;letter-spacing:.06em;padding:13px 4px 7px;border-top:1px solid #2a4057}
-.plot-news-item{font-size:12px;line-height:1.45;margin:0 0 6px;background:#142942;border:1px solid #2a415a;border-radius:9px;padding:9px 10px;overflow-wrap:anywhere}
-.plot-news-item strong{color:#dff9e8}
-.plot-news-caption{font-size:10px;color:#9eb7cd;line-height:1.5;padding:6px 2px}
+.plot-news-day{font-size:10px;color:#aa1d1d;font-weight:800;letter-spacing:.06em;padding:13px 4px 7px;border-top:1px solid #2a4057}
+.plot-news-item{font-size:12px;line-height:1.45;margin:0 0 6px;background:#fff1a2;border:1px solid #efd558;color:#991b1b;border-radius:9px;padding:9px 10px;overflow-wrap:anywhere}
+.plot-news-item strong{color:#991b1b}
+.plot-news-caption{font-size:10px;color:#9b3b2f;line-height:1.5;padding:6px 2px}
 @media(max-width:700px){
  .plot-news-bell{width:34px;height:34px;padding:7px;border-radius:9px}
  .plot-news-bell svg{width:17px;height:17px}
  .plot-news-banner{width:calc(100vw - 18px);max-width:calc(100vw - 18px);left:9px;right:auto;transform:translateY(-130%);min-height:36px;padding:5px 6px 5px 9px;gap:6px;border-radius:0 0 11px 11px}
  .plot-news-banner.is-shown{transform:translateY(0)}
+ .plot-news-banner .plot-news-title{font-size:9px;letter-spacing:-.025em}
+ .plot-news-banner .plot-news-title-detail{display:none}
  .plot-news-banner .plot-news-date{font-size:9px}
  .plot-news-banner .plot-news-line{font-size:10.5px}
  .plot-news-history{right:9px;max-height:min(350px,44vh)}
@@ -1056,6 +1060,7 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
   </form>
   <div class="plot-news-banner" id="plotNewsBanner" role="status" aria-live="polite" hidden>
     <svg class="plot-news-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3 4 14h7l-1 7 10-12h-8V3Z"/></svg>
+    <span class="plot-news-title">New Updates In <span class="plot-news-title-detail">Plot Status</span></span>
     <span class="plot-news-date" id="plotNewsDate"></span><span class="plot-news-line" id="plotNewsLine"></span>
     <button type="button" class="plot-news-close" id="plotNewsClose" aria-label="Dismiss update">×</button>
   </div>
