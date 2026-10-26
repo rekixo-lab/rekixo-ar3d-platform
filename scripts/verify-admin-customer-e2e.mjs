@@ -328,7 +328,7 @@ async function customerJourney(browser) {
     );
     assert.equal(crawlerResponse.status(), 200, "crawler can open published project");
     const html = await crawlerResponse.text();
-    const head = html.match(/<head[^>]*>([\\s\\S]*?)<\\/head>/i)?.[1] || "";
+    const head = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i)?.[1] || "";
     assert.match(head, /property="og:title"/, "crawler OG title is in raw head");
     assert.match(head, /property="og:description"/, "crawler OG description is in raw head");
     assert.match(head, /property="og:image"/, "crawler OG image is in raw head");
