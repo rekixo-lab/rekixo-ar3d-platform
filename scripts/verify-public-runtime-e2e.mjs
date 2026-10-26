@@ -101,6 +101,15 @@ const server = http.createServer((req, res) => {
       ],
     }, { "cache-control": "no-store" });
   }
+  if (url.pathname === "/api/public-plot-notices") {
+    return json(res, {
+      enabled: true,
+      notices: [{
+        id: "e2e-news", eventDate: "2026-10-12", category: "deal",
+        label: "Agreement Done", plotIds: ["P-1"], publishedAt: "2026-10-12T12:00:00Z",
+      }],
+    }, {"cache-control":"no-store"});
+  }
   if (url.pathname === "/api/public-gallery") {
     return json(res, {
       projectId: "e2e-project",
@@ -169,6 +178,23 @@ try {
     );
 
     await page.waitForSelector('.plot[data-plot-id="P-1"]', { state: "attached" });
+    await page.locator("#plotNewsBell").waitFor({state:"visible"});
+    await page.locator("#plotNewsBanner.is-shown").waitFor({state:"visible"});
+    const plotNoticeGeometry=await page.locator("#plotNewsBanner").evaluate(el=>{
+      const box=el.getBoundingClientRect(),style=getComputedStyle(el);
+      return {width:box.width,right:box.right,left:box.left,nowrap:style.whiteSpace==="nowrap",
+        ellipsis:getComputedStyle(el.querySelector(".plot-news-line")).textOverflow};
+    });
+    assert.ok(plotNoticeGeometry.width <= target.viewport.width && plotNoticeGeometry.left >= -2 &&
+       plotNoticeGeometry.right <= target.viewport.width+2,
+       target.name+" notice must stay within viewport width");
+    assert.equal(plotNoticeGeometry.nowrap,true,target.name+" update must be single-line");
+    assert.equal(plotNoticeGeometry.ellipsis,"ellipsis",target.name+" long notice text must truncate");
+    await page.locator("#plotNewsBell").click();
+    await page.locator("#plotNewsHistory").waitFor({state:"visible"});
+    assert.match(await page.locator("#plotNewsContent").innerText(),/Agreement Done/);
+    await page.locator("#plotNewsHistoryClose").click();
+
 
     if (target.name === "desktop") {
       await page.waitForFunction(() => {
