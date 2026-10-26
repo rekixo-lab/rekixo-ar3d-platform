@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { generatePublishedProjectMetadata } from "./project-share-metadata";
 import { env } from "cloudflare:workers";
 import { redirect } from "next/navigation";
 import { panelMode } from "@/modules/auth";
@@ -34,6 +36,27 @@ function Message({ title, text }: { title: string; text: string }) {
       </section>
     </main>
   );
+}
+
+// Project-specific Open Graph tags must live on the parent page, not its iframe.
+export async function generateMetadata(): Promise<Metadata> {
+  const generic: Metadata = {
+    title: "AR 3D Vision Project",
+    description: "Interactive project and plot visualization.",
+  };
+  if (panelMode() === "super") return generic;
+
+  const host = (await headers()).get("host") || "";
+  const target = await projectHostRole(host);
+  if (target?.role !== "public" || !target.projectId) return generic;
+  const project = await env.DB.prepare(
+    "SELECT slug FROM projects WHERE id=? AND status='active' AND public_status='published' LIMIT 1",
+  )
+    .bind(target.projectId)
+    .first<{ slug: string }>();
+  return project?.slug
+    ? generatePublishedProjectMetadata(project.slug)
+    : generic;
 }
 
 export default async function Home() {
