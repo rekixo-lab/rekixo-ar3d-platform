@@ -15,8 +15,8 @@ function attr(tag, name) {
   return m?.[1] || "";
 }
 function meta(html) {
-  const head = html.match(/<head[^>]*>([\\s\\S]*?)<\\/head>/i)?.[1] || "";
-  const all = [...head.matchAll(/<meta\\b[^>]*>/gi)].map(x => x[0]);
+  const head = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i)?.[1] || "";
+  const all = [...head.matchAll(/<meta\b[^>]*>/gi)].map(x => x[0]);
   const tags = {};
   for (const tag of all) {
     const key = attr(tag,"property") || attr(tag,"name");
@@ -24,7 +24,7 @@ function meta(html) {
       tags[key]=attr(tag,"content").slice(0,400);
     }
   }
-  return {headBytes:head.length, headTitle:head.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1]?.slice(0,150)||"", headTags:tags, bodyOgTag: /<body[\\s\\S]*?<meta[^>]*property=["']og:image/i.test(html)};
+  return {headBytes:head.length, headTitle:head.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.slice(0,150)||"", headTags:tags, bodyOgTag: /<body[\s\S]*?<meta[^>]*property=["']og:image/i.test(html)};
 }
 for (const url of links) {
   for (const [name,agent] of agents) {
