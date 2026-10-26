@@ -1,5 +1,6 @@
 import {env} from "cloudflare:workers";
 import {sameOrigin} from "@/modules/auth";
+import {recordPrivatePlotNotice} from "@/app/project-plot-notices";
 import {clientSalesAccess,canEdit,readSalesBody,salesResponse,salesAudit,salesId} from "@/app/sales-accounts-server";
 import {parseMoneyPaise,validSaleDate,validSalesName,safeNote} from "@/app/sales-accounts-core";
 
@@ -141,7 +142,8 @@ export async function POST(request:Request){
   }
   const results=await env.DB.batch(mutations);
   if(!results[saleMutationIndex]?.results?.length)throw Error("Sale could not be persisted");
-  try{await salesAudit(access.context,"sales.sale_created",saleId,{plotId,markSold,previousStatus:plot.status});}
+  if(markSold && plot.status!=="sold")await recordPrivatePlotNotice(projectId,plotId,"inventory","Sold","sale:"+saleId,userId,now);
+   try{await salesAudit(access.context,"sales.sale_created",saleId,{plotId,markSold,previousStatus:plot.status});}
   catch{console.error("Sale saved, separate audit write failed",{projectId,saleId});}
   return salesResponse({ok:true,saleId,buyerId:resolvedBuyerId,firstPaymentRecorded:firstPayment>0,plotStatus:markSold?"sold":plot.status},201);
  }catch(error){
