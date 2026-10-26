@@ -1011,7 +1011,8 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
 @media(max-width:700px){
  .plot-news-bell{width:34px;height:34px;padding:7px;border-radius:9px}
  .plot-news-bell svg{width:17px;height:17px}
- .plot-news-banner{width:min(410px,calc(100vw - 18px));min-height:36px;padding:5px 6px 5px 9px;gap:6px;border-radius:0 0 11px 11px}
+ .plot-news-banner{width:calc(100vw - 18px);max-width:calc(100vw - 18px);left:9px;right:auto;transform:translateY(-130%);min-height:36px;padding:5px 6px 5px 9px;gap:6px;border-radius:0 0 11px 11px}
+ .plot-news-banner.is-shown{transform:translateY(0)}
  .plot-news-banner .plot-news-date{font-size:9px}
  .plot-news-banner .plot-news-line{font-size:10.5px}
  .plot-news-history{right:9px;max-height:min(350px,44vh)}
