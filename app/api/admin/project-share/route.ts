@@ -127,9 +127,6 @@ async function shareState(projectId: string) {
       .join(" | ") ||
     `${shareTitle} interactive visualization.`;
   const cardUrl = settings.shareImage || "";
-  const shareUrl = links.publicUrl
-    ? `${links.publicUrl}${links.publicUrl.includes("?") ? "&" : "?"}share=${encodeURIComponent(shareVersion)}`
-    : "";
   const logoUrl = settings.logoName
     ? `/api/project-asset/logo?projectId=${encodeURIComponent(project.id)}&v=${encodeURIComponent(settings.logoVersion || settings.logoName)}`
     : "";
@@ -160,7 +157,8 @@ async function shareState(projectId: string) {
   // Save operations intentionally update draft/live settings only; Publish Update
   // is the sole transition that makes a new social preview public.
   const publishedShareVersion = String(publishedSnapshot?.shareVersion || "").trim();
-  const publishedShareImage = Boolean(String(publishedSnapshot?.shareImage || "").trim());
+  const publishedShareImageValue = String(publishedSnapshot?.shareImage || "").trim();
+  const publishedShareImage = Boolean(publishedShareImageValue);
   const publishedSnapshotReady =
     project.publicStatus === "published" &&
     publishedSnapshot?.snapshotVersion != null &&
@@ -168,7 +166,15 @@ async function shareState(projectId: string) {
     Number(publishedSnapshot.snapshotVersion) === Number(publishedSnapshot.currentVersion) &&
     publishedShareImage &&
     publishedShareVersion === String(publishedSnapshot?.shareVersion || "").trim() &&
-    /^\\d{1,20}$/.test(publishedShareVersion);
+    /^\d{1,20}$/.test(publishedShareVersion) &&
+    // Copy only the current published version, never an un-published draft.
+    publishedShareVersion === shareVersion &&
+    publishedShareImageValue === String(settings.shareImage || "").trim();
+
+  const linkVersion = publishedSnapshotReady ? publishedShareVersion : shareVersion;
+  const shareUrl = links.publicUrl
+    ? `${links.publicUrl}${links.publicUrl.includes("?") ? "&" : "?"}share=${encodeURIComponent(linkVersion)}`
+    : "";
 
   return {
     projectId: project.id,
