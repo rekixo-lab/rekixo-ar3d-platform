@@ -1,0 +1,39 @@
+name: Metro City S-series consolidation (manual only)
+
+# Never runs on push/deploy; preview the guard report with dry-run first.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Select dry-run to verify, then apply to change Metro City draft only"
+        required: true
+        type: choice
+        default: dry-run
+        options:
+          - dry-run
+          - apply
+
+permissions:
+  contents: read
+
+concurrency:
+  group: metro-city-s-series-d1-maintenance
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run guarded Metro City correction
+        run: node scripts/metro-city-s-series-reconcile.mjs '${{ inputs.mode }}'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
