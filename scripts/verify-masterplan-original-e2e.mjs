@@ -179,7 +179,7 @@ async function journey(target) {
     window.__nativeCrops = [];
     const drawImage = CanvasRenderingContext2D.prototype.drawImage;
     CanvasRenderingContext2D.prototype.drawImage = function (...args) {
-      if (args.length === 9 && args[0]?.naturalWidth === 12000 && !this.classList?.contains('master-native-tile')) {
+      if (args.length === 9 && args[0]?.naturalWidth === 12000 && !this.canvas?.classList?.contains('master-native-tile')) {
         window.__nativeCrops.push({ sourceWidth: args[3], sourceHeight: args[4], width: args[7], height: args[8] });
       }
       return drawImage.apply(this, args);
