@@ -1718,7 +1718,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   // Bounded canvases prevent 10k+ images becoming one oversized GPU texture.
   function upgradeMasterplanImage(master,src,expectedAspect,onUpgrade,isCurrent=()=>true,expectedWidth=0,expectedHeight=0){
     const image=new Image(),controller=new AbortController();
-    const safeMobileTiles=metroMobileTileSafety&&window.matchMedia('(max-width:700px)').matches;
+    const safeMobileTiles=typeof metroMobileTileSafety!=='undefined'&&metroMobileTileSafety&&window.matchMedia('(max-width:700px)').matches;
     let cancelled=false,layer=null,scheduled=false,painted=false,originalHandedOff=false,safeTileFailed=false;
     const handoffOriginal=()=>{
       if(originalHandedOff||!current())return;
