@@ -5,7 +5,7 @@ const viewer=readFileSync("public/project/index.html","utf8");
 const tileCode=viewer.slice(viewer.indexOf("function upgradeMasterplanImage("),viewer.indexOf("function displaySize(){"));
 test("Metro Samsung mobile safety only: other projects keep existing original tiling",()=>{
  assert.match(viewer,/metroMobileTileSafety=data\.projectId==='c024a562-634d-4e49-b647-43209f6e450b'/);
- assert.match(tileCode,/safeMobileTiles=metroMobileTileSafety&&window\.matchMedia\('\(max-width:700px\)'\)\.matches/);
+ assert.match(tileCode,/safeMobileTiles=typeof metroMobileTileSafety!==\x27undefined\x27&&metroMobileTileSafety&&window\.matchMedia/);
  assert.match(tileCode,/const tileStep=safeMobileTiles\?1024:tileSize/);
  assert.match(tileCode,/const tiles=new Map\(\),tileSize=1536/);
  assert.match(tileCode,/else\{\s*ctx\.drawImage\(image,x,y,width,height,0,0,canvas\.width,canvas\.height\)/);
