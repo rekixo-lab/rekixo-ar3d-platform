@@ -2,7 +2,7 @@ import {env} from "cloudflare:workers";
 
 export const METRO_AGREEMENT_PROJECT_ID="c024a562-634d-4e49-b647-43209f6e450b";
 export const METRO_AGREEMENT_FIELD="agreement_done";
-export const METRO_PUBLIC_BOOKED_LABEL="Registered";
+export const METRO_PUBLIC_SOLD_LABEL="Registered";
 
 // Feature deliberately requires exact verified tenant identity AND an enabled checkbox field.
 // Never rewrite the canonical plots.status or treat "booked" as evidence of registration.

@@ -989,7 +989,6 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
 
 <style id="metro-agreement-public-style">
   #metroAgreementRow .agreement-done{color:#24cf88;font-weight:900}
-  #metroAgreementRow .agreement-pending{color:#e6b65b;font-weight:750}
 </style>
 <style id="rekixo-plot-news-styles">
 /* REKIXO_PROJECT_PLOT_NEWS_V2 — gold/red compact ticker; original masterplan untouched. */
@@ -1164,7 +1163,7 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
     <div class="fact" id="sideDimensionsRow" style="display:none"><span>SIDE MEASUREMENTS</span><b id="sideDimensionsValue">—</b></div>
     <div class="fact"><span id="roadLabel">ROAD ACCESS</span><b id="road">—</b></div>
     <div class="fact"><span>STATUS</span><b id="plotStatusValue" class="available">Available</b></div>
-    <div class="fact" id="metroAgreementRow" style="display:none"><span>AGREEMENT</span><b id="metroAgreementValue">Agreement Pending</b></div>
+    <div class="fact" id="metroAgreementRow" style="display:none"><span>AGREEMENT</span><b id="metroAgreementValue"></b></div>
   </div>
 
   <div class="actions">
@@ -2027,24 +2026,28 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   async function openGallery(){galleryModal.classList.add('open');galleryModal.setAttribute('aria-hidden','false');clientGallery.replaceChildren(Object.assign(document.createElement('div'),{className:'gallery-state',textContent:'Loading gallery…'}));try{const response=await fetch('/api/public-gallery'+(window.REKIXO_PROJECT_QUERY||''),{cache:'no-store'});if(!response.ok)throw new Error();const data=await response.json(),items=Array.isArray(data.gallery)?data.gallery:[];clientGallery.replaceChildren();if(!items.length){clientGallery.append(Object.assign(document.createElement('div'),{className:'gallery-state',textContent:'Gallery me abhi koi image nahi hai.'}));return}items.forEach(item=>{const card=document.createElement('article'),thumb=document.createElement('button'),img=document.createElement('img'),label=document.createElement('b'),caption=item.caption||item.filename||'Project image';thumb.type='button';thumb.className='gallery-thumb';thumb.setAttribute('aria-label','View full size: '+caption);const galleryBaseQuery=window.REKIXO_PROJECT_QUERY||'',galleryJoiner=galleryBaseQuery?'&':'?';img.src='/api/gallery/'+encodeURIComponent(item.id)+galleryBaseQuery+galleryJoiner+'public=1';img.alt=caption;img.loading='lazy';img.decoding='async';label.textContent=caption;thumb.onclick=()=>openFullImage(img.src,caption);thumb.append(img);card.append(thumb,label);clientGallery.append(card)})}catch(_){clientGallery.replaceChildren(Object.assign(document.createElement('div'),{className:'gallery-state',textContent:'Gallery load nahi hui. Dobara try karein.'}))}}
   function closeGallery(){galleryModal.classList.remove('open');galleryModal.setAttribute('aria-hidden','true')}
   function norm(v){let s=v.trim().toUpperCase().replace(/\s+/g,'').replace(/_/g,'-');if(plots.some(p=>String(p.id).toUpperCase()===s))return s;const m=s.match(/^([ABC])-?(\d{1,2})$/);return m?m[1]+'-'+String(+m[2]).padStart(2,'0'):s}
-  /* METRO_AGREEMENT_PRESENTATION_V1: public names only; canonical statuses remain unchanged. */
+  /* METRO_AGREEMENT_PRESENTATION_V2: Sold is displayed as Registered only in verified Metro City; inventory keys unchanged. */
   let metroAgreementMode=false;
   function statusDisplayLabel(status){
     const label=String(status||'available').toLowerCase();
-    return metroAgreementMode&&label==='booked'?'Registered':label.charAt(0).toUpperCase()+label.slice(1);
+    return metroAgreementMode&&label==='sold'?'Registered':label.charAt(0).toUpperCase()+label.slice(1);
   }
   function updateMetroAgreementFact(plot){
     const row=q('#metroAgreementRow'),value=q('#metroAgreementValue');
     if(!row||!value)return;
-    row.style.display=metroAgreementMode?'flex':'none';
-    if(!metroAgreementMode)return;
-    const done=plot?.agreementDone===true;
-    value.textContent=done?'Agreement Done':'Agreement Pending';
-    value.className=done?'agreement-done':'agreement-pending';
+    const done=metroAgreementMode&&plot?.agreementDone===true;
+    row.style.display=done?'flex':'none';
+    value.textContent=done?'Agreement Done':'';
+    value.className=done?'agreement-done':'';
   }
-  function renderBookedPublicLabel(){
-    const span=q('[data-status-filter="booked"] span');
-    if(span){const dot=span.querySelector('.sdot');span.replaceChildren(dot||document.createElement('i'),document.createTextNode(statusDisplayLabel('booked')));}
+  function renderMetroStatusLabels(){
+    for(const status of ['booked','sold']){
+      const span=q('[data-status-filter="'+status+'"] span');
+      if(!span)continue;
+      let dot=span.querySelector('.sdot');
+      if(!dot){dot=document.createElement('i');dot.className='sdot';}
+      span.replaceChildren(dot,document.createTextNode(statusDisplayLabel(status)));
+    }
   }
   const REKIXO_STATUS_THEME_DEFAULTS={available:'#12C568',booked:'#F5B516',sold:'#F0314C'};
   function normalizeStatusThemeHex(value,fallback){const raw=String(value||'').trim().toUpperCase(),m=raw.match(/^#?([0-9A-F]{6})$/);return m?'#'+m[1]:fallback}
@@ -2139,6 +2142,8 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
           syncPlotPricing(fresh);
           const st=plotStatus(fresh),statusEl=q('#plotStatusValue');
           statusEl.textContent=statusDisplayLabel(st);
+          const chip=q('#plotStatusChip');
+          if(chip){chip.textContent=statusDisplayLabel(st).toUpperCase();chip.className='chip '+st;}
           updateMetroAgreementFact(fresh);
           statusEl.className=st;
           drawer.dataset.status=st;
@@ -2826,7 +2831,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
 
     const s=data&&data.settings||{};
     metroAgreementMode=data.metroAgreementEnabled===true;
-    renderBookedPublicLabel();
+    renderMetroStatusLabels();
     applyPlotStatusTheme(s);
     publicRotation=normalizeQuarterTurn(s.publicRotation);
     publicNorthSourceAngle=northBearingFromSettings(s);
