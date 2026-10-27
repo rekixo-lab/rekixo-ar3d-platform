@@ -337,6 +337,46 @@ try {
       fullPage: true,
     });
 
+    // Verify the real Metro-only display and live Agreement Done state without changing
+    // canonical filter identifiers, booked inventory, 2D/3D layout, or another tenant.
+    assert.match(await page.locator('[data-status-filter="booked"] span').innerText(),/Booked/);
+    let metroAgreementDone=false;
+    await page.route("**/api/public-data**",async route=>{
+      await route.fulfill({status:200,contentType:"application/json",
+        body:JSON.stringify({...structure,metroAgreementEnabled:true,
+          plots:structure.plots.map(p=>({...p,agreementDone:false}))})});
+    });
+    await page.route("**/api/public-live**",async route=>{
+      await route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({
+        projectId:"e2e-project",metroAgreementEnabled:true,pricingEnabled:false,
+        settings:{},statuses:[{id:"P-1",status:"booked",agreementDone:metroAgreementDone}],
+        pricing:[]
+      })});
+    });
+    await page.goto(base+"/project/index.html?projectId=e2e-project&pv=1&v=metro-agreement",{
+      waitUntil:"networkidle"
+    });
+    await page.waitForSelector('.plot[data-plot-id="P-1"]',{state:"attached"});
+    await page.waitForFunction(()=>{
+      const el=document.querySelector('[data-status-filter="booked"] span');
+      return el?.textContent?.includes("Registered")&&document.querySelector("#countBooked")?.textContent==="1";
+    });
+    assert.equal(await page.locator('.plot[data-plot-id="P-1"]').getAttribute("data-status"),"booked",
+      target.name+" original booked inventory must remain unchanged");
+    await page.locator("#searchInput").fill("P-1");
+    await page.locator("#searchForm").evaluate(form=>form.requestSubmit());
+    await page.locator("#drawer.open").waitFor({state:"visible"});
+    await page.locator("#metroAgreementRow").waitFor({state:"visible"});
+    assert.match(await page.locator("#plotStatusValue").innerText(),/Registered/);
+    assert.match(await page.locator("#metroAgreementValue").innerText(),/Agreement Pending/);
+    metroAgreementDone=true;
+    await page.evaluate(()=>document.dispatchEvent(new Event("visibilitychange")));
+    await page.waitForFunction(()=>document.querySelector("#metroAgreementValue")?.textContent==="Agreement Done");
+    metroAgreementDone=false;
+    await page.evaluate(()=>document.dispatchEvent(new Event("visibilitychange")));
+    await page.waitForFunction(()=>document.querySelector("#metroAgreementValue")?.textContent==="Agreement Pending");
+    await page.screenshot({path:path.join(artifactDir,target.name+"-metro-agreement.png"),fullPage:true});
+
     assert.deepEqual(errors, [], target.name + " browser console/page errors");
     await context.close();
   }
