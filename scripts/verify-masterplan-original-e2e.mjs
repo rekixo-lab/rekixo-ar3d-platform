@@ -10,6 +10,7 @@ const root = process.cwd();
 const artifactDir = path.join(root, "artifacts", "masterplan-original-e2e");
 fs.mkdirSync(artifactDir, { recursive: true });
 const originalWidth = 12000, originalHeight = 6000;
+const metroId = "c024a562-634d-4e49-b647-43209f6e450b";
 const previewWidth = 1200, previewHeight = 600;
 const polygon = [[.38, .35], [.62, .35], [.62, .65], [.38, .65]];
 const states = new Map();
@@ -239,6 +240,23 @@ async function journey(target) {
         tiles.map(t=>({width:t.width,height:t.height,painted:t.width>0&&t.height>0})));
       assert.ok(tileDetails.length>0&&tileDetails.every(t=>t.painted&&t.width<=1536&&t.height<=1536),
         "original 2D tiles fit GPU budget and paint at an adaptive display resolution");
+      if(target.name===metroId){
+        const mobileSafety=await page.locator(".master-native-tiles").evaluate(layer=>{
+          const tiles=[...layer.querySelectorAll(".master-native-tile")];
+          const w=Number(document.querySelector(".master").naturalWidth);
+          return {visible:getComputedStyle(layer).visibility==="visible",
+            allUnderBudget:tiles.every(c=>c.width<=1152&&c.height<=1152),
+            widths:tiles.map(c=>parseFloat(c.style.width)),
+            lefts:tiles.map(c=>parseFloat(c.style.left)),
+            fullWidth:w};
+        });
+        assert.ok(mobileSafety.visible,"Metro mobile HD overlay visible only after complete coverage");
+        assert.ok(mobileSafety.allUnderBudget,"Metro mobile uses memory-safe 1024px crops with a capped gutter");
+        const spans=mobileSafety.lefts.map((left,i)=>({left,right:left+mobileSafety.widths[i]}));
+        const touching=spans.some((a,i)=>spans.some((b,j)=>
+          i!==j&&b.left>a.left+0.01&&b.left<a.right-0.00001));
+        assert.ok(touching,"Metro mobile HD neighbors overlap to avoid visible fractional seams");
+      }
       const sampledTile=await page.locator(".master-native-tile").first().evaluate(tile=>{
         const pixel=tile.getContext("2d").getImageData(Math.floor(tile.width/2),Math.floor(tile.height/2),1,1).data;
         return [...pixel];
@@ -285,6 +303,7 @@ try {
   await generateFixtures();
   await journey({ name: "quality-desktop", viewport: { width: 1440, height: 1000 }, three: true });
   await journey({ name: "quality-mobile", viewport: { width: 390, height: 844 }, mobile: true });
+  await journey({ name: metroId, viewport: { width: 390, height: 844 }, mobile: true });
   await journey({ name: "quality-legacy-fallback", viewport: { width: 390, height: 844 }, mobile: true, missing: true });
 } finally {
   await browser.close();
