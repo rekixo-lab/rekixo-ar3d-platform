@@ -1,0 +1,67 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {execFileSync} from "node:child_process";
+const read=p=>readFileSync(p,"utf8");
+test("Metro agreement migration is idempotent, tenant-isolated and preserves original status",()=>{
+ const out=execFileSync("python3",["scripts/verify-metro-agreement-migration.py"],{encoding:"utf8"});
+ assert.match(out,/PASS: Metro only/);
+});
+test("Metro-only status labels, canonical filter IDs and original masterplan are intact",()=>{
+ const source=read("public/project/index.html");
+ assert.match(source,/METRO_AGREEMENT_PRESENTATION_V1/);
+ assert.match(source,/metroAgreementMode=data\.metroAgreementEnabled===true/);
+ assert.match(source,/metroAgreementMode&&label==='booked'\?'Registered'/);
+ assert.match(source,/renderBookedPublicLabel\(\)/);
+ assert.match(source,/updateMetroAgreementFact\(p\)/);
+ assert.match(source,/updateMetroAgreementFact\(fresh\)/);
+ assert.match(source,/Agreement Pending/);
+ assert.match(source,/Agreement Done/);
+ assert.match(source,/statusDisplayLabel\(st\)/);
+ assert.match(source,/data-status-filter="booked"/);
+ assert.match(source,/master-native-tiles/);
+ assert.doesNotMatch(source,/data-status-filter="registered"/);
+});
+test("public API returns only Metro agreement boolean, not private values or new plot status",()=>{
+ const initial=read("app/api/public-data/route.ts"),live=read("app/api/public-live/route.ts");
+ const policy=read("app/metro-agreement.ts");
+ assert.match(policy,/c024a562-634d-4e49-b647-43209f6e450b/);
+ assert.match(policy,/p\.slug='metro-city-c024a5'/);
+ assert.match(policy,/p\.name='Metro City'/);
+ assert.match(policy,/f\.field_type='checkbox' AND f\.enabled=1/);
+ assert.match(initial,/metroAgreementEnabled:metroPublicAgreement/);
+ assert.match(initial,/agreementDone:metroAgreementByPlot\.get\(plot\.id\)\?\.done\|\|false/);
+ assert.match(live,/metroAgreementEnabled:metroPublicAgreement/);
+ assert.match(live,/agreementDone:metroAgreementByPlot\.get\(row\.id\)\?\.done\|\|false/);
+ assert.match(live,/status:row\.status==="booked"\|\|row\.status==="sold"\?row\.status:"available"/);
+ assert.doesNotMatch(policy,/owner_name|booking_amount|broker_name|SELECT \*/);
+});
+test("checkbox API is session-only, revision-protected and never edits inventory or Sale",()=>{
+ const api=read("app/api/client/metro-agreement/route.ts");
+ assert.match(api,/validAdminSession\(\)/);
+ assert.match(api,/session\.role!=="client_admin"/);
+ assert.match(api,/sameOrigin\(request\)/);
+ assert.match(api,/metroAgreementEnabled\(session\.projectId\)/);
+ assert.match(api,/field_key=\? AND revision=\?/);
+ assert.match(api,/DO NOTHING RETURNING revision/);
+ assert.match(api,/Agreement was changed in another session/);
+ assert.match(api,/writeAudit/);
+ assert.doesNotMatch(api,/UPDATE plots|UPDATE property_sales|UPDATE plot_deal_states/);
+ const data=read("app/api/data/route.ts");
+ assert.match(data,/agreementEnabled/);
+ assert.match(data,/agreementRevision/);
+ assert.match(data,/session\.role==="client_admin"/);
+});
+test("builder autosaves per-plot checkbox; stage Agreement Done syncs same flag",()=>{
+ const ui=read("app/client-plot-management.tsx"),shell=read("app/admin-dashboard.tsx");
+ const stage=read("app/api/client/deal-progress/route.ts");
+ assert.match(ui,/className="client-booking-agreement"/);
+ assert.match(ui,/checked=\{plot\.agreementDone===true\}/);
+ assert.match(ui,/\/api\/client\/metro-agreement/);
+ assert.match(ui,/onAgreementSaved/);
+ assert.match(ui,/onAgreementConflict/);
+ assert.match(shell,/agreementEnabled=\{agreementEnabled\}/);
+ assert.match(shell,/savedAgreements/);
+ assert.match(stage,/slug==="agreement_done"\|\|slug==="registered"/);
+ assert.match(stage,/agreementStatement\?\[update,event,agreementStatement\]/);
+});

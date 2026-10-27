@@ -10,7 +10,9 @@ test("status rows are deterministic one-at-a-time filters and force the overlay 
   assert.match(html, /function ensureStatusOverlayOn\(\)\{if\(showAll\)return;showAll=true;/);
   assert.match(html, /function setStatusFilter\(st\).*ensureStatusOverlayOn\(\);statusFilter=st;/s);
   assert.doesNotMatch(html, /if\(statusFilter===st\).*clearStatusFilter/s);
-  assert.match(html, /Showing '\+st\.charAt\(0\)\.toUpperCase\(\)\+st\.slice\(1\)\+' plots'/);
+  assert.match(html, /Showing '\+statusDisplayLabel\(st\)\+' plots'/);
+  assert.match(html, /metroAgreementMode&&label==='booked'\?'Registered'/);
+  assert.match(html, /data-status-filter="booked" aria-pressed="false"/);
   assert.match(html, /data-status-filter="available" aria-pressed="false"/);
   assert.match(html, /data-status-filter="booked" aria-pressed="false"/);
   assert.match(html, /data-status-filter="sold" aria-pressed="false"/);

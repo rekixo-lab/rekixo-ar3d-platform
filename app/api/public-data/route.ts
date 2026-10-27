@@ -8,6 +8,7 @@ import {
 } from "@/modules/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { env } from "cloudflare:workers";
+import {metroAgreementEnabled,metroAgreementValues} from "@/app/metro-agreement";
 import { getAdminSession } from "@/modules/auth";
 import { plotFacingText, plotFacingTextForNorthAngle } from "@/modules/plots";
 import { deriveCustomerPlotAreas } from "@/app/plot-area-derivation.mjs";
@@ -399,6 +400,8 @@ export async function GET(request: Request) {
     const liveStatusByPlot = new Map(
       liveStatusRows.map((item) => [item.id, item.status]),
     );
+    const metroPublicAgreement=await metroAgreementEnabled(projectId);
+    const metroAgreementByPlot=metroPublicAgreement?await metroAgreementValues(projectId):new Map<string,{done:boolean;revision:number}>();
 
     // Published snapshots preserve the submitted area columns exactly. Older
     // imports can legitimately carry 0 as "unknown"; derive those values for
@@ -420,6 +423,7 @@ export async function GET(request: Request) {
     return Response.json(
       {
         projectId,
+        metroAgreementEnabled:metroPublicAgreement,
         projectName:
           snapshotReady && snapshot?.projectName
             ? snapshot.projectName
@@ -532,6 +536,7 @@ export async function GET(request: Request) {
             ...publicPlot,
             featured: Boolean(publicPlot.featured),
             status: liveStatusByPlot.get(plot.id) || publicPlot.status,
+            ...(metroPublicAgreement?{agreementDone:metroAgreementByPlot.get(plot.id)?.done||false}:{}),
             ...(facing ? { facing } : {}),
             ...(edgeMeasurements.length ? { edgeMeasurements } : {}),
             ...(price

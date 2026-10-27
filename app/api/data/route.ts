@@ -8,6 +8,7 @@ import { writeAudit } from "@/modules/audit";
 import { recordPrivatePlotNotice } from "@/app/project-plot-notices";
 import { validateProjectContactPatch } from "@/modules/projects";
 import { canonicalPlotAdminDetails } from "@/app/plot-admin-details";
+import {metroAgreementEnabled,metroAgreementValues} from "@/app/metro-agreement";
 
 const denied = () => Response.json({ error: "Admin login required" }, { status: 401 });
 
@@ -86,10 +87,17 @@ export async function GET(request: Request) {
         counts[status] += Number(row.total || 0);
       }
       const total = Number(totalRow?.total || 0);
+      const agreementEnabled = session.role==="client_admin" && await metroAgreementEnabled(projectId);
+      const agreementByPlot = agreementEnabled ? await metroAgreementValues(projectId) : new Map<string,{done:boolean;revision:number}>();
       return Response.json(
         {
           projectId,
-          plots: pageRows.map((row) => ({ ...row.plot, adminDetails: canonicalPlotAdminDetails(row.adminDetails) })),
+          plots: pageRows.map((row) => ({
+            ...row.plot,adminDetails:canonicalPlotAdminDetails(row.adminDetails),
+            ...(agreementEnabled?{agreementDone:agreementByPlot.get(row.plot.id)?.done||false,
+              agreementRevision:agreementByPlot.get(row.plot.id)?.revision||0}:{})
+          })),
+          agreementEnabled,
           total,
           counts,
           nextOffset: offset + pageRows.length,
