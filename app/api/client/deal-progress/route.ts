@@ -2,7 +2,6 @@ import {env} from "cloudflare:workers";
 import {validAdminSession,sameOrigin} from "@/modules/auth";
 import {writeAudit} from "@/modules/audit";
 import {recordPrivatePlotNotice} from "@/app/project-plot-notices";
-import {metroAgreementEnabled} from "@/app/metro-agreement";
 import {fieldsOf,stagesOf,validDate,validateCustomValue,type CustomField} from "@/app/project-admin-studio-policy";
 
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{"cache-control":"private, no-store"}});
@@ -102,18 +101,9 @@ export async function PATCH(request:Request){
           .bind(slug||null,holdUntil,note,now,session.id,projectId,plotId,revision,projectId,plotId);
       const event=env.DB.prepare("INSERT INTO plot_deal_events(project_id,id,plot_id,previous_stage,next_stage,note,hold_until,actor_id,created_at) SELECT ?,?,?,?,?,?,?,?,? FROM plot_deal_states WHERE project_id=? AND plot_id=? AND revision=? AND COALESCE(stage_slug,'')=? AND updated_by=? AND updated_at=?")
         .bind(projectId,crypto.randomUUID(),plotId,before?.stageSlug||null,slug||null,note,holdUntil,session.id,now,projectId,plotId,newRevision,slug,session.id,now);
-      // Persist a durable completed Agreement flag when the builder advances to Agreement Done
-      // or Registered. This is in the same D1 batch as the stage/event, preventing a half-save.
-      const agreementStatement=(slug==="agreement_done"||slug==="registered")&&await metroAgreementEnabled(projectId)
-        ?env.DB.prepare(
-          "INSERT INTO plot_custom_values(project_id,plot_id,field_key,field_value,revision,updated_at,updated_by) "+
-          "SELECT ?,?,'agreement_done','true',1,?,? FROM plot_deal_states stage "+
-          "WHERE stage.project_id=? AND stage.plot_id=? AND stage.stage_slug=? AND stage.revision=? AND stage.updated_at=? AND stage.updated_by=? "+
-          "AND EXISTS(SELECT 1 FROM plots WHERE project_id=? AND id=? AND inventory_active=1) "+
-          "ON CONFLICT(project_id,plot_id,field_key) DO UPDATE SET field_value='true',revision=plot_custom_values.revision+1,updated_at=excluded.updated_at,updated_by=excluded.updated_by "+
-          "WHERE plot_custom_values.field_value!='true'"
-         ).bind(projectId,plotId,now,session.id,projectId,plotId,slug,newRevision,now,session.id,projectId,plotId):null;
-      const results=await env.DB.batch(agreementStatement?[update,event,agreementStatement]:[update,event]);
+      // Deal Progress records its stage and event only. Metro Agreement Done visibility
+      // is controlled independently by the builder's checkbox.
+      const results=await env.DB.batch([update,event]);
       if(!results[0].results?.length||results[1].meta.changes!==1)return reply({error:"Workflow changed; refresh and retry"},409);
       if(slug&&slug!==(before?.stageSlug||"")){
         const stageLabel=await env.DB.prepare("SELECT label FROM project_deal_stages WHERE project_id=? AND slug=?").bind(projectId,slug).first<{label:string}>();

@@ -1,11 +1,21 @@
-# Metro City — Registered label and Agreement Done
+# Metro City — Verified customer terminology and Agreement Done visibility
 
-Scope: Verified Metro City project ID c024a562-634d-4e49-b647-43209f6e450b, matching slug/name. Other projects remain unchanged.
+**Scope:** exact enabled Metro City project only. The canonical inventory and all other projects are unchanged.
 
-Customer website displays Registered where canonical status is booked; it is a presentation-only label, not proof of legal registration. Original 2D/3D status filters, colors, inventory and Sales Ledger remain unchanged.
+## Public Masterplan
+- Status labels: **Available / Booked / Registered**, where only canonical `sold` is shown as **Registered**. `booked` remains Booked.
+- Count/filter keys, overlays and Sales & Accounts remain `available`, `booked`, `sold`, with original colors and values. "Registered" is customer-requested **display terminology**, not an independent legal-registration verification.
+- Plot popup and 2D hover preview use the same project-scoped display function; live status refresh also updates the open popup badge.
+- Show an Agreement row **only if** `agreementDone === true`. Render **Agreement Done** then. If missing/false, do not show any Agreement row or Pending message.
+- Agreement data is initial-load plus public live-polling scoped to the Metro tenant, boolean only. Never expose buyer, notes, payment or documents.
 
-Client Admin Plots rows have auto-saving Agreement Done checkbox using private existing Custom Fields storage. Missing values are Agreement Pending. Current Agreement Done/Registered deal stages backfill true during migration. New completed-stage saves set the independent flag true in the same D1 batch. Changing unrelated stages never clears completed agreement.
+## Builder
+- The existing Client Admin per-plot Agreement Done checkbox auto-saves to the existing custom field with optimistic revision checking and audit.
+- The checkbox is the independent source of public Agreement visibility. Saving a separate Deal Progress stage does not silently turn the checkbox ON. Client Admin can enable or disable it explicitly.
+- Historical completed Agreement values already backfilled by migration 0043 are **preserved**. This correction does not change or delete database rows.
+- No migration, plot remapping, masterplan change, snapshot rewrite, Sale/payment change or repricing.
 
-Public startup and live polling (~30s) expose only Agreement Done boolean for Metro. Owner, booking amount, broker, notes, payments remain private. Public plot popup shows Agreement Done or Agreement Pending.
-
-Admin can uncheck if mistaken; no masterplan upload or republish required.
+## Regression requirements
+- Metro Booked is Booked, Metro Sold is Registered, unrelated tenants keep Sold.
+- With checkbox OFF popup Agreement row is hidden; ON shows Done; toggling OFF via live updates hides row again.
+- Status counter, filters, original high-resolution masterplan and 2D/3D remain unchanged.

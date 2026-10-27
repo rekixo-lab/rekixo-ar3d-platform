@@ -7,15 +7,17 @@ test("Metro agreement migration is idempotent, tenant-isolated and preserves ori
  const out=execFileSync("python3",["scripts/verify-metro-agreement-migration.py"],{encoding:"utf8"});
  assert.match(out,/PASS: Metro only/);
 });
-test("Metro-only status labels, canonical filter IDs and original masterplan are intact",()=>{
+test("Metro-only Sold to Registered display, canonical Booked and Sold IDs and original masterplan intact",()=>{
  const source=read("public/project/index.html");
- assert.match(source,/METRO_AGREEMENT_PRESENTATION_V1/);
+ assert.match(source,/METRO_AGREEMENT_PRESENTATION_V2/);
  assert.match(source,/metroAgreementMode=data\.metroAgreementEnabled===true/);
- assert.match(source,/metroAgreementMode&&label==='booked'\?'Registered'/);
- assert.match(source,/renderBookedPublicLabel\(\)/);
+ assert.match(source,/metroAgreementMode&&label==='sold'\?'Registered'/);
+ assert.match(source,/renderMetroStatusLabels\(\)/);
  assert.match(source,/updateMetroAgreementFact\(p\)/);
  assert.match(source,/updateMetroAgreementFact\(fresh\)/);
- assert.match(source,/Agreement Pending/);
+ assert.match(source,/row.style.display=done\?'flex':'none'/);
+ assert.match(source,/value.textContent=done\?'Agreement Done':''/);
+ assert.doesNotMatch(source,/Agreement Pending/);
  assert.match(source,/Agreement Done/);
  assert.match(source,/statusDisplayLabel\(st\)/);
  assert.match(source,/data-status-filter="booked"/);
@@ -52,7 +54,7 @@ test("checkbox API is session-only, revision-protected and never edits inventory
  assert.match(data,/agreementRevision/);
  assert.match(data,/session\.role==="client_admin"/);
 });
-test("builder autosaves per-plot checkbox; stage Agreement Done syncs same flag",()=>{
+test("builder checkbox is independent from Deal Progress stage saves",()=>{
  const ui=read("app/client-plot-management.tsx"),shell=read("app/admin-dashboard.tsx");
  const stage=read("app/api/client/deal-progress/route.ts");
  assert.match(ui,/className="client-booking-agreement"/);
@@ -62,6 +64,6 @@ test("builder autosaves per-plot checkbox; stage Agreement Done syncs same flag"
  assert.match(ui,/onAgreementConflict/);
  assert.match(shell,/agreementEnabled=\{agreementEnabled\}/);
  assert.match(shell,/savedAgreements/);
- assert.match(stage,/slug==="agreement_done"\|\|slug==="registered"/);
- assert.match(stage,/agreementStatement\?\[update,event,agreementStatement\]/);
+ assert.match(stage,/const results=await env.DB.batch\(\[update,event\]\)/);
+ assert.doesNotMatch(stage,/agreementStatement|metroAgreementEnabled/);
 });
