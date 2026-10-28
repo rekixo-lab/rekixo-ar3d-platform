@@ -8,7 +8,8 @@ const page = await readFile(
 );
 
 test("active mobile gestures skip expensive SVG polygon painting", () => {
-  assert.match(page, /\.map\.gesture-active \.hotspots\{visibility:hidden\}/);
+  assert.match(page, /\.map\.gesture-active:not\(\[data-metro-raster-plots="1"\]\) \.hotspots\{visibility:hidden\}/);
+  assert.match(page, /\.map\[data-metro-raster-plots="1"\] \.hotspots\{opacity:0\}/);
   assert.match(page, /setGestureActive\(true\)/);
   assert.match(page, /setGestureActive\(false\)/);
 });

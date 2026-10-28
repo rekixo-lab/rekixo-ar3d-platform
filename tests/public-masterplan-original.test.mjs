@@ -30,6 +30,7 @@ function originalHarness({ available=true,drawFailure=false }={}) {
     world:{},W:1200,H:600,scale:1,pan:{x:0,y:0},publicRotation:0,
     rotateOffset:(x,y)=>({x,y}),
     rekixoBootState:(...args)=>boot.push(args),
+    paintMetroPolygons:()=>{},
     document:{createElement:()=>({
       width:0,height:0,className:"",setAttribute(){},remove(){},addEventListener(){},
       getContext:()=>context,

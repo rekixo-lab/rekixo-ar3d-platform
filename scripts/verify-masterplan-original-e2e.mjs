@@ -16,6 +16,31 @@ const polygon = [[.38, .35], [.62, .35], [.62, .65], [.38, .65]];
 const states = new Map();
 let originalPng, previewPng;
 
+// Metro's real published inventory has ~702 mapped plots. Exercise the same
+// crowding and SVG style load rather than testing only a single P-1 polygon.
+function fixturePlots(projectId){
+  const first={
+    id: "P-1", sqft: 1000, sqm: 92.903, sqyd: 111.111,
+    dimensions: "20 ft x 50 ft", road: "30 ft road", front: 20, back: 20,
+    depth: 50, depth2: 50, dimensionUnit: "ft", frontEdgeIndex: 0,
+    depthEdgeIndex: 1, backEdgeIndex: 2, depth2EdgeIndex: 3,
+    polygon: JSON.stringify(polygon), status: "available", featured: false,
+  };
+  if(projectId!==metroId)return[first];
+  const result=[first];
+  for(let row=0;row<28&&result.length<702;row++){
+    for(let col=0;col<50&&result.length<702;col++){
+      const x=col/50,y=row/28,w=.015,h=.028;
+      if(x<.65&&x+w>.35&&y<.68&&y+h>.32)continue;
+      result.push({...first,id:"M-"+result.length,
+        polygon:JSON.stringify([[x,y],[x+w,y],[x+w,y+h],[x,y+h]]),
+        status:result.length%9===0?"booked":result.length%7===0?"sold":"available"});
+    }
+  }
+  assert.equal(result.length,702,"Metro gesture fixture has the full 702-plot workload");
+  return result;
+}
+
 function fixture(projectId) {
   return {
     projectId, projectName: "Original Masterplan Test", slug: projectId,
@@ -25,13 +50,7 @@ function fixture(projectId) {
       mapWidth: String(previewWidth), mapHeight: String(previewHeight),
       masterplanName: "high-resolution-original.png", publicRotation: "0", publicInitialViewMode: "plots",
     },
-    plots: [{
-      id: "P-1", sqft: 1000, sqm: 92.903, sqyd: 111.111,
-      dimensions: "20 ft x 50 ft", road: "30 ft road", front: 20, back: 20,
-      depth: 50, depth2: 50, dimensionUnit: "ft", frontEdgeIndex: 0,
-      depthEdgeIndex: 1, backEdgeIndex: 2, depth2EdgeIndex: 3,
-      polygon: JSON.stringify(polygon), status: "available", featured: false,
-    }], gallery: [],
+    plots: fixturePlots(projectId), gallery: [],
   };
 }
 
@@ -238,6 +257,67 @@ async function journey(target) {
         "Exactly one persistent viewport canvas, not dozens of independent DOM tiles");
       assert.equal(await page.locator(".master-native-tile").count(), 0,
         "No native DOM tile layers remain in the public 2D renderer");
+      if(target.name===metroId){
+        assert.equal(await page.locator("#viewport").getAttribute("data-metro-raster-plots"),"1");
+        assert.equal(await page.locator(".hotspots").evaluate(el=>getComputedStyle(el).opacity),
+          "0","Metro touch SVG is a hit/keyboard plane; pixel paint is in the original canvas");
+        assert.equal(await page.locator(".plot").count(),702);
+        const sample=()=>page.evaluate(()=>{
+          const svgPlot=document.querySelector('.plot[data-plot-id="P-1"]');
+          const vr=document.querySelector("#viewport").getBoundingClientRect();
+          const pr=svgPlot.getBoundingClientRect();
+          const canvas=document.querySelector(".master-original-canvas");
+          const cx=Math.floor((pr.left+pr.width/2-vr.left)*canvas.width/vr.width);
+          const cy=Math.floor((pr.top+pr.height/2-vr.top)*canvas.height/vr.height);
+          if(cx<0||cy<0||cx>=canvas.width||cy>=canvas.height)throw Error("mapped plot center not on screen");
+          return [...canvas.getContext("2d").getImageData(cx,cy,1,1).data];
+        });
+        const probePlotGrid=()=>page.evaluate(()=>{
+          const poly=document.querySelector('.plot[data-plot-id="P-1"]');
+          const vr=document.querySelector("#viewport").getBoundingClientRect();
+          const pr=poly.getBoundingClientRect();
+          const canvas=document.querySelector(".master-original-canvas");
+          const ctx=canvas.getContext('2d');
+          const out=[];
+          for(const fy of [.25,.375,.5,.625,.75])for(const fx of [.25,.375,.5,.625,.75]){
+            const cx=Math.floor((pr.left+pr.width*fx-vr.left)*canvas.width/vr.width);
+            const cy=Math.floor((pr.top+pr.height*fy-vr.top)*canvas.height/vr.height);
+            if(cx>=0&&cy>=0&&cx<canvas.width&&cy<canvas.height)
+              out.push([fx,fy,...ctx.getImageData(cx,cy,1,1).data]);
+          }
+          return out;
+        });
+        const before=await sample();
+        const gridBefore=await probePlotGrid();
+        await page.locator("#outlineToggle").click();
+        await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+        const after=await sample();
+        const gridAfter=await probePlotGrid();
+        const maxDelta=gridAfter.reduce((m,v,i)=>Math.max(m,...v.slice(2,5).map((b,k)=>Math.abs(b-(gridBefore[i]?.[k+2]??b)))),0);
+        const metroTrace=await page.evaluate(()=>{
+          const poly=document.querySelector('.plot[data-plot-id="P-1"]'),svg=document.querySelector('.hotspots');
+          const source=document.querySelector('.master'),canvas=document.querySelector('.master-original-canvas');
+          const box=poly.getBoundingClientRect(),vp=document.querySelector("#viewport").getBoundingClientRect();
+          return {showAll:svg.classList.contains("show-all"),
+            fill:getComputedStyle(poly).fill,stroke:getComputedStyle(poly).stroke,
+            polyCenter:[box.left+box.width/2,box.top+box.height/2],
+            viewportCenter:[vp.left+vp.width/2,vp.top+vp.height/2],
+            canvasSize:[canvas.width,canvas.height],rasterSize:[source.naturalWidth,source.naturalHeight],
+            mode:document.querySelector('#viewport').dataset.metroRasterPlots,
+            plotCount:document.querySelectorAll(".plot").length};
+        });
+        assert.ok(maxDelta>1,
+          "Metro plot pixels did not change with status: "+
+          JSON.stringify({before,after,maxDelta,gridBefore,gridAfter,metroTrace}));
+        for(const button of ["#zoomIn","#zoomIn","#zoomOut","#zoomOut"]){
+          await page.locator(button).click();
+          await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+          const pixel=await sample();
+          assert.equal(pixel[3],255,
+            "Metro canvas keeps polygons painted together with the original throughout zoom");
+        }
+        await page.locator("#outlineToggle").click();
+      }
       assert.deepEqual(state.requests.filter(v => v !== "original"), [],
         "Successful originals never download preview or canonical sources");
       const surface = await page.locator(".master-original-canvas").evaluate(canvas => {

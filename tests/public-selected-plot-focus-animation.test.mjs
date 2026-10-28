@@ -63,5 +63,5 @@ test("3D geometry and picking source remain canonical", () => {
 test("focus effect stays presentation-only", () => {
   assert.doesNotMatch(page, /fetch\([^)]*focus/i);
   assert.doesNotMatch(three, /DB\.|R2|fetch\(/);
-  assert.match(page, /function setSelected\(id\)\{svg\.querySelectorAll\('\.plot'\)\.forEach\(el=>el\.classList\.toggle\('selected',el\.dataset\.plotId===id\)\)\}/);
+  assert.match(page, /function setSelected\(id\)\{svg\.querySelectorAll\('\.plot'\)\.forEach\(el=>el\.classList\.toggle\('selected',el\.dataset\.plotId===id\)\);invalidateMetroPaint\(\)\}/);
 });
