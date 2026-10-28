@@ -29,8 +29,19 @@ export const publicNoticeLabel=(label:string)=>label.trim().toLowerCase()==="hol
 // Only user-visible inventory/deal status events are eligible for automatic
 // public notices. Never copy free-text notes, buyer, sale, price or actor info.
 export async function recordAutomaticPlotNotice(projectId:string,plotId:string,category:"inventory"|"deal",label:string,sourceEventId:string,actorId:string,isoTime:string){
- const eventDate=indiaDate(isoTime),cleanLabel=publicNoticeLabel(label);
- if(!noticeLabel(cleanLabel)||!plotId||plotId.length>80)return;
+ const eventDate=indiaDate(isoTime);
+ // Never expose user-defined deal-stage names verbatim. Public updates use an
+ // explicit vocabulary; unknown custom stages are announced generically.
+ const inventoryLabels:Record<string,string>={available:"Available",booked:"Booked",sold:"Sold",registered:"Registered"};
+ const dealLabels:Record<string,string>={
+  hold:"On Hold","on hold":"On Hold","token received":"Token Received",
+  "agreement done":"Agreement Done",registered:"Registered",
+  "agreement updated":"Agreement Updated","agreement pending":"Agreement Pending",
+  cancelled:"Cancelled",canceled:"Cancelled"
+ };
+ const key=String(label||"").trim().toLowerCase();
+ const cleanLabel=category==="inventory"?inventoryLabels[key]:dealLabels[key]||"Plot Updated";
+ if(!cleanLabel||!noticeLabel(cleanLabel)||!plotId||plotId.length>80)return;
  const plotIdsJson=JSON.stringify([plotId]);
  // Exactly one automatic notice for each plot, category and IST day. A second
  // status change replaces that plot's earlier announcement rather than
