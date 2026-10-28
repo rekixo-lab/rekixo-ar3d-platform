@@ -6,110 +6,103 @@ import test from "node:test";
 const html = await readFile(new URL("../public/project/index.html", import.meta.url), "utf8");
 const three = await readFile(new URL("../public/project/three-view.js", import.meta.url), "utf8");
 const mapSource = html.slice(html.indexOf("  function setMapDimensions("), html.indexOf("  // The metadata probe is tiny."));
-const upgradeSource = html.slice(html.indexOf("  function upgradeMasterplanImage("), html.indexOf("  function displaySize("));
+const originalSource = html.slice(html.indexOf("  function prepareOriginalMasterplan("), html.indexOf("  function displaySize("));
 
-function imageHarness({ failTiles=false }={}) {
-  const requests = [], tiles = [];
-  let sourceOriginal = true;
-  const layer={className:"",setAttribute(){},appendChild(canvas){tiles.push(canvas)},remove(){}};
-  const sandbox = {
-    AbortController, URL,
-    location: { href: "https://example.test/project/index.html" },
-    fetch: async () => ({ ok: true, json: async () => ({ original: sourceOriginal }) }),
-    setMasterplanQuality() {},
-    refreshNativeMasterplan: () => {},
-    window: {devicePixelRatio:1},
-    viewport: {getBoundingClientRect:()=>({width:900,height:700})},
-    W:1200,H:600,scale:1,pan:{x:0,y:0},publicRotation:0,mode3D:false,
-    rotateOffset:(x,y)=>({x,y}),svg:{},
-    requestAnimationFrame:fn=>fn(),
-    document: {
-      getElementById:()=>null,
-      createElement:tag=>tag==="div"?layer:{
-        className:"",width:0,height:0,style:{},remove(){},
-        getContext:()=>({drawImage(){if(failTiles)throw Error("GPU failure")}}),
-      },
-    },
-    Image: class {
-      constructor() { this.naturalWidth = 16000; this.naturalHeight = 8000; requests.push(this); }
-    },
+function originalHarness({ available=true,drawFailure=false }={}) {
+  const requests=[],draws=[],canvases=[],boot=[],source={value:available};
+  const context={
+    setTransform(){},clearRect(){},
+    drawImage(...args){if(drawFailure)throw Error("canvas display failed");draws.push(args)},
   };
-  vm.runInNewContext(upgradeSource, sandbox);
-  const unchanged = { pan: { x: 37, y: -18 }, scale: 3.25, rotation: 90, polygon: [[100, 200], [400, 200], [400, 500]] };
-  let oldLoads = 0, oldErrors = 0;
-  const master = { src: "preview.webp", dataset:{}, parentNode:{insertBefore:()=>layer}, onload: () => oldLoads++, onerror: () => oldErrors++ };
-  return { sandbox, requests, master, unchanged, tiles,
-    setSourceOriginal: value => { sourceOriginal = value; },
-    counts: () => ({ oldLoads, oldErrors }) };
+  const master={
+    dataset:{},style:{visibility:"hidden"},naturalWidth:12000,naturalHeight:6000,
+    decoding:"async",decode:async()=>{},src:"",onload:null,onerror:null,
+  };
+  const sandbox={
+    AbortController,URL,Math,Number,
+    location:{href:"https://example.test/project/index.html"},
+    fetch:async()=>{requests.push("inspect");return {ok:true,json:async()=>({original:source.value})}},
+    window:{devicePixelRatio:2},master,mode3D:false,refreshNativeMasterplan:()=>{},
+    viewport:{
+      clientWidth:390,clientHeight:844,
+      insertBefore:(element)=>canvases.push(element),
+    },
+    world:{},W:1200,H:600,scale:1,pan:{x:0,y:0},publicRotation:0,
+    rotateOffset:(x,y)=>({x,y}),
+    rekixoBootState:(...args)=>boot.push(args),
+    document:{createElement:()=>({
+      width:0,height:0,className:"",setAttribute(){},remove(){},addEventListener(){},
+      getContext:()=>context,
+    })},
+  };
+  vm.runInNewContext(originalSource,sandbox);
+  return {sandbox,master,source,requests,draws,canvases,boot};
 }
 
 test("giant raster dimensions preserve aspect and normalized plot positions", () => {
-  const writes = [], master = {};
-  const sandbox = {
-    W: 1200, H: 2133,
-    document: { documentElement: { style: { setProperty: (...args) => writes.push(args) } } },
-    world: { style: {} }, q: () => master, svg: { setAttribute: (...args) => writes.push(args) },
+  const writes=[],master={};
+  const sandbox={W:1200,H:2133,
+    document:{documentElement:{style:{setProperty:(...args)=>writes.push(args)}}},
+    world:{style:{}},q:()=>master,svg:{setAttribute:(...args)=>writes.push(args)},
   };
-  vm.runInNewContext(mapSource, sandbox);
-  sandbox.setMapDimensions(16000, 8000);
-  assert.equal(sandbox.W, 10000);
-  assert.equal(sandbox.H, 5000);
-  assert.equal(sandbox.W / sandbox.H, 2);
-  assert.equal(master.width / master.height, 2);
-  assert.deepEqual([0.25 * sandbox.W, 0.75 * sandbox.H], [2500, 3750]);
-  sandbox.setMapDimensions(Infinity, NaN);
-  assert.equal(sandbox.W, 1200);
-  assert.equal(sandbox.H, 2133);
+  vm.runInNewContext(mapSource,sandbox);
+  sandbox.setMapDimensions(16000,8000);
+  assert.equal(sandbox.W,10000);
+  assert.equal(sandbox.H,5000);
+  assert.equal(sandbox.W/sandbox.H,2);
+  assert.equal(master.width/master.height,2);
+  assert.deepEqual([.25*sandbox.W,.75*sandbox.H],[2500,3750]);
+  sandbox.setMapDimensions(Infinity,NaN);
+  assert.equal(sandbox.W,1200);
+  assert.equal(sandbox.H,2133);
 });
 
-test("decoded original native tiles preserve current viewport and selection geometry", async () => {
-  const h = imageHarness(), before = JSON.stringify(h.unchanged), upgrades = [];
-  h.sandbox.upgradeMasterplanImage(h.master, "original.png", 2, src => upgrades.push(src));
-  assert.equal(h.master.src, "preview.webp");
-  await new Promise(resolve => setImmediate(resolve));
-  h.requests[0].onload();
-  assert.equal(h.master.src, "preview.webp", "working preview stays painted after HD ready");
-  assert.equal(h.master.dataset.originalSrc, "original.png");
-  assert.ok(h.tiles.length > 0 && h.tiles.every(t => t.width <= 1536 && t.height <= 1536));
-  assert.deepEqual(upgrades, ["original.png"]);
-  assert.equal(JSON.stringify(h.unchanged), before);
-  assert.deepEqual(h.counts(), { oldLoads: 0, oldErrors: 0 });
-  assert.doesNotMatch(upgradeSource, /setMapDimensions|rescaleNormalizedPlots|reset\(/);
+test("published original is decoded before reveal and raster comes from one canvas",async()=>{
+  const h=originalHarness(),ready=[],fallback=[];
+  h.sandbox.prepareOriginalMasterplan(h.master,"original.png",2,
+    ()=>ready.push(true),()=>fallback.push(true));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(h.master.src,"original.png");
+  assert.equal(h.canvases.length,0,"boot remains until decoding");
+  await h.master.onload();
+  assert.equal(h.canvases.length,1,"one canvas rather than many native canvas tiles");
+  assert.equal(h.master.style.visibility,"hidden");
+  assert.equal(h.master.dataset.originalSrc,"original.png");
+  assert.equal(h.master.dataset.previewSrc,"");
+  assert.deepEqual(ready,[true]);
+  assert.deepEqual(fallback,[]);
+  assert.equal(h.sandbox.refreshNativeMasterplan(),true);
+  assert.equal(h.draws.length,1);
+  assert.equal(h.draws[0][0],h.master,"always sample from the same original");
+  assert.equal(h.draws[0][1],h.draws[0][5],
+    "source crop and destination use the same unmodified coordinates");
+  assert.equal(h.draws[0][2],h.draws[0][6]);
+  assert.ok(h.canvases[0].width*h.canvases[0].height<=8000000+20000);
+  assert.doesNotMatch(originalSource,/setMapDimensions|rescaleNormalizedPlots|reset\(/);
 });
 
-test("failed, wrong-aspect and superseded originals keep the decoded preview", async () => {
-  for (const failure of ["network", "aspect", "stale", "cancelled"]) {
-    const h = imageHarness();
-    const cancel = h.sandbox.upgradeMasterplanImage(h.master, "original.png", 2, () => assert.fail("must not promote"), () => failure !== "stale");
-    await new Promise(resolve => setImmediate(resolve));
-    if (failure === "network") h.requests[0].onerror();
-    else if (failure === "cancelled") cancel();
-    else {
-      if (failure === "aspect") h.requests[0].naturalHeight = 10000;
-      h.requests[0].onload();
-    }
-    assert.equal(h.master.src, "preview.webp", failure);
-  }
+test("unavailable or mismatched originals use an explicit legacy fallback",async()=>{
+  const h=originalHarness({available:false}),fallback=[];
+  h.sandbox.prepareOriginalMasterplan(h.master,"original.png",2,()=>assert.fail(),()=>fallback.push(true));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(fallback,[true]);
+  assert.equal(h.master.src,"");
+  assert.equal(h.canvases.length,0);
+  const wrong=originalHarness(),other=[];
+  wrong.sandbox.prepareOriginalMasterplan(wrong.master,"original.png",1,()=>assert.fail(),()=>other.push(true));
+  await new Promise(resolve=>setImmediate(resolve));
+  await wrong.master.onload();
+  assert.deepEqual(other,[true]);
+  assert.equal(wrong.canvases.length,0);
 });
 
-test("a canvas rendering failure never discards the preview", async () => {
-  const h = imageHarness({failTiles:true}), upgrades = [];
-  h.sandbox.upgradeMasterplanImage(h.master, "original.png", 2, src => upgrades.push(src));
-  await new Promise(resolve => setImmediate(resolve));
-  h.requests[0].onload();
-  assert.equal(h.master.src, "preview.webp");
-  assert.equal(h.master.dataset.originalSrc, undefined);
-  assert.deepEqual(upgrades, []);
-  assert.deepEqual(h.counts(), {oldLoads:0,oldErrors:0});
-});
-
-test("optimized fallback probe prevents starting an original image download", async () => {
-  const h = imageHarness();
-  h.setSourceOriginal(false);
-  h.sandbox.upgradeMasterplanImage(h.master, "original.png", 2, () => assert.fail("fallback must not promote"));
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(h.master.src, "preview.webp");
-  assert.equal(h.requests[0].src, undefined, "fallback source is never downloaded/decoded");
+test("render failure does not show corrupted original pixels",async()=>{
+  const h=originalHarness({drawFailure:true});
+  h.sandbox.prepareOriginalMasterplan(h.master,"original.png",2,()=>{},()=>assert.fail());
+  await new Promise(resolve=>setImmediate(resolve));
+  await h.master.onload();
+  assert.equal(h.sandbox.refreshNativeMasterplan(),false);
+  assert.ok(h.boot.some(([state])=>state==="error"));
 });
 
 function threeHarness() {
