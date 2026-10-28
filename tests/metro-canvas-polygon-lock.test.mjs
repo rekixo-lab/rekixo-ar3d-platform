@@ -34,7 +34,7 @@ test("Metro gate cannot apply to non-Metro sites or to desktop/fine-pointer",()=
     const viewport={clientWidth:width,dataset:{}};
     const ctx={
       window:{matchMedia:()=>({matches:touch})},
-      ACTIVE_PROJECT_ID:id,metroCanvasPaint:false,metroPaintCache:{},viewport,Path2D:class{},
+      ACTIVE_PROJECT_ID:id,METRO_RASTER_PROJECT:projectId,metroCanvasPaint:false,metroPaintCache:{},viewport,Path2D:class{},
     };
     vm.runInNewContext(source,ctx);
     assert.equal(ctx.updateMetroCanvasMode(),expected,id+"/"+width+"/"+touch);
