@@ -130,6 +130,11 @@ export async function PATCH(request:Request){
           .bind(value,now,session.id,projectId,plotId,fieldKey,revision,projectId,fieldKey);
       const saved=await statement.all();
       if(!saved.results.length)return reply({error:"Field changed in another session. Refresh and retry."},409);
+      // Only Metro City's public Agreement Done checkbox is eligible; never
+      // expose arbitrary custom-field values or private notes.
+      if(projectId==="c024a562-634d-4e49-b647-43209f6e450b"&&fieldKey==="agreement_done"&&field.fieldType==="checkbox"){
+        await recordAutomaticPlotNotice(projectId,plotId,"deal",value==="true"?"Agreement Done":"Agreement Updated","agreement:"+plotId+":"+now,session.id,now);
+      }
       try{await writeAudit(session,"project.custom_field_updated",projectId,plotId,{fieldKey,revision:newRevision});}
       catch{console.error("Field saved; optional audit log unavailable",{projectId,plotId,fieldKey})}
       return reply({ok:true,fieldKey,value,revision:newRevision});
