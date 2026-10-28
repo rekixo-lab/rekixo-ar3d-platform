@@ -9,7 +9,7 @@ test("automatic notice publishes a single safe status per plot per IST day witho
  assert.match(source,/330\*60\*1000/);
  assert.match(source,/dealLabels\[key\]\|\|"Plot Updated"/);
  assert.match(source,/On Hold/);
- assert.match(source,/AND NOT EXISTS \(SELECT 1 FROM project_plot_notices/);
+ assert.match(source,/WHERE NOT EXISTS \(SELECT 1 FROM project_plot_notices/);
  assert.match(source,/state='published'/);
  assert.match(source,/eventDate\+":"\+category\+":"\+plotId/);
  assert.match(source,/SELECT 1 AS enabled FROM project_plot_notice_settings/);
@@ -28,7 +28,7 @@ test("approved changes are tenant scoped and batch uses per-record optimistic st
  assert.match(api,/A draft contains inactive or missing plot numbers/);
  assert.doesNotMatch(api,/UPDATE plots SET|INSERT INTO sales_payments/);
 });
-test("client admin shows grouped auto drafts, publish selection, and optional manual form",()=>{
+test("client admin shows grouped auto-published notices, manual approval and optional custom form",()=>{
  const ui=read("app/client-plot-notice-drafts.tsx");
  assert.match(ui,/groupedUpdates/);
  assert.match(ui,/new Set\(g\.plotIds\)/);
