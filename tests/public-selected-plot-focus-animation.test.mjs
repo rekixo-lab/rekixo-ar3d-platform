@@ -55,7 +55,7 @@ test("3D animation clock is safe without a VM performance global", () => {
 
 test("3D geometry and picking source remain canonical", () => {
   assert.match(three, /function inside\(x,y,p\)/);
-  assert.match(three, /p=this\.plots\.find\(p=>\(!this\.showAll\|\|!this\.statusFilter\|\|statusOf\(p\)===this\.statusFilter\)&&inside\(px,py,p\.points\)\)/);
+  assert.match(three, /p=this\.plots\.find\(p=>\(!this\.showAll\|\|this\.matchesStatusFilter\(p\)\)&&inside\(px,py,p\.points\)\)/);
   assert.match(three, /build\(p\)\{const gl=this\.gl,H=0\.55,top=\[\],sh=\[\],side=\[\],loop=\[\],vert=\[\]/);
   assert.match(three, /wp\(p,y=\.02\)\{return\[\(p\[0\]-this\.imgW\/2\)\*this\.unit,y,\(p\[1\]-this\.imgH\/2\)\*this\.unit\]\}/);
 });

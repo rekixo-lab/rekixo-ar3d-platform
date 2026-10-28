@@ -63,7 +63,7 @@ test("canonical polygon and hit-test engines remain present", () => {
 
 test("3D status filter hides stale labels synchronously and clears a mismatched selected plot", () => {
   assert.match(three, /syncLabelVisibility\(\)/);
-  assert.match(three, /this\.selected&&this\.statusFilter&&statusOf\(this\.selected\)!==this\.statusFilter/);
+  assert.match(three, /this\.selected&&this\.statusFilter&&!this\.matchesStatusFilter\(this\.selected\)/);
   assert.match(three, /el\.hidden=true/);
 });
 

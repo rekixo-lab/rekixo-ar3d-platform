@@ -46,13 +46,13 @@ test("3D plot surfaces use one explicit 0.80 RGB multiplier", () => {
     /const dimStatus=c=>\[c\[0\]\*STATUS_OVERLAY_DARKEN,c\[1\]\*STATUS_OVERLAY_DARKEN,c\[2\]\*STATUS_OVERLAY_DARKEN,c\[3\]\]/,
   );
   assert.match(three, /top:dimStatus\(\[\.94,\.08,\.15,\.52\]\)/);
-  assert.match(three, /const c=dimStatus\(st==='sold'/);
+  assert.match(three, /this\.metroFourStatus\?dimStatus\(st==='agreement'/);
 });
 
 test("geometry filtering picking and camera contracts remain unchanged", () => {
   assert.match(html, /function pointInPolygon\(/);
   assert.match(html, /matrixTransform\(ctm\.inverse\(\)\)/);
-  assert.match(three, /this\.statusFilter&&st!==this\.statusFilter/);
+  assert.match(three, /this\.matchesStatusFilter\(p\)/);
   assert.match(three, /pick\(x,y\)/);
   assert.match(three, /cameraMetrics\(/);
 });

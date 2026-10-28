@@ -17,7 +17,7 @@ test("every admin role uses the dedicated verified status mutation path", () => 
   assert.match(dashboard, /if\(data\.status!==status\)throw new Error\(\"Saved status verify nahi hua\"\)/);
   assert.match(dashboard, /value=\"available\">Available/);
   assert.match(dashboard, /value=\"booked\">Booked/);
-  assert.match(dashboard, /value=\"sold\">Sold/);
+  assert.match(dashboard, /value=\"sold\">\{agreementEnabled\?"Registered":"Sold"\}/);
 });
 
 test("status write is read-back verified before reporting success", () => {
