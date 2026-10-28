@@ -1016,7 +1016,15 @@ body[data-metro-four-status="1"] .status-option.agreement{display:flex}
 body[data-metro-four-status="1"] .status.expanded .status-body{max-height:248px;overflow-y:auto}
 body[data-metro-four-status="1"] .status-option.agreement.active{background:rgba(255,48,48,.14)}
 body[data-metro-four-status="1"] #metroAgreementRow .agreement-done{color:#ff3030!important}
+/* Metro's late !important status colors must not override the chosen filter.
+   Agreement Done is a red *subset* of Registered, not extra inventory. */
+body[data-metro-four-status="1"] .show-all.status-filter-available .plot:not([data-status="available"]),
+body[data-metro-four-status="1"] .show-all.status-filter-booked .plot:not([data-status="booked"]),
+body[data-metro-four-status="1"] .show-all.status-filter-sold .plot:not([data-status="sold"]),
 body[data-metro-four-status="1"] .show-all.status-filter-agreement .plot:not([data-metro-visual="agreement"]){fill:transparent!important;stroke:transparent!important;filter:none!important}
+body[data-metro-four-status="1"] .show-all.status-filter-available .plot.selected:not([data-status="available"]),
+body[data-metro-four-status="1"] .show-all.status-filter-booked .plot.selected:not([data-status="booked"]),
+body[data-metro-four-status="1"] .show-all.status-filter-sold .plot.selected:not([data-status="sold"]),
 body[data-metro-four-status="1"] .show-all.status-filter-agreement .plot.selected:not([data-metro-visual="agreement"]){fill:transparent!important;stroke:transparent!important;filter:none!important}
 body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot-peek__badge{color:#ff3030}
 /* Metro City only: at least 25% narrower, with four complete, tappable rows. */
@@ -1961,7 +1969,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     // out only as far as the full masterplan fitting safely in the viewport.
     fit = mobile ? Math.max(fw,fh) : containFit;
     // Metro City's full site must not be cropped by mobile cover-fit.
-    // Both raster and SVG share the same world transform; never shift polygons.
+    // Raster and SVG retain one shared transform; saved mapping data stays fixed.
     if(metroFullPlanMobile())fit=containFit;
     if(!Number.isFinite(fit) || fit <= 0) fit = .3;
     minFit = Number.isFinite(containFit) && containFit > 0
