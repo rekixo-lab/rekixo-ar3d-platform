@@ -1821,10 +1821,10 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       const displayDensity=Math.min(2,Math.max(1,window.devicePixelRatio||1));
       const required=Math.min(1,Math.max(1/32,scale*W/image.naturalWidth*displayDensity));
       const density=Math.min(1,Math.pow(2,Math.ceil(Math.log2(required))));
-      // The Metro GPU needs one extra ORIGINAL source tile around the viewport
-      // so fractional pan/zoom/rotation rounding cannot expose a preview slit
+      // Overscan by at least four display pixels (capped to bound GPU memory)
+      // so fractional pan/zoom/rotation rounding cannot expose an edge slit
       // before the next redraw. This does not change source pixel coordinates.
-      const overscan=safeMobileTiles?tileStep:1;
+      const overscan=safeMobileTiles?Math.min(128,Math.max(4,Math.ceil(4*image.naturalWidth/Math.max(1,W*scale)))):1;
       const visible={
         x0:Math.max(0,Math.floor((x0-overscan)/tileStep)*tileStep),
         y0:Math.max(0,Math.floor((y0-overscan)/tileStep)*tileStep),
