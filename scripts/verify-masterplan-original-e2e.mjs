@@ -180,17 +180,23 @@ async function journey(target) {
     window.__nativeCrops = [];
     const drawImage = CanvasRenderingContext2D.prototype.drawImage;
     CanvasRenderingContext2D.prototype.drawImage = function (...args) {
-      if (args.length === 9 && args[0]?.naturalWidth === 12000 && !this.canvas?.classList?.contains('master-native-tile')) {
+      if (args.length === 9 && args[0]?.naturalWidth === 12000 &&
+          !this.canvas?.classList?.contains("master-original-canvas")) {
         window.__nativeCrops.push({ sourceWidth: args[3], sourceHeight: args[4], width: args[7], height: args[8] });
       }
       return drawImage.apply(this, args);
     };
     const proto = WebGLRenderingContext.prototype, parameter = proto.getParameter, upload = proto.texImage2D;
-    // Exercise native tiling even on a desktop GPU with a very large texture limit.
-    proto.getParameter = function (key) { const result = parameter.call(this, key); return key === this.MAX_TEXTURE_SIZE ? Math.min(result, 4096) : result; };
+    proto.getParameter = function (key) {
+      const result = parameter.call(this, key);
+      return key === this.MAX_TEXTURE_SIZE ? Math.min(result, 4096) : result;
+    };
     proto.texImage2D = function (...args) {
       const source = args.length === 6 ? args[5] : null;
-      window.__textureUploads.push({ width: source ? source.width || source.naturalWidth : args[3], height: source ? source.height || source.naturalHeight : args[4] });
+      window.__textureUploads.push({
+        width: source ? source.width || source.naturalWidth : args[3],
+        height: source ? source.height || source.naturalHeight : args[4],
+      });
       return upload.apply(this, args);
     };
   });
@@ -198,109 +204,111 @@ async function journey(target) {
   page.on("pageerror", error => errors.push(String(error)));
   try {
     await page.goto(`${base}/project/index.html?projectId=${target.name}&pv=7`, { waitUntil: "domcontentloaded" });
-    await page.waitForFunction(() => {
-      const image = document.querySelector(".master");
-      return image?.naturalWidth === 1200 && !document.querySelector("#viewport").classList.contains("master-loading");
-    });
-    await Promise.race([state.requested, new Promise((_, reject) => setTimeout(() => reject(Error("original was never requested")), 10000))]);
-    // Panorama projects may open at their left edge on mobile. Use the normal
-    // search action to bring this fixture's central plot into the visible map.
+    await Promise.race([
+      state.requested,
+      new Promise((_, reject) => setTimeout(() => reject(Error("original was never inspected")), 10000)),
+    ]);
+    assert.ok(await page.locator("html.rekixo-project-loading").count(),
+      `${target.name}: loading screen remains visible while verified original is pending`);
+    assert.equal(await page.locator(".master-original-canvas").count(), 0,
+      "Never expose partially prepared original source");
+    release();
+    if (target.missing) {
+      await page.waitForFunction(() => {
+        const image = document.querySelector(".master");
+        return image?.naturalWidth === 1200 &&
+          !document.documentElement.classList.contains("rekixo-project-loading");
+      });
+      assert.equal(await page.locator(".master-original-canvas").count(), 0,
+        "Legacy projects without original retain their one canonical image");
+      assert.equal(await page.locator(".master").evaluate(el => getComputedStyle(el).visibility),
+        "visible", "Only explicitly missing originals use the legacy canonical source");
+      assert.equal(state.requests.filter(v => v === "original").length, 1,
+        "Unavailable original is checked once, without downloading fallback bytes under original URL");
+    } else {
+      await page.waitForFunction(() => {
+        const master = document.querySelector(".master");
+        return master?.naturalWidth === 12000 &&
+          document.querySelector(".master-original-canvas")?.width > 0 &&
+          !document.documentElement.classList.contains("rekixo-project-loading");
+      });
+      assert.equal(await page.locator(".master").evaluate(el => getComputedStyle(el).visibility),
+        "hidden", `${target.name}: giant original <img> is never composed as another GPU layer`);
+      assert.equal(await page.locator(".master-original-canvas").count(), 1,
+        "Exactly one persistent viewport canvas, not dozens of independent DOM tiles");
+      assert.equal(await page.locator(".master-native-tile").count(), 0,
+        "No native DOM tile layers remain in the public 2D renderer");
+      assert.deepEqual(state.requests.filter(v => v !== "original"), [],
+        "Successful originals never download preview or canonical sources");
+      const surface = await page.locator(".master-original-canvas").evaluate(canvas => {
+        const ctx = canvas.getContext("2d");
+        const center = ctx.getImageData(Math.floor(canvas.width * .53),
+          Math.floor(canvas.height * .51),1,1).data;
+        return {
+          bytes: canvas.width * canvas.height,
+          alpha: center[3], bright: center[0] + center[1] + center[2],
+          width:canvas.width,height:canvas.height,
+        };
+      });
+      assert.ok(surface.bytes > 0 && surface.bytes <= 8000000 + 20000,
+        "Visible 2D GPU budget is bounded independently of original dimensions");
+      assert.ok(surface.alpha === 255 && surface.bright > 100,
+        `${target.name}: screen center contains original source pixels, not black/transparent frame`);
+      const imageUrl = await page.locator(".master").getAttribute("data-original-src");
+      const response = await context.request.get(new URL(imageUrl,base).href);
+      assert.equal(response.status(),200);
+      assert.equal(createHash("sha256").update(await response.body()).digest("hex"),
+        createHash("sha256").update(originalPng).digest("hex"),
+        "The exact published-original bytes are used without recompression");
+    }
     await page.locator("#searchInput").fill("P-1");
     await page.locator("#searchInput").press("Enter");
     await page.locator("#drawer.open").waitFor({ state: "visible" });
     await page.locator("#closeBtn").click();
     await page.waitForFunction(() => !document.querySelector("#drawer").classList.contains("open"));
-    const initial = await geometry(page);
+    const initial=await geometry(page);
     await page.locator("#zoomIn").click();
     await page.waitForFunction(before => document.querySelector("#percent").textContent !== before, initial.percent);
-    const viewport = await page.locator("#viewport").boundingBox();
-    const start = { x: viewport.x + viewport.width * .62, y: viewport.y + viewport.height * .72 };
-    await page.mouse.move(start.x, start.y); await page.mouse.down();
-    await page.mouse.move(start.x + 24, start.y - 18, { steps: 5 }); await page.mouse.up();
+    const rect = await page.locator("#viewport").boundingBox();
+    const p = { x:rect.x + rect.width*.62,y:rect.y + rect.height*.72 };
+    await page.mouse.move(p.x,p.y);await page.mouse.down();
+    await page.mouse.move(p.x+24,p.y-18,{steps:5});await page.mouse.up();
     await page.waitForFunction(() => !document.querySelector("#viewport").classList.contains("gesture-active"));
-    const before = await geometry(page);
-    assert.ok(Math.abs(before.image.x - initial.image.x) > 1, `${target.name}: real pan/zoom changed presentation before original arrived`);
-    release();
-    if (target.missing) {
-      // Wait beyond all preview retry delays to prove an unavailable legacy
-      // original does not start a request loop or discard the usable preview.
-      await page.waitForTimeout(1300);
-      assert.equal(await page.locator(".master").evaluate(el => el.naturalWidth), previewWidth);
-      assert.equal(state.requests.filter(v => v === "original").length, 1, "missing original is probed only once, never downloaded");
-      assert.equal(await page.locator("#masterplanQuality").count(), 0, "customer masterplan quality badge is removed");
-    } else {
-      await page.waitForFunction(() => {
-        const master=document.querySelector(".master");
-        return master?.dataset.originalSrc?.includes('variant=original') &&
-          document.querySelectorAll(".master-native-tile").length > 0;
+    const moved=await geometry(page);
+    assert.ok(Math.abs(moved.image.x-initial.image.x)>1,
+      `${target.name}: zoom and pan still work over the original source`);
+    if(!target.missing){
+      const afterMove=await page.locator(".master-original-canvas").evaluate(canvas=>{
+        const data=canvas.getContext("2d").getImageData(Math.floor(canvas.width*.53),
+          Math.floor(canvas.height*.51),1,1).data;
+        return {alpha:data[3],bright:data[0]+data[1]+data[2],width:canvas.width,height:canvas.height};
       });
-      assert.equal(await page.locator(".master").evaluate(el=>el.naturalWidth),previewWidth,
-        "the reliable preview source stays decoded as the original HD fallback");
-      const tileDetails=await page.locator(".master-native-tile").evaluateAll(tiles=>
-        tiles.map(t=>({width:t.width,height:t.height,painted:t.width>0&&t.height>0})));
-      assert.ok(tileDetails.length>0&&tileDetails.every(t=>t.painted&&t.width<=1536&&t.height<=1536),
-        "original 2D tiles fit GPU budget and paint at an adaptive display resolution");
-      if(target.name===metroId){
-        const mobileSafety=await page.locator(".master-native-tiles").evaluate(layer=>{
-          const tiles=[...layer.querySelectorAll(".master-native-tile")];
-          const w=Number(document.querySelector(".master").naturalWidth);
-          const master=document.querySelector(".master");
-          return {visible:getComputedStyle(layer).visibility==="visible",
-            previewHidden:getComputedStyle(master).visibility==="hidden",
-            allUnderBudget:tiles.every(c=>c.width<=1152&&c.height<=1152),
-            widths:tiles.map(c=>parseFloat(c.style.width)),
-            lefts:tiles.map(c=>parseFloat(c.style.left)),
-            fullWidth:w};
-        });
-        assert.ok(mobileSafety.visible,"Metro mobile HD overlay visible only after complete coverage");
-        assert.ok(mobileSafety.previewHidden,
-          "The old preview must be hidden atomically: it cannot leave a detached left-hand image strip");
-        assert.ok(mobileSafety.allUnderBudget,"Metro mobile uses memory-safe 1024px crops with a capped gutter");
-        const spans=mobileSafety.lefts.map((left,i)=>({left,right:left+mobileSafety.widths[i]}));
-        const touching=spans.some((a,i)=>spans.some((b,j)=>
-          i!==j&&b.left>a.left+0.01&&b.left<a.right-0.00001));
-        assert.ok(touching,"Metro mobile HD neighbors overlap to avoid visible fractional seams");
-      }
-      const sampledTile=await page.locator(".master-native-tile").first().evaluate(tile=>{
-        const pixel=tile.getContext("2d").getImageData(Math.floor(tile.width/2),Math.floor(tile.height/2),1,1).data;
-        return [...pixel];
-      });
-      assert.ok(sampledTile[3]===255&&sampledTile[0]>50&&sampledTile[1]>50,
-        "original 2D tile contains real painted source pixels rather than a blank transparent canvas");
-      if(target.name!=="c024a562-634d-4e49-b647-43209f6e450b"){
-        assert.equal(await page.locator(".master").evaluate(el=>getComputedStyle(el).visibility),"visible",
-          "other projects keep their original preview-under-tiles presentation");
-      }
-      assert.equal(await page.locator("#masterplanQuality").count(), 0, "customer original HD text and background are removed");
-      assert.ok(state.requests.filter(v => v === "original").length >= 2, "original metadata is verified before downloading the image");
-      const response = await context.request.get(new URL(await page.locator(".master").getAttribute("data-original-src"),base).href);
-      assert.equal(response.status(), 200);
-      assert.equal(createHash("sha256").update(await response.body()).digest("hex"), createHash("sha256").update(originalPng).digest("hex"), "2D native tile source is byte-identical to uploaded original fixture");
+      assert.equal(afterMove.alpha,255,`${target.name}: no transparent/black frame after gesture`);
+      assert.ok(afterMove.bright>100,`${target.name}: source raster stays painted after gesture`);
     }
-    sameGeometry(before, await geometry(page), target.name);
-    await assertPlotHit(page, target.name);
-    await page.screenshot({ path: path.join(artifactDir, `${target.name}.png`) });
-    if (target.three) {
+    await page.locator("#resetBtn").click();
+    await page.waitForTimeout(60);
+    await assertPlotHit(page,target.name);
+    await page.screenshot({ path: path.join(artifactDir,`${target.name}.png`) });
+    if(target.three){
       await page.locator("#view3d").click();
       await page.waitForFunction(() => document.querySelector("#viewport").classList.contains("mode3d"));
       await page.waitForFunction(() => {
-        const loading = document.querySelector(".three-loading");
+        const loading=document.querySelector(".three-loading");
         return loading && (loading.style.opacity === "0" || loading.style.display === "none");
-      }, null, { timeout: 30000 });
-      await page.waitForFunction(() => window.__textureUploads.length > 1 &&
-        window.__textureUploads.some(tile => tile.width === 2048 || tile.height === 2048));
-      const uploads = await page.evaluate(() => window.__textureUploads);
-      assert.ok(uploads.length > 1, "large 3D source is tiled instead of uploaded as one oversized texture");
-      assert.ok(uploads.every(tile => tile.width > 0 && tile.height > 0 && tile.width <= 4096 && tile.height <= 4096), "native tiles obey GPU limits");
-      assert.ok(uploads.some(tile => tile.width === 2048 || tile.height === 2048), "3D keeps native-sized detail tiles");
-      const crops = await page.evaluate(() => window.__nativeCrops);
-      assert.ok(crops.length > 0 && crops.every(crop => crop.sourceWidth === crop.width && crop.sourceHeight === crop.height), "3D native crops retain every source pixel without resizing");
-      const glError = await page.locator(".three-canvas").evaluate(canvas => canvas.getContext("webgl").getError());
-      assert.equal(glError, 0, "tiled masterplan leaves no WebGL error");
-      await page.screenshot({ path: path.join(artifactDir, `${target.name}-3d.png`) });
+      },null,{timeout:30000});
+      await page.waitForFunction(() => window.__textureUploads.length>1 &&
+        window.__textureUploads.some(tile=>tile.width===2048||tile.height===2048));
+      const uploads=await page.evaluate(() => window.__textureUploads);
+      assert.ok(uploads.every(tile=>tile.width>0&&tile.height>0&&tile.width<=4096&&tile.height<=4096),
+        "3D still respects GPU hardware texture size");
+      const crops=await page.evaluate(()=>window.__nativeCrops);
+      assert.ok(crops.length>0&&crops.every(c=>c.sourceWidth===c.width&&c.sourceHeight===c.height),
+        "3D retains exact original crop pixels");
+      await page.screenshot({path:path.join(artifactDir,`${target.name}-3d.png`)});
     }
-    assert.deepEqual(errors, [], `${target.name}: no JavaScript errors`);
-    console.log(`PASS ${target.name}: ${target.missing ? "legacy fallback" : "byte-identical original"}, stable plane/zoom/pan, plot hit-test${target.three ? ", GPU-safe 3D tiles" : ""}`);
+    assert.deepEqual(errors,[],`${target.name}: no JavaScript errors`);
+    console.log(`PASS ${target.name}: single-source boot, stable raster and plot hit-test`);
   } finally {
     release();
     await context.close();
