@@ -105,8 +105,8 @@ const server = http.createServer((req, res) => {
     return json(res, {
       enabled: true,
       notices: [{
-        id: "e2e-news", eventDate: "2026-10-12", category: "deal",
-        label: "Agreement Done", plotIds: ["P-1"], publishedAt: "2026-10-12T12:00:00Z",
+        id: "e2e-news", eventDate: new Date(Date.now()+330*60000).toISOString().slice(0,10), category: "deal",
+        label: "Agreement Done", plotIds: ["P-1"], publishedAt: new Date().toISOString(),
       }],
     }, {"cache-control":"no-store"});
   }
