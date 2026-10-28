@@ -1783,6 +1783,17 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       onUpgrade?.(src);
     };
     const tiles=new Map(),tileSize=1536;
+    // Preview is the initial/fallback bitmap. Never show it simultaneously with
+    // the Metro original-tile layer: mismatched image content or mobile GPU
+    // compositing can reveal a detached left-hand strip of the preview.
+    // The original pixels and logical polygon coordinates are unchanged.
+    const setMetroSourceVisibility=ready=>{
+      if(!safeMobileTiles||!layer)return;
+      // Browser paints both writes together at the next compositor frame.
+      // Incomplete or failed HD falls back to the fully intact preview.
+      layer.style.visibility=ready?'visible':'hidden';
+      master.style.visibility=ready?'hidden':'visible';
+    };
     // Smaller 1024px source tiles reduce mobile Canvas/GPU memory peaks.
     // All other projects retain the existing 1536px native rendering path.
     const tileStep=safeMobileTiles?1024:tileSize;
@@ -1810,11 +1821,15 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       const displayDensity=Math.min(2,Math.max(1,window.devicePixelRatio||1));
       const required=Math.min(1,Math.max(1/32,scale*W/image.naturalWidth*displayDensity));
       const density=Math.min(1,Math.pow(2,Math.ceil(Math.log2(required))));
+      // The Metro GPU needs one extra ORIGINAL source tile around the viewport
+      // so fractional pan/zoom/rotation rounding cannot expose a preview slit
+      // before the next redraw. This does not change source pixel coordinates.
+      const overscan=safeMobileTiles?tileStep:1;
       const visible={
-        x0:Math.max(0,Math.floor((x0-1)/tileStep)*tileStep),
-        y0:Math.max(0,Math.floor((y0-1)/tileStep)*tileStep),
-        x1:Math.min(image.naturalWidth,Math.ceil((x1+1)/tileStep)*tileStep),
-        y1:Math.min(image.naturalHeight,Math.ceil((y1+1)/tileStep)*tileStep),
+        x0:Math.max(0,Math.floor((x0-overscan)/tileStep)*tileStep),
+        y0:Math.max(0,Math.floor((y0-overscan)/tileStep)*tileStep),
+        x1:Math.min(image.naturalWidth,Math.ceil((x1+overscan)/tileStep)*tileStep),
+        y1:Math.min(image.naturalHeight,Math.ceil((y1+overscan)/tileStep)*tileStep),
       };
       const needed=new Set(),staged=[];
       // Overlap neighboring original-pixel crops by ~2 screen pixels to mask
@@ -1872,7 +1887,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         // Do not show a partial native layer over the differently compressed
         // preview. This is the key Android protection: visible coverage is atomic.
         const fullVisibleCoverage=[...needed].every(key=>tiles.has(key));
-        if(safeMobileTiles)layer.style.visibility=fullVisibleCoverage?'visible':'hidden';
+        if(safeMobileTiles)setMetroSourceVisibility(fullVisibleCoverage&&tiles.size>0);
         if(!painted&&fullVisibleCoverage&&tiles.size){
           painted=true;
           setMasterplanQuality('original','Original HD',image.naturalWidth+' × '+image.naturalHeight+' px');
@@ -1883,7 +1898,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         // A mobile GPU failure must never leave a half-HD / half-preview map.
         if(safeMobileTiles){
           safeTileFailed=true;
-          layer.style.visibility='hidden';
+          setMetroSourceVisibility(false);
           for(const canvas of tiles.values()){canvas.remove();canvas.width=0;canvas.height=0}
           tiles.clear();
         }
@@ -1943,6 +1958,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       if(refreshNativeMasterplan===refresh)refreshNativeMasterplan=()=>{};
       for(const canvas of tiles.values()){canvas.remove();canvas.width=0;canvas.height=0}
       tiles.clear();layer?.remove();layer=null;
+      if(safeMobileTiles)master.style.visibility='visible';
     };
   }
 
@@ -1968,9 +1984,6 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     // desktop starts contain-fit. minFit is independent and lets users zoom
     // out only as far as the full masterplan fitting safely in the viewport.
     fit = mobile ? Math.max(fw,fh) : containFit;
-    // Metro City's full site must not be cropped by mobile cover-fit.
-    // Raster and SVG retain one shared transform; saved mapping data stays fixed.
-    if(metroFullPlanMobile())fit=containFit;
     if(!Number.isFinite(fit) || fit <= 0) fit = .3;
     minFit = Number.isFinite(containFit) && containFit > 0
       ? Math.min(containFit,fit)
@@ -2033,11 +2046,6 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   }
   function scheduleRender(){if(!mapRaf)mapRaf=requestAnimationFrame(()=>{mapRaf=0;render()})}
   // REKIXO_PROJECT_START_VIEW_V1
-  function metroFullPlanMobile(){
-    // Safe for isolated start-view harnesses as well as older cached shells.
-    return typeof metroMobileTileSafety!=='undefined'&&metroMobileTileSafety&&
-      typeof window!=='undefined'&&window.matchMedia('(max-width:700px)').matches;
-  }
   function normalizeInitialViewMode(value){
     const mode=String(value||'').trim().toLowerCase();
     return mode==='plots'||mode==='custom'?mode:'legacy'
@@ -2100,12 +2108,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   function reset(){
     calcFit();
     const focus=configuredStartFocus();
-    if(metroFullPlanMobile()){
-      // Ignore aggressive saved plot/custom focus only for Metro handset reset.
-      // Zooming and panning remain available after the complete-image start.
-      scale=fit;
-      pan={x:0,y:0};
-    }else if(isTabletPlotPresentation()){
+    if(isTabletPlotPresentation()){
       // Tablet + Center mapped plots: keep all 0/90/180/270-degree layouts in
       // the visible canvas instead of applying configuredFocusScale's crop.
       scale=tabletMappedStartScale();
