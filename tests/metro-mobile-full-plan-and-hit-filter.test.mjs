@@ -7,10 +7,8 @@ const viewer = readFileSync("public/project/index.html", "utf8");
 const metroId = "c024a562-634d-4e49-b647-43209f6e450b";
 const fitStart = viewer.indexOf("  function calcFit(){");
 const fitEnd = viewer.indexOf("  // REKIXO_TABLET_ROTATED_START_FIT_V1", fitStart);
-const helperStart = viewer.indexOf("  function metroFullPlanMobile(){");
-const helperEnd = viewer.indexOf("  function normalizeInitialViewMode(", helperStart);
-assert.ok(fitStart > 0 && fitEnd > fitStart && helperStart > 0 && helperEnd > helperStart);
-const fitRuntime = viewer.slice(helperStart, helperEnd) + viewer.slice(fitStart, fitEnd);
+assert.ok(fitStart > 0 && fitEnd > fitStart);
+const fitRuntime = viewer.slice(fitStart, fitEnd);
 
 function fitOnMobile(metro, image = { w: 1600, h: 900 }) {
   const env = {
@@ -25,16 +23,29 @@ function fitOnMobile(metro, image = { w: 1600, h: 900 }) {
   return { fit: env.fit, minFit: env.minFit };
 }
 
-test("Metro handset starts with entire original image visible, not cover-cropped", () => {
-  const result = fitOnMobile(true);
-  assert.equal(result.fit, 360 / 1600);
-  assert.equal(result.minFit, result.fit);
-  const other = fitOnMobile(false);
-  assert.equal(other.fit, 720 / 900, "other projects retain cover-fit");
-  assert.equal(other.minFit, 360 / 1600);
+test("Metro first frame and reset retain existing framing; only HD compositing changes", () => {
+  const metro=fitOnMobile(true), other=fitOnMobile(false);
+  assert.equal(metro.fit, 720 / 900, "Metro first-frame cover-fit is unchanged");
+  assert.equal(other.fit, metro.fit, "all other projects retain their framing");
+  assert.equal(metro.minFit, 360 / 1600);
   assert.match(viewer, /metroMobileTileSafety=data.projectId==='c024a562-634d-4e49-b647-43209f6e450b'/);
   assert.ok(viewer.includes(metroId));
-  assert.match(viewer, /if\(metroFullPlanMobile\(\)\)\{[\s\S]*?scale=fit;\s*pan=\{x:0,y:0\}/);
+  assert.doesNotMatch(viewer, /metroFullPlanMobile/);
+  assert.match(viewer, /scale=focus\?configuredFocusScale\(focus\):fit/);
+});
+
+test("Metro original HD and preview are mutually exclusive, with failure fallback", () => {
+  const source=viewer.slice(viewer.indexOf("function upgradeMasterplanImage("),viewer.indexOf("function displaySize(){"));
+  assert.match(source, /const setMetroSourceVisibility=ready=>\{/);
+  assert.match(source, /if\(!safeMobileTiles\|\|!layer\)return/);
+  assert.match(source, /layer\.style\.visibility=ready\?'visible':'hidden'/);
+  assert.match(source, /master\.style\.visibility=ready\?'hidden':'visible'/);
+  assert.match(source, /if\(safeMobileTiles\)setMetroSourceVisibility\(fullVisibleCoverage&&tiles\.size>0\)/);
+  assert.match(source, /setMetroSourceVisibility\(false\)/);
+  assert.match(source, /if\(safeMobileTiles\)master\.style\.visibility='visible'/);
+  assert.match(source, /const overscan=safeMobileTiles\?Math\.min\(128,/);
+  assert.match(source, /ctx\.drawImage\(image,srcX,srcY,srcWidth,srcHeight,0,0,canvas\.width,canvas\.height\)/);
+  assert.doesNotMatch(source,/master\.src\s*=/);
 });
 
 test("Metro four filters restrict 2D touches, but all other projects keep existing hit semantics", () => {
