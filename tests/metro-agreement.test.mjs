@@ -21,7 +21,7 @@ test("Metro-only Sold to Registered display, canonical Booked and Sold IDs and o
  assert.match(source,/Agreement Done/);
  assert.match(source,/statusDisplayLabel\(st\)/);
  assert.match(source,/data-status-filter="booked"/);
- assert.match(source,/master-native-tiles/);
+ assert.match(source,/master-original-canvas/);
  assert.doesNotMatch(source,/data-status-filter="registered"/);
 });
 test("public API returns only Metro agreement boolean, not private values or new plot status",()=>{
