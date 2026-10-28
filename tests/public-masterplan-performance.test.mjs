@@ -29,7 +29,8 @@ test("public project prefers optimized derivative and falls back safely", () => 
 
 test("boot stays visible until the original source is fully decoded and drawn", () => {
   assert.match(page,/const revealShell=/);
-  assert.match(page,/Loading original masterplan…/);
+  assert.match(page,/id="rekixoLoadingScreen"/);
+  assert.match(page,/REKIXO_LOADING_PROGRESS\?\.\(100,'Ready'\)/);
   assert.match(page,/prepareOriginalMasterplan\(/);
   assert.match(page,/if\(typeof master\.decode==='function'\)await master\.decode\(\)/);
   assert.match(page,/\/\/ Reset draws the original canvas BEFORE exposing the customer page/);
@@ -48,4 +49,25 @@ test("mobile pan and zoom use compositor and freshest pointer sample", () => {
 test("performance changes never rewrite polygon storage", () => {
   assert.match(page, /const mapped=normalized\.map\(\(\[x,y\]\)=>\[x\*W,y\*H\]\)/);
   assert.doesNotMatch(asset, /UPDATE plots/);
+});
+
+test("one AR 3D progress screen replaces both sequential loader badges", () => {
+  assert.match(page, /<strong>AR 3D<\/strong>/);
+  assert.match(page, /id="rekixoLoadingTrack"/);
+  assert.match(page, /rekixo-loading-snake/);
+  assert.match(page, /Original quality preserved/);
+  assert.doesNotMatch(page, /\.map\.master-loading::after/);
+  assert.doesNotMatch(page, /Loading original masterplan…|Loading project…|आपका प्रोजेक्ट खुल रहा है|हम आपका ओरिजिनल मास्टर प्लान तैयार कर रहे हैं/);
+});
+
+test("published original warms while initial live request is pending", () => {
+  const warmStart = page.indexOf("rekixoWarmPublishedOriginal(data,REKIXO_BOOT_RUN)");
+  const liveWait = page.indexOf("const liveResponse=await livePromise;");
+  assert.ok(warmStart > 0 && liveWait > warmStart);
+  assert.match(page, /if\(REKIXO_PARAMS\.get\('preview'\)==='1'/);
+  assert.match(page, /params\.set\('variant','original'\)/);
+  assert.match(page, /params\.set\('fidelity','original-v2'\)/);
+  assert.match(page, /link\.rel='preload'/);
+  assert.match(page, /if\(warm\?\.src===src\)/);
+  assert.match(page, /metadata\.original!==true/);
 });
