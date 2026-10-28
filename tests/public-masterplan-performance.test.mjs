@@ -27,11 +27,14 @@ test("public project prefers optimized derivative and falls back safely", () => 
   assert.match(asset, /canonical-fallback/);
 });
 
-test("tenant shell is visible before image decode finishes", () => {
-  assert.match(page, /const revealShell=/);
-  assert.match(page, /document\.documentElement\.classList\.remove\('rekixo-project-loading'/);
-  assert.match(page, /viewport\.classList\.add\('master-loading'\)/);
-  assert.match(page, /master\.onerror=masterFailed/);
+test("boot stays visible until the original source is fully decoded and drawn", () => {
+  assert.match(page,/const revealShell=/);
+  assert.match(page,/Loading original masterplan…/);
+  assert.match(page,/prepareOriginalMasterplan\(/);
+  assert.match(page,/if\(typeof master\.decode==='function'\)await master\.decode\(\)/);
+  assert.match(page,/\/\/ Reset draws the original canvas BEFORE exposing the customer page/);
+  assert.match(page,/document\.documentElement\.classList\.remove\('rekixo-project-loading'/);
+  assert.match(page,/master\.onerror=masterFailed/);
 });
 
 test("mobile pan and zoom use compositor and freshest pointer sample", () => {
