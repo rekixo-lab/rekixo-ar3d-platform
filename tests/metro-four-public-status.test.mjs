@@ -60,7 +60,7 @@ test("Client Admin gets Registered terminology and keeps existing optimistic Agr
  assert.match(admin,/\/api\/client\/metro-agreement/);
  assert.match(shell,/agreementEnabled\?"Registered":"Sold"/);
  assert.match(shell,/agreementEnabled=\{agreementEnabled\}/);
- assert.match(deals,/agreement[_\\s-]\*date/);
+ assert.ok(deals.includes("x.enabled&&!(metroAgreementEnabled&&"));
  assert.match(deals,/inventoryLabel\(detail\.plot\.status\)/);
 });
 
