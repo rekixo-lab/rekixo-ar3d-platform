@@ -18,7 +18,9 @@ test("client websites use one original source and one viewport canvas, including
 });
 
 test("boot screen remains until the original is verified, decoded, and drawn",()=>{
-  assert.match(viewer,/Loading original masterplan…/);
+  assert.match(viewer,/id="rekixoLoadingScreen"/);
+  assert.match(viewer,/id="rekixoLoadingTrack"/);
+  assert.doesNotMatch(viewer,/Loading original masterplan…/);
   assert.match(viewer,/prepareOriginalMasterplan\(\s*master,originalMasterUrl/);
   assert.match(renderer,/probe\.searchParams\.set\('inspect','1'\)/);
   assert.match(renderer,/if\(metadata\.original!==true\)\{unavailable\(\);return;\}/);
