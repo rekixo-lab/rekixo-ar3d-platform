@@ -27,7 +27,7 @@
 @supports(height:100dvh){html,body{height:100dvh}}
 button,input{font:inherit}
 html.rekixo-project-loading .app,html.rekixo-project-error .app{visibility:hidden}
-html.rekixo-project-loading body::after{content:"Loading project…";position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:28px;background:#050914;color:#aab7d2;font-size:15px;font-weight:800;text-align:center}
+html.rekixo-project-loading body::after{content:attr(data-masterplan-loading);position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:28px;background:#050914;color:#aab7d2;font-size:15px;font-weight:800;text-align:center}
 .rekixo-boot-error{position:fixed;inset:0;z-index:10000;display:none;place-items:center;padding:28px;background:#050914;text-align:center}
 html.rekixo-project-error .rekixo-boot-error{display:grid}
 .rekixo-boot-error-card{width:min(420px,100%);display:grid;justify-items:center;gap:14px}
@@ -53,12 +53,12 @@ html.rekixo-project-error .rekixo-boot-error{display:grid}
 .search input::placeholder{color:#667698}.go{height:46px;border:0;background:transparent;color:#89b7ff;font-weight:950;padding:0 10px}
 .map{position:relative;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#040812;cursor:grab;contain:layout paint}.map.dragging{cursor:grabbing}
 .map.master-loading::after{content:"Loading masterplan…";position:absolute;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);padding:10px 14px;border:1px solid #23304a;border-radius:999px;background:#07101fdd;color:#9db0d4;font-size:12px;font-weight:800;box-shadow:0 8px 28px #0008;pointer-events:none}
-.world{position:absolute;left:50%;top:50%;width:var(--map-w,1200px);height:var(--map-h,2133px);transform-origin:center center;will-change:transform;user-select:none;backface-visibility:hidden;contain:layout paint style;transform:translateZ(0)}
+.world{z-index:1;position:absolute;left:50%;top:50%;width:var(--map-w,1200px);height:var(--map-h,2133px);transform-origin:center center;will-change:transform;user-select:none;backface-visibility:hidden;contain:layout paint style;transform:translateZ(0)}
 .master,.hotspots{position:absolute;inset:0;width:var(--map-w,1200px);height:var(--map-h,2133px);display:block}.master{pointer-events:none;-webkit-user-drag:none;image-rendering:auto}
-/* Keep the small preview painted under independent native-pixel canvas tiles.
-   Do not promote a huge <img> into the transformed GPU layer. */
-.master-native-tiles{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden}
-.master-native-tiles canvas{position:absolute;display:block;pointer-events:none;image-rendering:auto}.hotspots{z-index:2;overflow:visible}
+/* One viewport-sized canvas renders directly from the published ORIGINAL.
+   No preview underlay, no DOM tile layers, no GPU-sized transformed bitmap. */
+.master-original-canvas{position:absolute;inset:0;display:block;width:100%;height:100%;z-index:0;pointer-events:none;image-rendering:auto}
+.hotspots{z-index:2;overflow:visible}
 .map.dragging .plot{transition:none}.map.dragging .plot.selected{filter:none}
 .map.gesture-active .hotspots{visibility:hidden}
 .map.gesture-active .world{will-change:transform}
@@ -1082,7 +1082,7 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
 @media(prefers-reduced-motion:reduce){.plot-news-banner{transition:none!important}}
 </style>
 </head>
-<body>
+<body data-masterplan-loading="Loading project…">
 <section class="rekixo-boot-error" id="rekixoBootError" role="alert" aria-live="assertive" aria-atomic="true">
   <div class="rekixo-boot-error-card">
     <h1 class="rekixo-boot-error-title" id="rekixoBootErrorTitle">Project load nahi hua</h1>
@@ -1407,6 +1407,7 @@ function rekixoBootState(state,message='',title=''){
   const root=document.documentElement;
   root.classList.remove('rekixo-project-loading','rekixo-project-error');
   if(state==='loading')root.classList.add('rekixo-project-loading');
+  if(state==='loading')document.body?.setAttribute('data-masterplan-loading',message||'Loading project…');
   if(state==='error'){
     root.classList.add('rekixo-project-error');
     const heading=document.getElementById('rekixoBootErrorTitle');
@@ -1765,200 +1766,129 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     indicator.textContent=label;
     indicator.title=explanation||label;
   }
-  // Metro City mobile only: protect the existing polygon geometry from partially
-  // composited HD tiles. No plot coordinates, transforms or original bytes change.
-  let metroMobileTileSafety=false;
-  // REKIXO_NATIVE_2D_MASTERPLAN_TILES_V1
-  // Keep the published preview as a permanent, reliable background. Crops are
-  // decoded from the ORIGINAL upload (no recompression or interpolation at zoom).
-  // Bounded canvases prevent 10k+ images becoming one oversized GPU texture.
-  function upgradeMasterplanImage(master,src,expectedAspect,onUpgrade,isCurrent=()=>true,expectedWidth=0,expectedHeight=0){
-    const image=new Image(),controller=new AbortController();
-    const safeMobileTiles=typeof metroMobileTileSafety!=='undefined'&&metroMobileTileSafety&&window.matchMedia('(max-width:700px)').matches;
-    let cancelled=false,layer=null,scheduled=false,painted=false,originalHandedOff=false,safeTileFailed=false;
-    const handoffOriginal=()=>{
-      if(originalHandedOff||!current())return;
-      originalHandedOff=true;
-      master.dataset.originalSrc=src;
-      onUpgrade?.(src);
-    };
-    const tiles=new Map(),tileSize=1536;
-    // Preview is the initial/fallback bitmap. Never show it simultaneously with
-    // the Metro original-tile layer: mismatched image content or mobile GPU
-    // compositing can reveal a detached left-hand strip of the preview.
-    // The original pixels and logical polygon coordinates are unchanged.
-    const setMetroSourceVisibility=ready=>{
-      if(!safeMobileTiles||!layer)return;
-      // Browser paints both writes together at the next compositor frame.
-      // Incomplete or failed HD falls back to the fully intact preview.
-      layer.style.visibility=ready?'visible':'hidden';
-      master.style.visibility=ready?'hidden':'visible';
-    };
-    // Smaller 1024px source tiles reduce mobile Canvas/GPU memory peaks.
-    // All other projects retain the existing 1536px native rendering path.
-    const tileStep=safeMobileTiles?1024:tileSize;
-    image.decoding='async';
+  // REKIXO_ORIGINAL_ONLY_2D_VIEWPORT_V1
+  // One decoded, untouched published image source and ONE bounded display canvas.
+  // The source is decoded while the Loading project screen is still visible.
+  // All raster source pixels remain original; the SVG plot world is unchanged.
+  function prepareOriginalMasterplan(master,src,expectedAspect,onReady,onUnavailable,
+      isCurrent=()=>true,expectedWidth=0,expectedHeight=0){
+    const controller=new AbortController();
+    let cancelled=false,canvas=null,context=null,failed=false;
     const current=()=>!cancelled&&isCurrent();
-    const paint=()=>{
-      if(!current()||!layer||mode3D||safeTileFailed||!image.naturalWidth||!image.naturalHeight)return;
-      const rect=viewport.getBoundingClientRect();
-      if(!rect.width||!rect.height||!Number.isFinite(scale)||scale<=0)return;
-      // Invert the SAME world translation/scale/quarter-rotation used by render().
-      // The resulting image rectangle is independent of the viewport aspect ratio.
-      const corners=[[0,0],[rect.width,0],[rect.width,rect.height],[0,rect.height]];
+    const draw=()=>{
+      if(!current()||!context||mode3D||failed||!master.naturalWidth||!master.naturalHeight)return false;
+      const vw=viewport.clientWidth,vh=viewport.clientHeight;
+      if(!vw||!vh||!Number.isFinite(scale)||scale<=0)return false;
+      // Bounded by visible screen pixels, rather than 100MB image dimensions.
+      // There is never a low-resolution intermediate image or zoom-level cache.
+      const pixelRatio=Math.min(Math.max(1,window.devicePixelRatio||1),3,
+        Math.max(1,Math.sqrt(8000000/(vw*vh))));
+      const dw=Math.max(1,Math.ceil(vw*pixelRatio));
+      const dh=Math.max(1,Math.ceil(vh*pixelRatio));
+      if(canvas.width!==dw)canvas.width=dw;
+      if(canvas.height!==dh)canvas.height=dh;
+      const turn=(4-publicRotation)%4,corners=[[0,0],[vw,0],[vw,vh],[0,vh]];
       let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
-      for(const [cx,cy] of corners){
-        const dx=(cx-rect.width/2-pan.x)/scale,dy=(cy-rect.height/2-pan.y)/scale;
-        const pt=rotateOffset(dx,dy,(4-publicRotation)%4);
-        const px=(pt.x+W/2)*image.naturalWidth/W;
-        const py=(pt.y+H/2)*image.naturalHeight/H;
+      for(const [x,y] of corners){
+        const offset=rotateOffset((x-vw/2-pan.x)/scale,(y-vh/2-pan.y)/scale,turn);
+        const px=(offset.x+W/2)*master.naturalWidth/W;
+        const py=(offset.y+H/2)*master.naturalHeight/H;
         x0=Math.min(x0,px);x1=Math.max(x1,px);
         y0=Math.min(y0,py);y1=Math.max(y1,py);
       }
-      // A native pixel is never replaced with a lower-resolution *source*.
-      // The canvas raster resolution merely tracks physical display density,
-      // redrawing from ORIGINAL pixels whenever zoom requires more detail.
-      const displayDensity=Math.min(2,Math.max(1,window.devicePixelRatio||1));
-      const required=Math.min(1,Math.max(1/32,scale*W/image.naturalWidth*displayDensity));
-      const density=Math.min(1,Math.pow(2,Math.ceil(Math.log2(required))));
-      // Overscan by at least four display pixels (capped to bound GPU memory)
-      // so fractional pan/zoom/rotation rounding cannot expose an edge slit
-      // before the next redraw. This does not change source pixel coordinates.
-      const overscan=safeMobileTiles?Math.min(128,Math.max(4,Math.ceil(4*image.naturalWidth/Math.max(1,W*scale)))):1;
-      const visible={
-        x0:Math.max(0,Math.floor((x0-overscan)/tileStep)*tileStep),
-        y0:Math.max(0,Math.floor((y0-overscan)/tileStep)*tileStep),
-        x1:Math.min(image.naturalWidth,Math.ceil((x1+overscan)/tileStep)*tileStep),
-        y1:Math.min(image.naturalHeight,Math.ceil((y1+overscan)/tileStep)*tileStep),
-      };
-      const needed=new Set(),staged=[];
-      // Overlap neighboring original-pixel crops by ~2 screen pixels to mask
-      // fractional CSS/GPU tile-edge rounding on Samsung/Android Chrome.
-      const mobileGutter=safeMobileTiles
-        ?Math.min(64,Math.max(2,Math.ceil(2*image.naturalWidth/Math.max(1,W*scale))))
-        :0;
+      const sx=Math.max(0,Math.floor(x0-2)),sy=Math.max(0,Math.floor(y0-2));
+      const ex=Math.min(master.naturalWidth,Math.ceil(x1+2));
+      const ey=Math.min(master.naturalHeight,Math.ceil(y1+2));
+      const angle=publicRotation*Math.PI/2,cos=Math.cos(angle),sin=Math.sin(angle);
+      const a=scale*W/master.naturalWidth,b=scale*H/master.naturalHeight;
+      const tx=vw/2+pan.x-scale*(cos*W/2-sin*H/2);
+      const ty=vh/2+pan.y-scale*(sin*W/2+cos*H/2);
       try{
-        for(let y=visible.y0;y<visible.y1;y+=tileStep){
-          for(let x=visible.x0;x<visible.x1;x+=tileStep){
-            const width=Math.min(tileStep,image.naturalWidth-x);
-            const height=Math.min(tileStep,image.naturalHeight-y);
-            if(width<=0||height<=0)continue;
-            const key=[x,y,density,safeMobileTiles?mobileGutter:0].join(':');
-            needed.add(key);
-            if(tiles.has(key))continue;
-            const srcX=safeMobileTiles?Math.max(0,x-mobileGutter):x;
-            const srcY=safeMobileTiles?Math.max(0,y-mobileGutter):y;
-            const srcRight=safeMobileTiles?Math.min(image.naturalWidth,x+width+mobileGutter):x+width;
-            const srcBottom=safeMobileTiles?Math.min(image.naturalHeight,y+height+mobileGutter):y+height;
-            const srcWidth=srcRight-srcX,srcHeight=srcBottom-srcY;
-            const canvas=document.createElement('canvas');
-            canvas.className='master-native-tile';
-            canvas.width=Math.max(1,Math.ceil(srcWidth*density));
-            canvas.height=Math.max(1,Math.ceil(srcHeight*density));
-            const ctx=canvas.getContext('2d',{alpha:true});
-            if(!ctx)throw Error('Native image canvas unavailable');
-            // Non-Metro callers keep the original byte-identical source crop.
-            if(safeMobileTiles){
-              ctx.drawImage(image,srcX,srcY,srcWidth,srcHeight,0,0,canvas.width,canvas.height);
-              canvas.style.left=(100*srcX/image.naturalWidth)+'%';
-              canvas.style.top=(100*srcY/image.naturalHeight)+'%';
-              canvas.style.width=(100*srcWidth/image.naturalWidth)+'%';
-              canvas.style.height=(100*srcHeight/image.naturalHeight)+'%';
-            }else{
-              ctx.drawImage(image,x,y,width,height,0,0,canvas.width,canvas.height);
-              canvas.style.left=(100*x/image.naturalWidth)+'%';
-              canvas.style.top=(100*y/image.naturalHeight)+'%';
-              canvas.style.width=(100*width/image.naturalWidth)+'%';
-              canvas.style.height=(100*height/image.naturalHeight)+'%';
-            }
-            if(safeMobileTiles)staged.push([key,canvas]);
-            else{layer.appendChild(canvas);tiles.set(key,canvas)}
-          }
+        context.setTransform(1,0,0,1,0,0);
+        context.clearRect(0,0,dw,dh);
+        if(ex>sx&&ey>sy){
+          context.setTransform(pixelRatio*a*cos,pixelRatio*a*sin,
+            -pixelRatio*b*sin,pixelRatio*b*cos,pixelRatio*tx,pixelRatio*ty);
+          // Source and destination have identical pixel coordinates. Canvas
+          // samples only the visible ORIGINAL crop, at actual screen DPR.
+          context.drawImage(master,sx,sy,ex-sx,ey-sy,sx,sy,ex-sx,ey-sy);
         }
-        if(safeMobileTiles&&staged.length){
-          const batch=document.createDocumentFragment();
-          for(const [,canvas] of staged)batch.appendChild(canvas);
-          layer.appendChild(batch);
-          for(const [key,canvas] of staged)tiles.set(key,canvas);
-        }
-        for(const [key,canvas] of tiles){
-          if(!needed.has(key)){canvas.remove();canvas.width=0;canvas.height=0;tiles.delete(key)}
-        }
-        // Do not show a partial native layer over the differently compressed
-        // preview. This is the key Android protection: visible coverage is atomic.
-        const fullVisibleCoverage=[...needed].every(key=>tiles.has(key));
-        if(safeMobileTiles)setMetroSourceVisibility(fullVisibleCoverage&&tiles.size>0);
-        if(!painted&&fullVisibleCoverage&&tiles.size){
-          painted=true;
-          setMasterplanQuality('original','Original HD',image.naturalWidth+' × '+image.naturalHeight+' px');
-          handoffOriginal();
-        }
+        return true;
       }catch(error){
-        for(const [,canvas] of staged){canvas.remove();canvas.width=0;canvas.height=0}
-        // A mobile GPU failure must never leave a half-HD / half-preview map.
-        if(safeMobileTiles){
-          safeTileFailed=true;
-          setMetroSourceVisibility(false);
-          for(const canvas of tiles.values()){canvas.remove();canvas.width=0;canvas.height=0}
-          tiles.clear();
-        }
-        console.warn('Native masterplan tile render failed; keeping preview',error);
-        if(!painted||safeMobileTiles)setMasterplanQuality('preview','Preview only','HD tile rendering unavailable.');
+        failed=true;
+        console.error('Original masterplan display failed',error);
+        rekixoBootState('error','Original masterplan render nahi hua. Reload karke try karein.');
+        return false;
       }
     };
-    const refresh=()=>{
-      if(!current()||!layer||scheduled)return;
-      scheduled=true;
-      requestAnimationFrame(()=>{scheduled=false;paint()});
+    const unavailable=()=>{
+      if(!current())return;
+      onUnavailable();
     };
-    image.onload=()=>{
-      if(!current()||!image.naturalWidth||!image.naturalHeight)return;
-      const aspectError=Math.abs((image.naturalWidth/image.naturalHeight)/expectedAspect-1);
-      const dimensionsMismatch=(expectedWidth>0&&expectedHeight>0)&&
-        (Math.abs(image.naturalWidth/expectedWidth-1)>0.015||
-         Math.abs(image.naturalHeight/expectedHeight-1)>0.015);
-      if(aspectError>0.015||dimensionsMismatch){
-        setMasterplanQuality('preview','Preview only','Original image dimensions do not match the published map.');
-        return;
-      }
-      // Never replace master.src after preview was revealed: Chrome can discard
-      // the old raster while an enormous replacement fails GPU compositing.
-      layer=document.createElement('div');
-      layer.className='master-native-tiles';
-      if(safeMobileTiles)layer.style.visibility='hidden';
-      layer.setAttribute('aria-hidden','true');
-      master.parentNode.insertBefore(layer,svg);
-      refreshNativeMasterplan=refresh;
-      // 3D can consume the verified original even if its 2D layer is hidden.
-      if(mode3D)handoffOriginal();
-      refresh();
+    const originalError=()=>{
+      if(current())rekixoBootState('error',
+        'Original masterplan load nahi hua. Internet check karke Try Again karein.');
     };
-    image.onerror=()=>{if(current())setMasterplanQuality('preview','Preview only','Original could not be decoded.')};
-    const probe=new URL(src,location.href);
-    probe.searchParams.set('inspect','1');
-    setMasterplanQuality('loading','HD loading','Checking published original masterplan.');
     (async()=>{
       try{
-        const response=await fetch(probe.pathname+probe.search,{cache:'no-store',signal:controller.signal});
+        const probe=new URL(src,location.href);
+        probe.searchParams.set('inspect','1');
+        const response=await fetch(probe.pathname+probe.search,{
+          cache:'no-store',signal:controller.signal,headers:{accept:'application/json'}});
         if(!current())return;
-        if(!response.ok)throw Error('Source check failed');
-        const result=await response.json();
+        if(!response.ok)throw Error('Original source probe failed');
+        const metadata=await response.json();
         if(!current())return;
-        if(result.original!==true){
-          setMasterplanQuality('preview','Preview only','Published original is not available. Preview is retained.');
-          return;
-        }
-        image.src=src;
-      }catch(_error){
-        if(current())setMasterplanQuality('preview','Preview only','High resolution source unavailable; preview is retained.');
+        if(metadata.original!==true){unavailable();return;}
+        master.onerror=originalError;
+        master.onload=async()=>{
+          if(!current())return;
+          const aspect=master.naturalWidth/Math.max(1,master.naturalHeight);
+          const sizeMismatch=(expectedWidth>0&&expectedHeight>0)&&
+            (Math.abs(master.naturalWidth/expectedWidth-1)>.015||
+              Math.abs(master.naturalHeight/expectedHeight-1)>.015);
+          if(Math.abs(aspect/expectedAspect-1)>.015||sizeMismatch){
+            unavailable();return;
+          }
+          try{if(typeof master.decode==='function')await master.decode()}catch(_){}
+          if(!current())return;
+          canvas=document.createElement('canvas');
+          canvas.className='master-original-canvas';
+          canvas.setAttribute('aria-hidden','true');
+          context=canvas.getContext('2d',{alpha:true});
+          if(!context){
+            rekixoBootState('error','Original masterplan display available nahi hai.');
+            return;
+          }
+          canvas.addEventListener('contextlost',event=>{
+            event.preventDefault();
+            if(current())rekixoBootState('loading','Restoring original masterplan…');
+          });
+          canvas.addEventListener('contextrestored',()=>{
+            if(current()&&draw()){
+              if(!PUBLIC_READY)onReady();
+              else rekixoBootState('ready');
+            }
+          });
+          viewport.insertBefore(canvas,world);
+          refreshNativeMasterplan=draw;
+          master.style.visibility='hidden';
+          master.dataset.originalSrc=src;
+          master.dataset.previewSrc='';
+          onReady();
+        };
+        master.decoding='async';
+        master.style.visibility='hidden';
+        master.src=src;
+      }catch(error){
+        if(current()&&error?.name!=='AbortError')originalError();
       }
     })();
     return()=>{
-      cancelled=true;controller.abort();image.onload=null;image.onerror=null;
-      if(refreshNativeMasterplan===refresh)refreshNativeMasterplan=()=>{};
-      for(const canvas of tiles.values()){canvas.remove();canvas.width=0;canvas.height=0}
-      tiles.clear();layer?.remove();layer=null;
-      if(safeMobileTiles)master.style.visibility='visible';
+      cancelled=true;controller.abort();
+      master.onload=null;master.onerror=null;
+      if(refreshNativeMasterplan===draw)refreshNativeMasterplan=()=>{};
+      canvas?.remove();canvas=null;context=null;
     };
   }
 
@@ -2912,7 +2842,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     cancelPlotPeekPress(true);hidePlotPeek();pointers.clear();gesture=null;viewport.classList.remove('dragging');
     if(mode3D){
       close();
-      if(!engine3D){try{engine3D=new RekixoPlot3D(q('#threeHost'),{plots,imageSrc:q('.master').dataset.originalSrc||q('.master').src,previewImageSrc:q('.master').dataset.previewSrc,mapWidth:W,mapHeight:H,onSelect:p=>{selected=p;setSelected(p.id);openPlot(p,false)},onPreview:(p,x,y)=>showPlotPeek(p,x,y),onPreviewEnd:()=>hidePlotPeek(),onCamera:hud3D})}catch(e){mode3D=false;viewport.classList.remove('mode3d');q('#view3d').textContent='3D';toast('3D is not supported on this device');return}}
+      if(!engine3D){try{engine3D=new RekixoPlot3D(q('#threeHost'),{plots,imageSrc:q('.master').dataset.originalSrc||q('.master').src,previewImageSrc:'',mapWidth:W,mapHeight:H,onSelect:p=>{selected=p;setSelected(p.id);openPlot(p,false)},onPreview:(p,x,y)=>showPlotPeek(p,x,y),onPreviewEnd:()=>hidePlotPeek(),onCamera:hud3D})}catch(e){mode3D=false;viewport.classList.remove('mode3d');q('#view3d').textContent='3D';toast('3D is not supported on this device');return}}
       engine3D.setMetroFourStatus?.(metroAgreementMode);engine3D.setShowAll(showAll);engine3D.setStatusFilter?.(statusFilter);engine3D.activate();if(selected)engine3D.select(selected.id,false,false);hud3D({yaw:engine3D.cam.yaw,zoomPercent:Math.round(34*engine3D.baseDistance/engine3D.cam.distance)});
     }else{
       engine3D?.deactivate();
@@ -2973,8 +2903,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     metroAgreementMode=data.metroAgreementEnabled===true;
     document.body.dataset.metroFourStatus=metroAgreementMode?'1':'0';
     q('[data-status-filter="agreement"]').hidden=!metroAgreementMode;
-    // Exact public project identity: targeted fix, other existing products unchanged.
-    metroMobileTileSafety=data.projectId==='c024a562-634d-4e49-b647-43209f6e450b';
+    // One original-only 2D renderer serves every published client project.
     renderMetroStatusLabels();
     engine3D?.setMetroFourStatus?.(metroAgreementMode);
     applyPlotStatusTheme(s);
@@ -3069,7 +2998,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     let preferredMasterUrl='',canonicalMasterUrl='',originalMasterUrl='';
     if(master){
       if(s.masterplanName){
-        delete master.dataset.originalSrc;
+        delete master.dataset.originalSrc;delete master.dataset.previewSrc;
         const masterVersion=String(data.publishVersion??s.masterplanName??'1');
         const baseParams=new URLSearchParams((window.REKIXO_PROJECT_QUERY||'').replace(/^\?/,''));
         const publicParams=new URLSearchParams(baseParams);
@@ -3086,7 +3015,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         originalMasterUrl='/api/project-asset/masterplan?'+originalParams.toString();
         preferredMasterUrl='/api/project-asset/masterplan?'+publicParams.toString();
         canonicalMasterUrl='/api/project-asset/masterplan?'+canonicalParams.toString();
-        master.removeAttribute('src');master.style.visibility='visible'
+        master.removeAttribute('src');master.style.visibility='hidden'
       }else{
         master.removeAttribute('src');master.style.visibility='hidden'
       }
@@ -3101,23 +3030,22 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     const revealShell=()=>{
       if(shellRevealed)return;
       shellRevealed=true;
-      document.documentElement.classList.remove('rekixo-project-loading','rekixo-project-error');
-      if(HAS_MASTERPLAN)viewport.classList.add('master-loading');
+      // Do not expose a preview/half-loaded map. Load the ORIGINAL during boot.
+      document.body.setAttribute('data-masterplan-loading','Loading original masterplan…');
       reset();
     };
     const revealProject=()=>{
       if(revealed)return;
+      // Reset draws the original canvas BEFORE exposing the customer page.
+      reset();
+      if(document.documentElement.classList.contains('rekixo-project-error'))return;
       revealed=true;PUBLIC_READY=true;
       viewport.classList.remove('master-loading');
+      document.documentElement.classList.remove('rekixo-project-loading','rekixo-project-error');
       world.style.visibility='visible';
-      reset();
       engine3D?.setPlots?.(plots);
-      if(master&&HAS_MASTERPLAN&&master.src)engine3D?.setImageSrc?.(master.src,canonicalMasterUrl);
+      if(master&&HAS_MASTERPLAN&&master.src)engine3D?.setImageSrc?.(master.src);
       engine3D?.setShowAll(showAll);engine3D?.setStatusFilter?.(statusFilter);
-      if(master&&HAS_MASTERPLAN&&originalMasterUrl){
-        master.dataset.previewSrc=canonicalMasterUrl;
-        cancelMasterplanUpgrade=upgradeMasterplanImage(master,originalMasterUrl,W/H,src=>engine3D?.setImageSrc?.(src,canonicalMasterUrl),()=>imageGeneration===masterplanGeneration,Number(s.masterplanOriginalWidth)||0,Number(s.masterplanOriginalHeight)||0);
-      }
     };
     const loadMaster=(canonical=false,bust=false)=>{
       if(!master)return;
@@ -3172,9 +3100,22 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     };
     revealShell();
     if(master&&HAS_MASTERPLAN){
-      master.onload=alignMasterAndReveal;
-      master.onerror=masterFailed;
-      loadMaster(false,false)
+      const legacyOnly=()=>{
+        if(imageGeneration!==masterplanGeneration)return;
+        // A project published before original uploads existed has no original
+        // bytes to draw; use its canonical published file as a single source.
+        master.style.visibility='visible';
+        master.dataset.previewSrc='';
+        master.onload=alignMasterAndReveal;
+        master.onerror=masterFailed;
+        loadMaster(true,false);
+      };
+      if(originalMasterUrl){
+        cancelMasterplanUpgrade=prepareOriginalMasterplan(
+          master,originalMasterUrl,W/H,revealProject,legacyOnly,
+          ()=>imageGeneration===masterplanGeneration,
+          Number(s.masterplanOriginalWidth)||0,Number(s.masterplanOriginalHeight)||0);
+      }else legacyOnly();
     }else revealProject();
   }
   window.REKIXO_APPLY_PUBLIC_DATA=applyPublicData;

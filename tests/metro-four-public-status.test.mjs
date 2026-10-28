@@ -50,8 +50,8 @@ test("Metro white yellow green red paint is presentation only, preserving public
  assert.match(three,/this\.metroFourStatus\?metroStatusPalette/);
  assert.match(three,/this\.matchesStatusFilter\(p\)/);
  assert.match(three,/hitTest\(x,y\)/);
- assert.match(html,/REKIXO_NATIVE_2D_MASTERPLAN_TILES_V1/);
- assert.match(html,/metroMobileTileSafety/);
+ assert.match(html,/REKIXO_ORIGINAL_ONLY_2D_VIEWPORT_V1/);
+ assert.match(html,/master-original-canvas/);
 });
 
 test("Client Admin gets Registered terminology and keeps existing optimistic Agreement checkbox",()=>{

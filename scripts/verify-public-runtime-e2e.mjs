@@ -177,7 +177,20 @@ try {
       { waitUntil: "networkidle" },
     );
 
-    await page.waitForSelector('.plot[data-plot-id="P-1"]', { state: "attached" });
+    try {
+      await page.waitForSelector('.plot[data-plot-id="P-1"]', { state: "attached", timeout: 12000 });
+    } catch(error) {
+      const diagnostics=await page.evaluate(()=>({
+        classes:document.documentElement.className,
+        message:document.getElementById("rekixoBootErrorText")?.textContent,
+        loading:document.body?.getAttribute("data-masterplan-loading"),
+        hook:typeof window.REKIXO_APPLY_PUBLIC_DATA,
+        data:Boolean(window.REKIXO_PUBLIC_DATA),
+        scripts:document.scripts.length,
+      }));
+      throw new Error("Public project boot did not create plots: "+
+        JSON.stringify({diagnostics,errors,reason:String(error)}));
+    }
     await page.locator("#plotNewsBell").waitFor({state:"visible"});
     await page.locator("#plotNewsBanner.is-shown").waitFor({state:"visible"});
     const plotNoticeGeometry=await page.locator("#plotNewsBanner").evaluate(el=>{

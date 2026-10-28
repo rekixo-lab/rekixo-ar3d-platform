@@ -48,5 +48,5 @@ test("customer ticker retains header slide and original map, has bright yellow a
  assert.match(html,/plot-news-banner\.is-shown/);
  assert.match(html,/prefers-reduced-motion:reduce/);
  assert.match(html,/REKIXO_PLOT_NOTICES_INIT/);
- assert.match(html,/master-native-tiles/);
+ assert.match(html,/master-original-canvas/);
 });

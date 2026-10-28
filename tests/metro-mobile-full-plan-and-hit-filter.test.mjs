@@ -28,24 +28,20 @@ test("Metro first frame and reset retain existing framing; only HD compositing c
   assert.equal(metro.fit, 720 / 900, "Metro first-frame cover-fit is unchanged");
   assert.equal(other.fit, metro.fit, "all other projects retain their framing");
   assert.equal(metro.minFit, 360 / 1600);
-  assert.match(viewer, /metroMobileTileSafety=data.projectId==='c024a562-634d-4e49-b647-43209f6e450b'/);
-  assert.ok(viewer.includes(metroId));
+  assert.doesNotMatch(viewer, /metroMobileTileSafety/, "global renderer has no Metro-specific image logic");
+  assert.match(viewer,/REKIXO_ORIGINAL_ONLY_2D_VIEWPORT_V1/);
   assert.doesNotMatch(viewer, /metroFullPlanMobile/);
   assert.match(viewer, /scale=focus\?configuredFocusScale\(focus\):fit/);
 });
 
-test("Metro original HD and preview are mutually exclusive, with failure fallback", () => {
-  const source=viewer.slice(viewer.indexOf("function upgradeMasterplanImage("),viewer.indexOf("function displaySize(){"));
-  assert.match(source, /const setMetroSourceVisibility=ready=>\{/);
-  assert.match(source, /if\(!safeMobileTiles\|\|!layer\)return/);
-  assert.match(source, /layer\.style\.visibility=ready\?'visible':'hidden'/);
-  assert.match(source, /master\.style\.visibility=ready\?'hidden':'visible'/);
-  assert.match(source, /if\(safeMobileTiles\)setMetroSourceVisibility\(fullVisibleCoverage&&tiles\.size>0\)/);
-  assert.match(source, /setMetroSourceVisibility\(false\)/);
-  assert.match(source, /if\(safeMobileTiles\)master\.style\.visibility='visible'/);
-  assert.match(source, /const overscan=safeMobileTiles\?Math\.min\(128,/);
-  assert.match(source, /ctx\.drawImage\(image,srcX,srcY,srcWidth,srcHeight,0,0,canvas\.width,canvas\.height\)/);
-  assert.doesNotMatch(source,/master\.src\s*=/);
+test("Metro and other projects use the same original-only 2D renderer",()=>{
+  const source=viewer.slice(viewer.indexOf("function prepareOriginalMasterplan("),viewer.indexOf("function displaySize(){"));
+  assert.match(source,/canvas\.className='master-original-canvas'/);
+  assert.match(source,/master\.style\.visibility='hidden'/);
+  assert.match(source,/context\.drawImage\(master,sx,sy,ex-sx,ey-sy,sx,sy,ex-sx,ey-sy\)/);
+  assert.match(source,/refreshNativeMasterplan=draw/);
+  assert.match(source,/if\(metadata\.original!==true\)\{unavailable\(\);return;\}/);
+  assert.doesNotMatch(source,/new Image\(|master-native-tiles|setMetroSourceVisibility/);
 });
 
 test("Metro four filters restrict 2D touches, but all other projects keep existing hit semantics", () => {
@@ -90,11 +86,10 @@ test("compact Metro HUD is strictly tenant/mobile scoped with all four rows", ()
   assert.match(viewer, /if\(statusFilter&&\(metroAgreementMode\|\|statusFilter==='agreement'\)\)clearMismatchedSelection/);
 });
 
-test("masterplan pixels, normalized polygons, HD native tiles stay canonical", () => {
-  assert.match(viewer, /const mapped=normalized\.map\(\(\[x,y\]\)=>\[x\*W,y\*H\]\)/);
-  assert.match(viewer, /world\.style\.transform = `translate3d\(/);
-  assert.match(viewer, /svg\.getScreenCTM\?\.\(\)/);
-  assert.match(viewer, /const tiles=new Map\(\),tileSize=1536/);
-  assert.match(viewer, /const tileStep=safeMobileTiles\?1024:tileSize/);
-  assert.match(viewer, /originalParams\.set\('fidelity','original-v2'\)/);
+test("masterplan pixels and normalized polygons remain canonical",()=>{
+  assert.match(viewer,/const mapped=normalized\.map\(\(\[x,y\]\)=>\[x\*W,y\*H\]\)/);
+  assert.match(viewer,/world\.style\.transform = `translate3d\(/);
+  assert.match(viewer,/svg\.getScreenCTM\?\.\(\)/);
+  assert.match(viewer,/REKIXO_ORIGINAL_ONLY_2D_VIEWPORT_V1/);
+  assert.match(viewer,/originalParams\.set\('fidelity','original-v2'\)/);
 });
