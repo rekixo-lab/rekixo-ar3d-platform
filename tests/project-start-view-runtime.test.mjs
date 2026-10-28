@@ -6,7 +6,7 @@ import vm from "node:vm";
 const html = await readFile(new URL("../public/project/index.html", import.meta.url), "utf8");
 const snapshot = await readFile(new URL("../app/public-publish-snapshot.ts", import.meta.url), "utf8");
 const publicAPI = await readFile(new URL("../app/api/public-data/route.ts", import.meta.url), "utf8");
-const begin = html.indexOf("  function metroFullPlanMobile(");
+const begin = html.indexOf("  function normalizeInitialViewMode(");
 const end = html.indexOf("  function toast(", begin);
 assert.ok(begin >= 0 && end > begin, "public start-view implementation not found");
 const runtime = html.slice(begin, end);
