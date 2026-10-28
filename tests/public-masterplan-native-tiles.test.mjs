@@ -3,38 +3,40 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const html=await readFile(new URL("../public/project/index.html",import.meta.url),"utf8");
-const functionStart=html.indexOf("function upgradeMasterplanImage(");
-const functionEnd=html.indexOf("function displaySize(){",functionStart);
-const upgrade=html.slice(functionStart,functionEnd);
+const begin=html.indexOf("function prepareOriginalMasterplan(");
+const end=html.indexOf("function displaySize(){",begin);
+const render=html.slice(begin,end);
 
-test("customer masterplan always retains a visible preview during original upgrade",()=>{
-  assert.match(html,/REKIXO_NATIVE_2D_MASTERPLAN_TILES_V1/);
-  assert.match(upgrade,/master\.parentNode\.insertBefore\(layer,svg\)/);
-  assert.match(upgrade,/layer\.className='master-native-tiles'/);
-  assert.doesNotMatch(upgrade,/master\.src\s*=/);
-  assert.match(upgrade,/master\.dataset\.originalSrc=src/);
+test("every customer 2D original uses a single decoded source and canvas",()=>{
+  assert.match(html,/REKIXO_ORIGINAL_ONLY_2D_VIEWPORT_V1/);
+  assert.match(render,/master\.src=src/);
+  assert.match(render,/canvas\.className='master-original-canvas'/);
+  assert.match(render,/viewport\.insertBefore\(canvas,world\)/);
+  assert.match(render,/master\.style\.visibility='hidden'/);
+  assert.doesNotMatch(html,/master-native-tiles|master-native-tile/);
+  assert.doesNotMatch(render,/new Image\(|createDocumentFragment|tiles=new Map/);
 });
 
-test("original pixels are cropped into bounded transparent canvases",()=>{
-  assert.match(upgrade,/tileSize=1536/);
-  assert.match(upgrade,/ctx\.drawImage\(image,x,y,width,height,0,0,canvas\.width,canvas\.height\)/);
-  assert.match(upgrade,/canvas\.className='master-native-tile'/);
-  assert.match(upgrade,/density=Math\.min\(1,Math\.pow\(2,Math\.ceil\(Math\.log2\(required\)\)\)\)/);
-  assert.match(upgrade,/canvas\.style\.width=\(100\*width\/image\.naturalWidth\)/);
+test("source pixels are drawn at the physical viewport resolution with no intermediate preview",()=>{
+  assert.match(render,/pixelRatio=Math\.min/);
+  assert.match(render,/Math\.sqrt\(8000000\/\(vw\*vh\)\)/);
+  assert.match(render,/context\.drawImage\(master,sx,sy,ex-sx,ey-sy,sx,sy,ex-sx,ey-sy\)/);
+  assert.match(render,/canvas\.getContext\('2d',\{alpha:true\}\)/);
+  assert.doesNotMatch(render,/imageSmoothingQuality\s*=|source\.width\s*=|preview\.src=/);
 });
 
-test("original overlay follows pan zoom rotation without changing logical geometry",()=>{
+test("plot coordinate plane and pan/zoom/rotation remain unchanged",()=>{
   assert.match(html,/refreshNativeMasterplan\(\);/);
-  assert.match(upgrade,/const pt=rotateOffset\(dx,dy,\(4-publicRotation\)%4\)/);
-  assert.match(upgrade,/scale\*W\/image\.naturalWidth/);
-  assert.match(upgrade,/for\(const \[key,canvas\] of tiles\)/);
+  assert.match(render,/rotateOffset\(\(x-vw\/2-pan\.x\)\/scale/);
+  assert.match(render,/context\.setTransform\(pixelRatio\*a\*cos/);
   assert.match(html,/svg\.setAttribute\('viewBox',`0 0 \$\{W\} \$\{H\}`\)/);
+  assert.match(html,/world\.style\.transform = `translate3d\(/);
 });
 
-test("missing original or failure keeps preview, and 3D uses original when available",()=>{
-  assert.match(upgrade,/if\(result\.original!==true\)/);
-  assert.match(upgrade,/Preview is retained/);
-  assert.match(upgrade,/Native masterplan tile render failed; keeping preview/);
+test("only missing published originals use canonical fallback; 3D starts with the original",()=>{
+  assert.match(render,/if\(metadata\.original!==true\)\{unavailable\(\);return;\}/);
+  assert.match(html,/const legacyOnly=\(\)=>\{/);
+  assert.match(html,/loadMaster\(true,false\)/);
   assert.match(html,/imageSrc:q\('\.master'\)\.dataset\.originalSrc\|\|q\('\.master'\)\.src/);
-  assert.match(html,/onUpgrade\?\.\(src\)/);
+  assert.match(html,/previewImageSrc:''/);
 });
