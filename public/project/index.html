@@ -1016,10 +1016,34 @@ body[data-metro-four-status="1"] .status-option.agreement{display:flex}
 body[data-metro-four-status="1"] .status.expanded .status-body{max-height:248px;overflow-y:auto}
 body[data-metro-four-status="1"] .status-option.agreement.active{background:rgba(255,48,48,.14)}
 body[data-metro-four-status="1"] #metroAgreementRow .agreement-done{color:#ff3030!important}
+/* Metro's late !important status colors must not override the chosen filter.
+   Agreement Done is a red *subset* of Registered, not extra inventory. */
+body[data-metro-four-status="1"] .show-all.status-filter-available .plot:not([data-status="available"]),
+body[data-metro-four-status="1"] .show-all.status-filter-booked .plot:not([data-status="booked"]),
+body[data-metro-four-status="1"] .show-all.status-filter-sold .plot:not([data-status="sold"]),
 body[data-metro-four-status="1"] .show-all.status-filter-agreement .plot:not([data-metro-visual="agreement"]){fill:transparent!important;stroke:transparent!important;filter:none!important}
+body[data-metro-four-status="1"] .show-all.status-filter-available .plot.selected:not([data-status="available"]),
+body[data-metro-four-status="1"] .show-all.status-filter-booked .plot.selected:not([data-status="booked"]),
+body[data-metro-four-status="1"] .show-all.status-filter-sold .plot.selected:not([data-status="sold"]),
 body[data-metro-four-status="1"] .show-all.status-filter-agreement .plot.selected:not([data-metro-visual="agreement"]){fill:transparent!important;stroke:transparent!important;filter:none!important}
 body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot-peek__badge{color:#ff3030}
-@media(max-width:700px){body[data-metro-four-status="1"] .status{width:168px;max-width:calc(100vw - 158px)}body[data-metro-four-status="1"] .status.expanded .status-body{max-height:234px;overflow-y:auto}body[data-metro-four-status="1"] .status-line>span{white-space:normal;line-height:1.2;overflow:visible}body[data-metro-four-status="1"] .status-option{min-height:33px}}
+/* Metro City only: at least 25% narrower, with four complete, tappable rows. */
+@media(max-width:700px){
+  body[data-metro-four-status="1"] .status{box-sizing:border-box;width:126px;max-width:calc(100vw - 28px);padding:0 6px 6px;border-radius:13px}
+  body[data-metro-four-status="1"] .status-head,
+  body[data-metro-four-status="1"] .status.expanded .status-head{height:34px;font-size:9px;letter-spacing:.08em}
+  body[data-metro-four-status="1"] .toggle{width:33px;height:19px;flex-shrink:0}
+  body[data-metro-four-status="1"] .toggle:after{width:15px;height:15px;left:2px;top:2px}
+  body[data-metro-four-status="1"] .toggle.on:after{transform:translateX(14px)}
+  body[data-metro-four-status="1"] .status.expanded .status-body{max-height:none;overflow:visible}
+  body[data-metro-four-status="1"] .status-body .status-line{font-size:9px;margin-top:2px}
+  body[data-metro-four-status="1"] .status-line>span{white-space:nowrap;line-height:1.2;overflow:visible}
+  body[data-metro-four-status="1"] .status-option{min-height:27px;padding:3px 1px;margin:2px 0 0;font-size:9px;letter-spacing:-.02em}
+  body[data-metro-four-status="1"] .status-line b{font-size:10px}
+  body[data-metro-four-status="1"] .sdot{width:8px;height:8px;border-width:1.5px;margin-right:4px}
+  body[data-metro-four-status="1"] .status-body .status-line.total{margin-top:3px;padding-top:5px}
+  body[data-metro-four-status="1"] .status-body .status-line.total b{font-size:13px}
+}
 </style>
 <style id="rekixo-plot-news-styles">
 /* REKIXO_PROJECT_PLOT_NEWS_V2 — gold/red compact ticker; original masterplan untouched. */
@@ -1759,6 +1783,17 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       onUpgrade?.(src);
     };
     const tiles=new Map(),tileSize=1536;
+    // Preview is the initial/fallback bitmap. Never show it simultaneously with
+    // the Metro original-tile layer: mismatched image content or mobile GPU
+    // compositing can reveal a detached left-hand strip of the preview.
+    // The original pixels and logical polygon coordinates are unchanged.
+    const setMetroSourceVisibility=ready=>{
+      if(!safeMobileTiles||!layer)return;
+      // Browser paints both writes together at the next compositor frame.
+      // Incomplete or failed HD falls back to the fully intact preview.
+      layer.style.visibility=ready?'visible':'hidden';
+      master.style.visibility=ready?'hidden':'visible';
+    };
     // Smaller 1024px source tiles reduce mobile Canvas/GPU memory peaks.
     // All other projects retain the existing 1536px native rendering path.
     const tileStep=safeMobileTiles?1024:tileSize;
@@ -1786,11 +1821,15 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       const displayDensity=Math.min(2,Math.max(1,window.devicePixelRatio||1));
       const required=Math.min(1,Math.max(1/32,scale*W/image.naturalWidth*displayDensity));
       const density=Math.min(1,Math.pow(2,Math.ceil(Math.log2(required))));
+      // Overscan by at least four display pixels (capped to bound GPU memory)
+      // so fractional pan/zoom/rotation rounding cannot expose an edge slit
+      // before the next redraw. This does not change source pixel coordinates.
+      const overscan=safeMobileTiles?Math.min(128,Math.max(4,Math.ceil(4*image.naturalWidth/Math.max(1,W*scale)))):1;
       const visible={
-        x0:Math.max(0,Math.floor((x0-1)/tileStep)*tileStep),
-        y0:Math.max(0,Math.floor((y0-1)/tileStep)*tileStep),
-        x1:Math.min(image.naturalWidth,Math.ceil((x1+1)/tileStep)*tileStep),
-        y1:Math.min(image.naturalHeight,Math.ceil((y1+1)/tileStep)*tileStep),
+        x0:Math.max(0,Math.floor((x0-overscan)/tileStep)*tileStep),
+        y0:Math.max(0,Math.floor((y0-overscan)/tileStep)*tileStep),
+        x1:Math.min(image.naturalWidth,Math.ceil((x1+overscan)/tileStep)*tileStep),
+        y1:Math.min(image.naturalHeight,Math.ceil((y1+overscan)/tileStep)*tileStep),
       };
       const needed=new Set(),staged=[];
       // Overlap neighboring original-pixel crops by ~2 screen pixels to mask
@@ -1848,7 +1887,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         // Do not show a partial native layer over the differently compressed
         // preview. This is the key Android protection: visible coverage is atomic.
         const fullVisibleCoverage=[...needed].every(key=>tiles.has(key));
-        if(safeMobileTiles)layer.style.visibility=fullVisibleCoverage?'visible':'hidden';
+        if(safeMobileTiles)setMetroSourceVisibility(fullVisibleCoverage&&tiles.size>0);
         if(!painted&&fullVisibleCoverage&&tiles.size){
           painted=true;
           setMasterplanQuality('original','Original HD',image.naturalWidth+' × '+image.naturalHeight+' px');
@@ -1859,7 +1898,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         // A mobile GPU failure must never leave a half-HD / half-preview map.
         if(safeMobileTiles){
           safeTileFailed=true;
-          layer.style.visibility='hidden';
+          setMetroSourceVisibility(false);
           for(const canvas of tiles.values()){canvas.remove();canvas.width=0;canvas.height=0}
           tiles.clear();
         }
@@ -1919,6 +1958,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       if(refreshNativeMasterplan===refresh)refreshNativeMasterplan=()=>{};
       for(const canvas of tiles.values()){canvas.remove();canvas.width=0;canvas.height=0}
       tiles.clear();layer?.remove();layer=null;
+      if(safeMobileTiles)master.style.visibility='visible';
     };
   }
 
@@ -2139,6 +2179,9 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   function metroVisualStatus(p){const base=plotStatus(p);return !metroAgreementMode?base:p?.agreementDone===true?'agreement':base==='sold'?'registered':base}
   function syncMetroPlotVisual(p,el){if(!el)return;if(metroAgreementMode)el.dataset.metroVisual=metroVisualStatus(p);else delete el.dataset.metroVisual}
   function matchesStatusFilter(p,filter){return filter==='agreement'?metroAgreementMode&&p?.agreementDone===true:plotStatus(p)===filter}
+  // Metro-only public touch/hit-testing must respect the visible status filter,
+  // just as 3D hitTest already does. Never edit plot coordinates or inventory.
+  function metroFilterAllowsPlot(p){return !metroAgreementMode||!showAll||!statusFilter||matchesStatusFilter(p,statusFilter)}
   const PLOT_PEEK_LONG_PRESS_MS=460,PLOT_PEEK_MOVE_CANCEL_PX=12;
   let plotPeek=null,plotPeekRefs=null,plotPeekSignature='',plotPeekPlotId=null,plotPeekPoint=null;
   let plotPeekPressTimer=0,plotPeekPressPointerId=null,plotPeekPressShown=false;
@@ -2209,7 +2252,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       if(el){el.dataset.status=plotStatus(p);syncMetroPlotVisual(p,el)}
     });
     updateStatusCounts();
-    if(statusFilter==='agreement')clearMismatchedSelection('agreement');
+    if(statusFilter&&(metroAgreementMode||statusFilter==='agreement'))clearMismatchedSelection(statusFilter);
     if(plotPeekPlotId&&plotPeekPoint){const freshPeek=plots.find(p=>String(p.id)===plotPeekPlotId);if(freshPeek)showPlotPeek(freshPeek,plotPeekPoint.x,plotPeekPoint.y);else hidePlotPeek()}
     engine3D?.rebuildLabels?.();
     engine3D?.request?.();
@@ -2680,7 +2723,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     const target=document.elementFromPoint(x,y);
     const el=target?.closest?.('.plot');
     if(!el||!svg.contains(el))return null;
-    return plots.find(p=>p.id===el.dataset.plotId)||null;
+    return plots.find(p=>p.id===el.dataset.plotId&&metroFilterAllowsPlot(p))||null;
   }
   function plotAtClient(x,y,padCss=0){
     // Prefer the browser's exact transformed SVG hit target. Geometry fallback
@@ -2688,12 +2731,13 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     const native=nativePlotAtClient(x,y);
     if(native)return native;
     const pt=clientToPlan(x,y);
-    const exact=plots.find(p=>pointInPolygon(pt.x,pt.y,p.points));
+    const exact=plots.find(p=>metroFilterAllowsPlot(p)&&pointInPolygon(pt.x,pt.y,p.points));
     if(exact) return exact;
     if(padCss<=0) return null;
     const maxPlan=padCss/Math.max(scale,.01);
     let best=null,bestD=Infinity;
     for(const p of plots){
+      if(!metroFilterAllowsPlot(p))continue;
       for(let i=0;i<p.points.length;i++){
         const a=p.points[i],b=p.points[(i+1)%p.points.length],d=distSeg(pt.x,pt.y,a[0],a[1],b[0],b[1]);
         if(d<bestD){bestD=d;best=p}
@@ -2809,7 +2853,24 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   let glassOpt=null,suppressStatusClick=false;
   function clearGlass(){if(glassOpt){glassOpt.classList.remove('touch-glass');glassOpt=null}}
   function paintGlass(e){if(!isCoarse(e))return;const el=document.elementFromPoint(e.clientX,e.clientY)?.closest?.('.status-option');if(el!==glassOpt){clearGlass();glassOpt=el||null;if(glassOpt)glassOpt.classList.add('touch-glass')}if(glassOpt){const r=glassOpt.getBoundingClientRect();glassOpt.style.setProperty('--rain-x',(e.clientX-r.left)+'px');glassOpt.style.setProperty('--rain-y',(e.clientY-r.top)+'px')}}
-  statusBody.addEventListener('pointerdown',e=>{if(isCoarse(e))suppressStatusClick=true;paintGlass(e)});statusBody.addEventListener('pointermove',paintGlass);statusBody.addEventListener('pointerup',e=>{if(isCoarse(e)&&glassOpt)setStatusFilter(glassOpt.dataset.statusFilter);setTimeout(clearGlass,140)});statusBody.addEventListener('pointercancel',()=>{suppressStatusClick=false;clearGlass()});statusBody.addEventListener('pointerleave',clearGlass);
+  statusBody.addEventListener('pointerdown',e=>{if(isCoarse(e))suppressStatusClick=true;paintGlass(e)});
+  statusBody.addEventListener('pointermove',paintGlass);
+  statusBody.addEventListener('pointerup',e=>{
+    if(isCoarse(e)){
+      // Re-evaluate the actual release position: pointerleave may already have
+      // cleared the hover/glass target on Android Chrome or iOS Safari.
+      const released=document.elementFromPoint(e.clientX,e.clientY)?.closest?.('.status-option');
+      if(released&&statusBody.contains(released))glassOpt=released;
+      else clearGlass();
+      if(glassOpt)setStatusFilter(glassOpt.dataset.statusFilter);
+      // Ignore only the synthetic click following the pointer release.
+      suppressStatusClick=true;
+      setTimeout(()=>{suppressStatusClick=false},450);
+    }
+    setTimeout(clearGlass,140);
+  });
+  statusBody.addEventListener('pointercancel',()=>{suppressStatusClick=false;clearGlass()});
+  statusBody.addEventListener('pointerleave',clearGlass);
   q('#outlineToggle').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();toggleStatusPanel()});
   q('#outlineTop').onclick=()=>{window.top.location.href=ADMIN_URL||'/admin/login'};
   document.querySelectorAll('.status-option').forEach(b=>b.addEventListener('click',e=>{if(suppressStatusClick){suppressStatusClick=false;e.preventDefault();return}setStatusFilter(b.dataset.statusFilter)}));
@@ -2874,8 +2935,8 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
     poly.setAttribute('points',polyPoints(p));poly.setAttribute('class','plot');poly.dataset.plotId=p.id;poly.dataset.status=plotStatus(p);syncMetroPlotVisual(p,poly);
     poly.setAttribute('tabindex','0');poly.setAttribute('role','button');poly.setAttribute('aria-label',` ${/^[BC][0-9]+$/i.test(String(p.id)) ? p.id : 'Plot '+p.id}`);
-    poly.addEventListener('click',e=>{if(e.detail!==0&&coarseMQ.matches)return;e.stopPropagation();openPlot(p,false)});
-    poly.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openPlot(p,false)}});
+    poly.addEventListener('click',e=>{if(!metroFilterAllowsPlot(p)||e.detail!==0&&coarseMQ.matches)return;e.stopPropagation();openPlot(p,false)});
+    poly.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();if(metroFilterAllowsPlot(p))openPlot(p,false)}});
     svg.appendChild(poly);
   }
   function rescaleNormalizedPlots(){

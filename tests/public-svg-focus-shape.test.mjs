@@ -25,7 +25,7 @@ test("keyboard accessibility remains visible on the actual plot geometry", () =>
 test("focus fix is presentation-only and canonical polygon hit geometry stays untouched", () => {
   assert.match(page, /function polyPoints\(p\)\{return p\.points\.map/);
   assert.match(page, /function pointInPolygon\(/);
-  assert.match(page, /const exact=plots\.find\(p=>pointInPolygon\(pt\.x,pt\.y,p\.points\)\)/);
+  assert.match(page, /const exact=plots\.find\(p=>metroFilterAllowsPlot\(p\)&&pointInPolygon\(pt\.x,pt\.y,p\.points\)\)/);
   assert.match(page, /poly\.setAttribute\('points',polyPoints\(p\)\)/);
   assert.doesNotMatch(page, /REKIXO_PUBLIC_SVG_FOCUS_SHAPE_V1[\s\S]{0,800}fetch\(/);
 });
