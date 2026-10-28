@@ -54,7 +54,7 @@ test("3D number labels stay ground-locked with only screen-pixel lift",()=>{
 
 test("status filters collision handling polygons and 2D contracts stay present",()=>{
   assert.match(three,/this\.matchesStatusFilter\(p\)/);
-  assert.match(three,/this\.selected&&this\.statusFilter&&!this\.matchesStatusFilter\(this\.selected\)/);
+  assert.match(three,/this\.selected&&!this\.matchesStatusFilter\(this\.selected\)/);
   assert.match(three,/const cellW=34,cellH=24,buckets=new Map\(\)/);
   assert.match(three,/inside\(px,py,p\.points\)/);
   assert.match(html,/function pointInPolygon\(/);
