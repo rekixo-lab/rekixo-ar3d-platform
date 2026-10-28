@@ -26,25 +26,40 @@ export function parseNoticeRows(rows:Record<string,unknown>[]):NoticeRecord[]{
 export const indiaDate=(isoTime:string)=>new Date(new Date(isoTime).getTime()+330*60*1000).toISOString().slice(0,10);
 export const publicNoticeLabel=(label:string)=>label.trim().toLowerCase()==="hold"?"On Hold":label.trim();
 
-export async function recordPrivatePlotNotice(projectId:string,plotId:string,category:"inventory"|"deal",label:string,sourceEventId:string,actorId:string,isoTime:string){
- // The source event is recorded in the existing plot/sales workflow first.
- // Generate one PRIVATE candidate per calendar date + actual plot + category + stage,
- // even if a form was saved twice. Never publish or affect original inventory.
+// Only user-visible inventory/deal status events are eligible for automatic
+// public notices. Never copy free-text notes, buyer, sale, price or actor info.
+export async function recordAutomaticPlotNotice(projectId:string,plotId:string,category:"inventory"|"deal",label:string,sourceEventId:string,actorId:string,isoTime:string){
  const eventDate=indiaDate(isoTime),cleanLabel=publicNoticeLabel(label);
- if(!noticeLabel(cleanLabel))return;
+ if(!noticeLabel(cleanLabel)||!plotId||plotId.length>80)return;
  const plotIdsJson=JSON.stringify([plotId]);
- const stableId="auto:"+eventDate+":"+category+":"+cleanLabel.toLowerCase()+":"+plotId;
+ // Exactly one automatic notice for each plot, category and IST day. A second
+ // status change replaces that plot's earlier announcement rather than
+ // displaying two conflicting statuses. Hidden notices remain suppressed.
+ const stableId="auto:"+eventDate+":"+category+":"+plotId;
  try{
+  const flag=await env.DB.prepare(
+   "SELECT 1 AS enabled FROM project_plot_notice_settings WHERE project_id=? AND enabled=1"
+  ).bind(projectId).first();
+  if(!flag)return;
+  const active=await env.DB.prepare(
+   "SELECT id FROM plots WHERE project_id=? AND id=? AND inventory_active=1"
+  ).bind(projectId,plotId).first();
+  if(!active)return;
+  const updated=await env.DB.prepare(
+   "UPDATE project_plot_notices SET label=?,state='published',published_at=?,updated_at=? "+
+   "WHERE project_id=? AND event_date=? AND category=? AND plot_ids_json=? "+
+   "AND source='automatic' AND state IN ('draft','published')"
+  ).bind(cleanLabel,isoTime,isoTime,projectId,eventDate,category,plotIdsJson).run();
+  if(Number(updated.meta.changes)>0)return;
   await env.DB.prepare(
-   "INSERT OR IGNORE INTO project_plot_notices(project_id,id,event_date,category,label,plot_ids_json,state,source,source_event_id,created_by,created_at,updated_at) "+
-   "SELECT ?,?,?,?,?,?,'draft','automatic',?,?,?,? "+
-   "WHERE EXISTS (SELECT 1 FROM project_plot_notice_settings WHERE project_id=? AND enabled=1) "+
-   "AND EXISTS (SELECT 1 FROM plots WHERE project_id=? AND id=? AND inventory_active=1) "+
-   "AND NOT EXISTS (SELECT 1 FROM project_plot_notices WHERE project_id=? AND event_date=? AND category=? AND label=? AND plot_ids_json=? AND source='automatic' AND state IN ('draft','published'))"
-  ).bind(projectId,crypto.randomUUID(),eventDate,category,cleanLabel,plotIdsJson,stableId,actorId,isoTime,isoTime,
-  projectId,projectId,plotId,projectId,eventDate,category,cleanLabel,plotIdsJson).run();
- }catch(error){console.error("Private plot notice could not be drafted",error)}
- // sourceEventId is part of the source ledger; the deterministic notice key
- // intentionally de-duplicates repeated saves of its final status on the same day.
+   "INSERT OR IGNORE INTO project_plot_notices(project_id,id,event_date,category,label,plot_ids_json,state,source,source_event_id,created_by,created_at,published_at,updated_at) "+
+   "SELECT ?,?,?,?,?,?,'published','automatic',?,?,?,?,? "+
+   "WHERE NOT EXISTS (SELECT 1 FROM project_plot_notices WHERE project_id=? AND event_date=? AND category=? AND plot_ids_json=? AND source='automatic')"
+  ).bind(projectId,crypto.randomUUID(),eventDate,category,cleanLabel,plotIdsJson,
+   stableId,actorId,isoTime,isoTime,isoTime,
+   projectId,eventDate,category,plotIdsJson).run();
+ }catch(error){console.error("Automatic plot notice could not be published",error)}
+ // Notice publication is a best-effort side effect of a successfully committed
+ // domain mutation; it never blocks or rolls back original plot inventory.
  void sourceEventId;
 }
