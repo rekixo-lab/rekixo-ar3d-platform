@@ -1,33 +1,22 @@
-# Metro City mobile map and status corrections — 28 Oct 2026
+# Metro City mobile preview/HD strip and four-status corrections — 28 October 2026
 
-## Scope
+## Target and observed symptom
+The published Metro City customer site (exact project ID `c024a562-634d-4e49-b647-43209f6e450b`) starts with a visually correct preview image. A fraction of a second later, as original HD tiles arrive, part of the old image can remain visible as a detached strip along the left of the new masterplan. The layout and saved plot polygons are not the cause of the image split itself.
 
-Customer-site Metro City only. The masterplan start/reset behavior is gated by the exact published project ID `c024a562-634d-4e49-b647-43209f6e450b` and handset breakpoint (700px). The four-row compact status HUD, hit filtering and input recovery require the existing Metro agreement feature flag. Other projects, tablet/desktop, admin, publishing and database records remain unchanged.
+## Root-cause isolation and fix
+- Before the patch, the mobile native-HD layer was made visible over a **permanently painted preview**, even after all the original tiles were ready. On mobile GPUs, a stale preview region under a differently rasterized original tile edge could become visible. The two independently sourced image surfaces must not be visible at once.
+- For **Metro City mobile only** (max-width 700px), the original-HD layer and preview are now **mutually exclusive**: the intact preview is visible while tiles load; once *all* current viewport original tiles are created, HD becomes visible and the preview becomes hidden **in one compositor update**. On GPU error or partial coverage the entire HD layer hides and the original preview is restored. On cancel/change of project, preview is restored.
+- Overscan is added around native source crops (at least four CSS screen pixels, bounded to 128 source pixels) to avoid mobile rounding exposing the left edge without increasing the entire source size or mutating image/polygon geometry.
+- This changes image presentation only. Original image bytes, exact normalized polygon coordinates, SVG viewBox, transforms and 3D engine stay unchanged.
+- Critically, the earlier hypothesis of default mobile `cover-fit` being the cause was **incorrect for this symptom**. The patch restores the original first-frame and RST framing behavior; no opening zoom/centering alterations remain.
 
-## Source diagnosis
+## Mobile HUD and status filters (from the related request)
+- Metro City's four-row status box is 168px → 126px (25% narrower) with smaller row spacing, preserving all four options and Total.
+- A release-position guard fixes coarse-pointer selection that was sometimes lost by a `pointerleave` before `pointerup`. Metro 2D SVG/geometry hit-testing now honors the chosen status, consistent with 3D.
+- The four Metro overlay colors cannot override active filter exclusion. Sold displays as Registered and Agreement Done remains an orthogonal (non-additive) subset; canonical inventory records are unchanged.
 
-- The shared handset default was CSS/world **cover-fit**, so the image could be deliberately cropped along the left/right or top/bottom depending on viewport ratio and saved focus. Cropping affected both the original preview and overlay world, rather than implying changed polygon coordinates.
-- The 2D SVG and geometry fallback used every polygon even when a Metro status filter hid that plot visually. The 3D picker already guarded with its active filter; Metro 2D now does the same.
-- Coarse-pointer status choices relied on a transient hover/glass target. On touch release the value could be absent after a pointer-leave event. The handler now resolves the released option from the actual hit target before committing, while deduplicating the synthetic click.
-- The Metro 4-row card was explicitly 168px wide. The mobile-specific card is now 126px, with reduced header, row spacing and type while retaining all four named options and Total. Area reduction is greater than 25%.
-
-## Changes and safeguards
-
-- Metro handset initial/reset map scale now uses contain-fit and a centered pan. It remains pinch-zoomable/pannable afterwards. Every loaded image and polygon continues to share **one** transformed world coordinate plane. No polygon rescaling/reassignment or change to source pixels.
-- Status filters stay read-only; canonical `available/booked/sold` inventory does not change, and `agreementDone` remains an orthogonal flag. Agreement Done is not added to Total.
-- Live status refresh clears an out-of-filter Metro selection. SVG pointer/keyboard, native hit and geometry fallback honor the same active filter as 3D.
-- Masterplan native original tile crops, preview fallback, expected dimensions, asset URLs and storage are untouched.
-
-## Device checks after deployment
-
-1. Open Metro City on Android Chrome and iPhone Safari. At startup and after RST, the entire published masterplan should be within the viewport; zoom in to inspect source detail and verify plots remain directly over their saved polygons.
-2. Select Available, Booked, Registered and Agreement Done one by one with short taps. Confirm the selected row activates and that tapping a hidden-status plot does not open that plot. Repeat in 3D.
-3. Confirm counts match the published/live database. If Agreement Done overlaps Registered, the red subset count should **not** be added to Total.
-4. Uploading a different crop/rotation/content of a masterplan may still require a deliberate mapper recalibration and publish. Matching image **aspect ratio** alone cannot establish matching physical plot alignment; do not auto-shift existing polygons.
-5. Verify another project and desktop/tablet retain prior cover/contain and status layouts.
-
-## Testing
-
-`node --test tests/public-status-filter-compact-v2.test.mjs tests/metro-mobile-full-plan-and-hit-filter.test.mjs tests/project-start-view-runtime.test.mjs tests/metro-four-public-status.test.mjs tests/public-mobile-presentation.test.mjs`
-
-Full browser regression runs on the pull request. Real-device validation is still necessary, especially for large decoded original images on mobile GPU.
+## Verification
+- Build and node test suite in GitHub CI.
+- Browser E2E now **checks that Metro preview visibility is hidden only after fully painted original HD tiles**, that the original source remains byte-identical, that at least one tile is painted, and that polygon hits/transformed geometry remain stable after promotion.
+- Other projects keep their existing preview-under-HD and mobile cover-fit behavior; no other project's original image delivery is changed.
+- Real Samsung and iPhone Safari checks after deploy are valuable. If a source file is itself differently cropped relative to saved polygons, a mapper calibration is separately required; a visual render fix cannot logically repair two distinct layouts.
