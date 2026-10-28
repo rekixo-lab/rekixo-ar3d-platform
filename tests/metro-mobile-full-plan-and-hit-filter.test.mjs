@@ -64,6 +64,16 @@ test("compact Metro HUD is strictly tenant/mobile scoped with all four rows", ()
   for (const key of ["available", "booked", "sold", "agreement"]) {
     assert.ok(viewer.includes('data-status-filter="' + key + '"'));
   }
+  // Late Metro-specific !important colors must not unhide filtered-out plots.
+  for (const [filter, attribute] of [
+    ["available", "data-status=\"available\""],
+    ["booked", "data-status=\"booked\""],
+    ["sold", "data-status=\"sold\""],
+    ["agreement", "data-metro-visual=\"agreement\""],
+  ]) {
+    assert.ok(viewer.includes('body[data-metro-four-status="1"] .show-all.status-filter-' + filter +
+      ' .plot:not([' + attribute + '])'), "exclusive filter missing: " + filter);
+  }
   assert.match(viewer, /const released=document\.elementFromPoint\(e\.clientX,e\.clientY\)\?\.closest\?\.\('\.status-option'\)/);
   assert.match(viewer, /if\(released&&statusBody\.contains\(released\)\)glassOpt=released/);
   assert.match(viewer, /if\(statusFilter&&\(metroAgreementMode\|\|statusFilter==='agreement'\)\)clearMismatchedSelection/);
