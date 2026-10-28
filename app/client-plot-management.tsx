@@ -250,7 +250,7 @@ export default function ClientPlotManagement({
     <div className={`client-booking-list${agreementEnabled?" with-agreement":""}`} aria-busy={loading}>
       {agreementEnabled&&agreementError&&<div role="alert" className="client-booking-error" style={{padding:"10px 14px"}}>{agreementError}</div>}
       {editorOffPage && <div className="client-booking-pinned"><p>{displayPlotId(editor.plotId)} ka open form — search ya page badalne par bhi aapki changes yahin hain.</p>{renderEditor()}</div>}
-      <div className="client-booking-column-head" aria-hidden="true"><span>Plot</span><span>Area</span><span>Plot owner</span><span>Booking amount</span><span>Broker</span><span>Status</span>{agreementEnabled&&<span>Agreement</span>}<span /></div>
+      <div className="client-booking-column-head" aria-hidden="true"><span>Plot</span><span>Area</span><span>Plot owner</span><span>Booking amount</span><span>Broker</span><span>Status</span>{agreementEnabled&&<span>Agreement Done</span>}<span /></div>
       {!plots.length ? <div className="empty">{loading ? "Plots load ho rahe hain…" : "No matching plots found."}</div> : plots.map((plot) => {
         const details = canonicalPlotAdminDetails(plot.adminDetails);
         const hasDetails = Boolean(details.ownerName || details.brokerName || details.bookingAmountPaise !== null);
@@ -263,7 +263,7 @@ export default function ClientPlotManagement({
               <dl className="client-booking-value client-booking-owner"><dt>Plot owner</dt><dd>{details.ownerName || "—"}</dd></dl>
               <dl className="client-booking-value client-booking-amount"><dt>Booking amount</dt><dd>{money(details.bookingAmountPaise)}</dd></dl>
               <dl className="client-booking-value client-booking-broker"><dt>Broker</dt><dd>{details.brokerName || "—"}</dd></dl>
-              <select className={`status-select client-booking-status ${plot.status}`} aria-label={`${plot.id} status`} value={plot.status} disabled={statusBusy === plot.id} onChange={(event) => onStatusChange(plot, event.target.value)}><option value="available">Available</option><option value="booked">Booked</option><option value="sold">Sold</option></select>
+              <select className={`status-select client-booking-status ${plot.status}`} aria-label={`${plot.id} status`} value={plot.status} disabled={statusBusy === plot.id} onChange={(event) => onStatusChange(plot, event.target.value)}><option value="available">Available</option><option value="booked">Booked</option><option value="sold">{agreementEnabled?"Registered":"Sold"}</option></select>
               {agreementEnabled&&<label className="client-booking-agreement" aria-label={"Plot "+displayPlotId(plot.id)+" Agreement Done"}>
                 <input type="checkbox" checked={plot.agreementDone===true}
                   disabled={agreementBusy===plot.id||loading}

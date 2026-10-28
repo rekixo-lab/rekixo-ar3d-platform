@@ -306,3 +306,8 @@
   grid-area:3 / 3 / 4 / 4;justify-self:stretch;
  }
 }
+
+/* Metro-only independent Agreement Done action, alongside canonical inventory select. */
+.client-booking-list.with-agreement .client-booking-status.sold{color:#1ed46b;border-color:#248f56}
+.client-booking-list.with-agreement .client-booking-agreement:has(input:checked) span{color:#ff5353;font-weight:800}
+.client-booking-list.with-agreement .client-booking-agreement input{accent-color:#ff3030}

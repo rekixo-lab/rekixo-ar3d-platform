@@ -988,7 +988,33 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
 </style>
 
 <style id="metro-agreement-public-style">
-  #metroAgreementRow .agreement-done{color:#24cf88;font-weight:900}
+  #metroAgreementRow .agreement-done{color:#ff3030;font-weight:900}
+</style>
+<style id="rekixo-metro-four-status-v1">
+/* METRO_FOUR_STATUS_V1: strictly visual; inventory and polygons unchanged. */
+[data-status-filter="agreement"][hidden]{display:none!important}
+body[data-metro-four-status="1"] .status-option.available,body[data-metro-four-status="1"] .status-option.available b{color:#fff!important}
+body[data-metro-four-status="1"] .show-all .plot[data-metro-visual="available"]{fill:rgba(255,255,255,.33)!important;stroke:#fff!important}
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="available"]{fill:rgba(255,255,255,.61)!important;stroke:#fff!important;filter:drop-shadow(0 0 4px rgba(255,255,255,.7))!important}
+body[data-metro-four-status="1"] .three-plot-label.available{color:#fff}
+body[data-metro-four-status="1"] .status-option.booked,body[data-metro-four-status="1"] .status-option.booked b{color:#ffd21a!important}
+body[data-metro-four-status="1"] .show-all .plot[data-metro-visual="booked"]{fill:rgba(255,210,26,.33)!important;stroke:#ffd21a!important}
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="booked"]{fill:rgba(255,210,26,.61)!important;stroke:#ffd21a!important;filter:drop-shadow(0 0 4px #ffd21aa0)!important}
+body[data-metro-four-status="1"] .three-plot-label.booked{color:#ffd21a}
+body[data-metro-four-status="1"] .status-option.sold,body[data-metro-four-status="1"] .status-option.sold b{color:#1ed46b!important}
+body[data-metro-four-status="1"] .show-all .plot[data-metro-visual="registered"]{fill:rgba(30,212,107,.33)!important;stroke:#1ed46b!important}
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="registered"]{fill:rgba(30,212,107,.61)!important;stroke:#1ed46b!important;filter:drop-shadow(0 0 4px #1ed46ba0)!important}
+body[data-metro-four-status="1"] .three-plot-label.registered{color:#1ed46b}
+body[data-metro-four-status="1"] .status-option.agreement,body[data-metro-four-status="1"] .status-option.agreement b{color:#ff3030!important}
+body[data-metro-four-status="1"] .show-all .plot[data-metro-visual="agreement"]{fill:rgba(255,48,48,.33)!important;stroke:#ff3030!important}
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="agreement"]{fill:rgba(255,48,48,.61)!important;stroke:#ff3030!important;filter:drop-shadow(0 0 4px #ff3030a0)!important}
+body[data-metro-four-status="1"] .three-plot-label.agreement{color:#ff3030}
+body[data-metro-four-status="1"] .status-option.agreement{display:flex}
+body[data-metro-four-status="1"] #metroAgreementRow .agreement-done{color:#ff3030!important}
+body[data-metro-four-status="1"] .show-all.status-filter-agreement .plot:not([data-metro-visual="agreement"]){fill:transparent!important;stroke:transparent!important;filter:none!important}
+body[data-metro-four-status="1"] .show-all.status-filter-agreement .plot.selected:not([data-metro-visual="agreement"]){fill:transparent!important;stroke:transparent!important;filter:none!important}
+body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot-peek__badge{color:#ff3030}
+@media(max-width:700px){body[data-metro-four-status="1"] .status{width:168px;max-width:calc(100vw - 158px)}body[data-metro-four-status="1"] .status.expanded .status-body{max-height:234px;overflow-y:auto}body[data-metro-four-status="1"] .status-line>span{white-space:normal;line-height:1.2;overflow:visible}body[data-metro-four-status="1"] .status-option{min-height:33px}}
 </style>
 <style id="rekixo-plot-news-styles">
 /* REKIXO_PROJECT_PLOT_NEWS_V2 — gold/red compact ticker; original masterplan untouched. */
@@ -1102,7 +1128,8 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
       <button type="button" class="status-line status-option available" data-status-filter="available" aria-pressed="false"><span><i class="sdot"></i>Available</span><b id="countAvailable">0</b></button>
       <button type="button" class="status-line status-option booked" data-status-filter="booked" aria-pressed="false"><span><i class="sdot"></i>Booked</span><b id="countBooked">0</b></button>
       <button type="button" class="status-line status-option sold" data-status-filter="sold" aria-pressed="false"><span><i class="sdot"></i>Sold</span><b id="countSold">0</b></button>
-      <div class="status-line total"><span>Total</span><b id="countTotal">0</b></div>
+      <button type="button" class="status-line status-option agreement" data-status-filter="agreement" aria-pressed="false" hidden><span><i class="sdot"></i>Agreement Done</span><b id="countAgreement">0</b></button>
+       <div class="status-line total"><span>Total</span><b id="countTotal">0</b></div>
     </div>
   </div>
 
@@ -2073,7 +2100,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   let metroAgreementMode=false;
   function statusDisplayLabel(status){
     const label=String(status||'available').toLowerCase();
-    return metroAgreementMode&&label==='sold'?'Registered':label.charAt(0).toUpperCase()+label.slice(1);
+    return metroAgreementMode&&label==='sold'?'Registered':metroAgreementMode&&label==='agreement'?'Agreement Done':label.charAt(0).toUpperCase()+label.slice(1);
   }
   function updateMetroAgreementFact(plot){
     const row=q('#metroAgreementRow'),value=q('#metroAgreementValue');
@@ -2104,6 +2131,9 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     document.documentElement.style.setProperty('--plot-sold-rgb',statusThemeRgb(sold));
   }
   function plotStatus(p){const s=String(p?.status||'available').trim().toLowerCase();return s==='enquire'?'available':(s==='booked'?'booked':(s==='sold'?'sold':'available'))}
+  function metroVisualStatus(p){const base=plotStatus(p);return !metroAgreementMode?base:p?.agreementDone===true?'agreement':base==='sold'?'registered':base}
+  function syncMetroPlotVisual(p,el){if(!el)return;if(metroAgreementMode)el.dataset.metroVisual=metroVisualStatus(p);else delete el.dataset.metroVisual}
+  function matchesStatusFilter(p,filter){return filter==='agreement'?metroAgreementMode&&p?.agreementDone===true:plotStatus(p)===filter}
   const PLOT_PEEK_LONG_PRESS_MS=460,PLOT_PEEK_MOVE_CANCEL_PX=12;
   let plotPeek=null,plotPeekRefs=null,plotPeekSignature='',plotPeekPlotId=null,plotPeekPoint=null;
   let plotPeekPressTimer=0,plotPeekPressPointerId=null,plotPeekPressShown=false;
@@ -2131,9 +2161,9 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   function showPlotPeek(p,clientX,clientY){
     if(!p||drawer.classList.contains('open'))return;
     const card=ensurePlotPeek(),st=plotStatus(p),dimensions=String(p.dimensions||'').trim(),facing=String(p.facing||p.road||'').trim(),area=plotPeekArea(p),detail=[dimensions,facing].filter(Boolean).join(' · ')||'Plot details';
-    const signature=[p.id,st,metroAgreementMode,area,detail].join('|');
-    if(signature!==plotPeekSignature){plotPeekRefs.badge.textContent=statusDisplayLabel(st).toUpperCase();plotPeekRefs.title.textContent='Plot #'+p.id;plotPeekRefs.area.textContent=area;plotPeekRefs.meta.textContent=detail;plotPeekSignature=signature}
-    plotPeekPlotId=String(p.id);plotPeekPoint={x:clientX,y:clientY};card.dataset.status=st;positionPlotPeek(clientX,clientY);card.classList.add('show');card.setAttribute('aria-hidden','false')
+    const signature=[p.id,st,metroAgreementMode,p.agreementDone===true,area,detail].join('|');
+    if(signature!==plotPeekSignature){plotPeekRefs.badge.textContent=metroAgreementMode&&p.agreementDone===true?'AGREEMENT DONE':statusDisplayLabel(st).toUpperCase();plotPeekRefs.title.textContent='Plot #'+p.id;plotPeekRefs.area.textContent=area;plotPeekRefs.meta.textContent=detail;plotPeekSignature=signature}
+    plotPeekPlotId=String(p.id);plotPeekPoint={x:clientX,y:clientY};card.dataset.status=st;card.dataset.metroVisual=metroVisualStatus(p);positionPlotPeek(clientX,clientY);card.classList.add('show');card.setAttribute('aria-hidden','false')
   }
   function hidePlotPeek(){
     if(plotPeek){plotPeek.classList.remove('show');plotPeek.setAttribute('aria-hidden','true')}
@@ -2154,7 +2184,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       plotPeekPressShown=true;showPlotPeek(p,x,y)
     },PLOT_PEEK_LONG_PRESS_MS)
   }
-  function updateStatusCounts(){const c={available:0,booked:0,sold:0};plots.forEach(p=>c[plotStatus(p)]++);q('#countAvailable').textContent=c.available;q('#countBooked').textContent=c.booked;q('#countSold').textContent=c.sold;q('#countTotal').textContent=plots.length}
+  function updateStatusCounts(){const c={available:0,booked:0,sold:0};let agreement=0;plots.forEach(p=>{c[plotStatus(p)]++;if(metroAgreementMode&&p.agreementDone===true)agreement++});q('#countAvailable').textContent=c.available;q('#countBooked').textContent=c.booked;q('#countSold').textContent=c.sold;q('#countAgreement').textContent=agreement;q('#countTotal').textContent=plots.length}
   function applyLiveState(data){
     if(!data||typeof data!=='object')return;
     const statusById=new Map((Array.isArray(data.statuses)?data.statuses:[]).map(row=>[String(row.id),String(row.status||'available')]));
@@ -2171,9 +2201,10 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         delete p.pricing;
       }
       const el=svg.querySelector(`[data-plot-id="${p.id}"]`);
-      if(el)el.dataset.status=plotStatus(p);
+      if(el){el.dataset.status=plotStatus(p);syncMetroPlotVisual(p,el)}
     });
     updateStatusCounts();
+    if(statusFilter&&selected&&!matchesStatusFilter(selected,statusFilter)){selected=null;setSelected(null);engine3D?.clear?.()}
     if(plotPeekPlotId&&plotPeekPoint){const freshPeek=plots.find(p=>String(p.id)===plotPeekPlotId);if(freshPeek)showPlotPeek(freshPeek,plotPeekPoint.x,plotPeekPoint.y);else hidePlotPeek()}
     engine3D?.rebuildLabels?.();
     engine3D?.request?.();
@@ -2216,7 +2247,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     if(Array.isArray(p.points)&&p.points.length>=3)p.center=projectLabelPoint(p.points);
     const poly=document.createElementNS('http://www.w3.org/2000/svg',p.path?'path':'polygon');
     if(p.path) poly.setAttribute('d',p.path); else poly.setAttribute('points',polyPoints(p));
-    poly.setAttribute('class','plot'); poly.dataset.plotId=p.id; poly.dataset.status=plotStatus(p);
+    poly.setAttribute('class','plot'); poly.dataset.plotId=p.id; poly.dataset.status=plotStatus(p);syncMetroPlotVisual(p,poly);
     poly.setAttribute('tabindex','0'); poly.setAttribute('role','button'); poly.setAttribute('aria-label',` ${/^[BC][0-9]+$/i.test(String(p.id)) ? p.id : 'Plot '+p.id}`);
     poly.addEventListener('click',e=>{
       // Native mouse click fallback. Touch is handled once, centrally, on pointer-up.
@@ -2760,10 +2791,10 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   q('#resetBtn').onclick=()=>mode3D?engine3D?.reset():reset();
 
   // REKIXO_STATUS_FILTER_COMPACT_V2
-  function clearStatusFilter(silent=false){statusFilter=null;svg.classList.remove('status-filter-available','status-filter-booked','status-filter-sold');document.querySelectorAll('.status-option').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false')});engine3D?.setStatusFilter?.(null);if(!silent)toast('Status filter cleared')}
+  function clearStatusFilter(silent=false){statusFilter=null;svg.classList.remove('status-filter-available','status-filter-booked','status-filter-sold','status-filter-agreement');document.querySelectorAll('.status-option').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false')});engine3D?.setStatusFilter?.(null);if(!silent)toast('Status filter cleared')}
   function ensureStatusOverlayOn(){if(showAll)return;showAll=true;syncBoundaryToggle();svg.classList.add('show-all');engine3D?.setShowAll(true)}
-  function clearMismatchedSelection(st){if(!selected||plotStatus(selected)===st)return;selected=null;setSelected(null);engine3D?.clear?.()}
-  function setStatusFilter(st){st=st||null;if(!st){clearStatusFilter();return}ensureStatusOverlayOn();statusFilter=st;svg.classList.remove('status-filter-available','status-filter-booked','status-filter-sold');svg.classList.add('status-filter-'+st);document.querySelectorAll('.status-option').forEach(b=>{const active=b.dataset.statusFilter===st;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))});engine3D?.setStatusFilter?.(st);clearMismatchedSelection(st);toast('Showing '+statusDisplayLabel(st)+' plots')}
+  function clearMismatchedSelection(st){if(!selected||matchesStatusFilter(selected,st))return;selected=null;setSelected(null);engine3D?.clear?.()}
+  function setStatusFilter(st){st=st||null;if(st==='agreement'&&!metroAgreementMode)return;if(!st){clearStatusFilter();return}ensureStatusOverlayOn();statusFilter=st;svg.classList.remove('status-filter-available','status-filter-booked','status-filter-sold','status-filter-agreement');svg.classList.add('status-filter-'+st);document.querySelectorAll('.status-option').forEach(b=>{const active=b.dataset.statusFilter===st;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))});engine3D?.setStatusFilter?.(st);clearMismatchedSelection(st);toast('Showing '+statusDisplayLabel(st)+' plots')}
   function syncBoundaryToggle(){const toggle=q('#outlineToggle');toggle.classList.toggle('on',showAll);toggle.setAttribute('aria-pressed',String(showAll))}
   function toggleStatusPanel(){toggleBoundaries()}
   function toggleBoundaries(){showAll=!showAll;if(!showAll)clearStatusFilter(true);syncBoundaryToggle();svg.classList.toggle('show-all',showAll);engine3D?.setShowAll(showAll);toast(showAll?'Plot boundaries ON':'Plot boundaries OFF')}
@@ -2836,7 +2867,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
 
   function addPlotPolygon(p){
     const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
-    poly.setAttribute('points',polyPoints(p));poly.setAttribute('class','plot');poly.dataset.plotId=p.id;poly.dataset.status=plotStatus(p);
+    poly.setAttribute('points',polyPoints(p));poly.setAttribute('class','plot');poly.dataset.plotId=p.id;poly.dataset.status=plotStatus(p);syncMetroPlotVisual(p,poly);
     poly.setAttribute('tabindex','0');poly.setAttribute('role','button');poly.setAttribute('aria-label',` ${/^[BC][0-9]+$/i.test(String(p.id)) ? p.id : 'Plot '+p.id}`);
     poly.addEventListener('click',e=>{if(e.detail!==0&&coarseMQ.matches)return;e.stopPropagation();openPlot(p,false)});
     poly.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openPlot(p,false)}});
@@ -2874,10 +2905,19 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
 
     const s=data&&data.settings||{};
     metroAgreementMode=data.metroAgreementEnabled===true;
+    document.body.dataset.metroFourStatus=metroAgreementMode?'1':'0';
+    q('[data-status-filter="agreement"]').hidden=!metroAgreementMode;
     // Exact public project identity: targeted fix, other existing products unchanged.
     metroMobileTileSafety=data.projectId==='c024a562-634d-4e49-b647-43209f6e450b';
     renderMetroStatusLabels();
+    engine3D?.setMetroFourStatus?.(metroAgreementMode);
     applyPlotStatusTheme(s);
+    const metroColors=metroAgreementMode?{available:'#ffffff',booked:'#ffd21a',sold:'#1ed46b'}:null;
+    for(const key of ['available','booked','sold']){
+      const rgbKey='--plot-'+key+'-rgb',hexKey='--status-'+key;
+      if(metroColors){document.body.style.setProperty(rgbKey,statusThemeRgb(metroColors[key]));document.body.style.setProperty(hexKey,metroColors[key]);}
+      else{document.body.style.removeProperty(rgbKey);document.body.style.removeProperty(hexKey);}
+    }
     publicRotation=normalizeQuarterTurn(s.publicRotation);
     publicNorthSourceAngle=northBearingFromSettings(s);
     updateMapCompassOrientation();
@@ -2900,7 +2940,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         plots.push(p);addPlotPolygon(p);
       }catch(_){}
     });
-    plots.forEach(p=>{const row=live.get(p.id);if(row){const shape={points:p.points,center:p.center,path:p.path};Object.assign(p,row,shape)}const el=svg.querySelector(`[data-plot-id="${p.id}"]`);if(el)el.dataset.status=plotStatus(p)});
+    plots.forEach(p=>{const row=live.get(p.id);if(row){const shape={points:p.points,center:p.center,path:p.path};Object.assign(p,row,shape)}const el=svg.querySelector(`[data-plot-id="${p.id}"]`);if(el){el.dataset.status=plotStatus(p);syncMetroPlotVisual(p,el)}});
     applyContactChannels(s);
     MAP_URL=s.mapUrl||'';
     const resolvedName=String(s.projectName||data.projectName||'Project').trim()||'Project';
@@ -3083,7 +3123,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   }
   const qp=new URLSearchParams(location.search);
   if(qp.get('status')==='open'&&!statusExpanded)toggleStatusPanel();
-  if(qp.get('filter')&&['available','booked','sold'].includes(qp.get('filter'))){if(!statusExpanded)toggleStatusPanel();setStatusFilter(qp.get('filter'))}
+  if(qp.get('filter')&&['available','booked','sold',...(metroAgreementMode?['agreement']:[])].includes(qp.get('filter'))){if(!statusExpanded)toggleStatusPanel();setStatusFilter(qp.get('filter'))}
   if(qp.get('view')==='3d')setTimeout(()=>{set3D(true);const id=norm(qp.get('plot')||'');if(id&&plots.some(p=>p.id===id)){selected=plots.find(p=>p.id===id);setSelected(id);engine3D?.select(id,qp.get('focus')==='1',false)}},80);
 })();
 </script>

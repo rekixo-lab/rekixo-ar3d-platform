@@ -11,7 +11,7 @@ const card:React.CSSProperties={border:"1px solid #30435d",background:"#101d31",
 const label:React.CSSProperties={fontSize:12,color:"#bbcee4",display:"grid",gap:7};
 const input:React.CSSProperties={minWidth:0,width:"100%",minHeight:44,color:"#f2f7fc",fontSize:15,background:"#091527",border:"1px solid #38516f",borderRadius:8,padding:"9px 11px"};
 const action:React.CSSProperties={minHeight:44,borderRadius:8,border:"1px solid #388e6b",background:"#36d896",color:"#08251b",fontWeight:750,padding:"9px 16px",cursor:"pointer"};
-export default function ClientDealProgress({notify}:{notify:(message:string)=>void}){
+export default function ClientDealProgress({notify,metroAgreementEnabled=false}:{notify:(message:string)=>void;metroAgreementEnabled?:boolean}){
   const [data,setData]=useState<Data|null>(null),[detail,setDetail]=useState<Data|null>(null);
   const [query,setQuery]=useState(""),[submitted,setSubmitted]=useState(""),[offset,setOffset]=useState(0);
   const [selected,setSelected]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");
@@ -45,6 +45,7 @@ export default function ClientDealProgress({notify}:{notify:(message:string)=>vo
     }catch(e){setError(e instanceof Error?e.message:"Could not save");}
     finally{setBusy(false)}
   }
+  const inventoryLabel=(status:string)=>metroAgreementEnabled&&status==="sold"?"Registered":status;
   const stageLabel=(slug:string|null|undefined)=>data?.stages.find(x=>x.slug===slug)?.label||slug||"Not started";
   const current=detail?.state||{stageSlug:"",note:"",holdUntil:null,revision:0};
   const chosen=detail?.stages.find(x=>x.slug===stage);
@@ -65,7 +66,7 @@ export default function ClientDealProgress({notify}:{notify:(message:string)=>vo
           <h3 style={{fontSize:16,margin:"0 0 12px"}}>Plots</h3>
           <div style={{maxHeight:480,overflow:"auto",display:"grid",gap:7}}>
             {(data.plots||[]).map(plot=><button type="button" key={plot.id} onClick={()=>setSelected(plot.id)} aria-pressed={selected===plot.id} style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",background:selected===plot.id?"#164436":"#162840",color:"#f0f5ff",border:"1px solid "+(selected===plot.id?"#58dca5":"#304561"),padding:12,textAlign:"left",borderRadius:8,cursor:"pointer"}}>
-              <span><strong>{plot.id}</strong><small style={{display:"block",color:"#9eb1cb",marginTop:4}}>{plot.status} · {plot.sqft?.toLocaleString("en-IN")} sqft</small></span>
+              <span><strong>{plot.id}</strong><small style={{display:"block",color:"#9eb1cb",marginTop:4}}>{inventoryLabel(plot.status)} · {plot.sqft?.toLocaleString("en-IN")} sqft</small></span>
               <span style={{fontSize:12,textAlign:"right"}}>{stageLabel(plot.stageSlug)}{plot.holdUntil&&plot.holdUntil<today&&plot.stageSlug==="hold"?<small style={{display:"block",color:"#ffbc7b"}}>Hold overdue</small>:null}</span>
             </button>)}
             {!data.plots?.length&&<span style={{color:"#94a8c1"}}>No matching active plots</span>}
@@ -79,7 +80,7 @@ export default function ClientDealProgress({notify}:{notify:(message:string)=>vo
         <div style={card}>
           {!selected?<p style={{color:"#a7bdd5"}}>Select a plot to manage its private workflow and fields.</p>:!detail||detail.plot?.id!==selected?<p>Loading {selected}…</p>:<>
             <h3 style={{margin:"0 0 5px",fontSize:19}}>Plot {selected}</h3>
-            <p style={{color:"#a0b5cc",fontSize:13}}>Inventory: {detail.plot.status} (unchanged)</p>
+            <p style={{color:"#a0b5cc",fontSize:13}}>Inventory: {inventoryLabel(detail.plot.status)} (unchanged)</p>
             {detail.features.dealProgress&&<form onSubmit={e=>{e.preventDefault();void write({action:"stage",stageSlug:stage,holdUntil:stage==="hold"?holdUntil:null,note,expectedRevision:current.revision})}} style={{display:"grid",gap:13,marginTop:16}}>
               <label style={label}>Deal Progress stage<select style={input} value={stage} onChange={e=>{setStage(e.target.value);if(e.target.value!=="hold")setHoldUntil("")}}>
                 <option value="">Not started</option>
@@ -93,7 +94,7 @@ export default function ClientDealProgress({notify}:{notify:(message:string)=>vo
             </form>}
             {detail.features.customFields&&<div style={{marginTop:22}}>
               <h4 style={{fontSize:16}}>Project-specific fields</h4>
-              {detail.fields.filter(x=>x.enabled).map(field=>{
+              {detail.fields.filter(x=>x.enabled&&!(metroAgreementEnabled&&(/agreement[_\s-]*date/i.test(x.fieldKey)||/agreement\s*date/i.test(x.label)))).map(field=>{
                 const v=(detail.values||[]).find(x=>x.fieldKey===field.fieldKey);
                 const value=draftValues[field.fieldKey]??"";
                 const onChange=(s:string)=>setDraftValues(prev=>({...prev,[field.fieldKey]:s}));
