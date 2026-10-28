@@ -127,7 +127,7 @@ export default function ClientPlotNoticeDrafts({notify}:{notify:(message:string)
    <div>
     <h2 style={{margin:"0 0 5px",fontSize:19}}>Plot Updates</h2>
     <p style={{margin:0,color:"#a9bfd8",fontSize:13,lineHeight:1.55}}>
-     Status save hote hi date, plot number aur update label ka draft automatic banega. Review karke Publish karein.
+     Plot Status aur Deal Progress save hote hi aaj ki customer-safe update automatic LIVE hogi. Kal purani website notification band ho jayegi; special announcements manual draft rahenge.
     </p>
    </div>
    <span style={{fontSize:11,color:"#6ee2ac",padding:"5px 9px",border:"1px solid #286e54",borderRadius:30}}>Client Admin controls publishing</span>
@@ -163,7 +163,7 @@ export default function ClientPlotNoticeDrafts({notify}:{notify:(message:string)
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
        <strong style={{fontSize:14}}>{group.label}</strong>
        <span style={{fontSize:11,color:"#a8c0d7"}}>{localDate(group.eventDate)}</span>
-       {group.automatic&&<span style={{fontSize:10,color:"#66e6b3"}}>AUTO-FILLED</span>}
+       {group.automatic&&<span style={{fontSize:10,color:"#66e6b3"}}>AUTO-PUBLISHED</span>}
        {group.state==="published"&&<span style={{fontSize:10,color:"#75e5ac"}}>LIVE</span>}
       </div>
       <div style={{color:"#c5d8eb",fontSize:12,marginTop:5,overflowWrap:"anywhere"}}>
@@ -189,13 +189,13 @@ export default function ClientPlotNoticeDrafts({notify}:{notify:(message:string)
     </div>
    </article>)}
    {!visible.length&&<p style={{...card,fontSize:13,color:"#aec6dc"}}>
-    {view==="draft"?"No new drafts yet. Save a plot's inventory or deal status to prepare one automatically.":"No "+view+" updates yet."}
+    {view==="draft"?"No manual drafts yet. Today's plot status updates publish automatically.":"No "+view+" updates yet."}
    </p>}
   </div>
   <details open={manualOpen} onToggle={e=>setManualOpen(e.currentTarget.open)}
    style={{marginTop:17,borderTop:"1px solid #304963",paddingTop:14}}>
    <summary style={{cursor:"pointer",fontWeight:700,fontSize:13,color:"#b9dbf3"}}>+ Custom Announcement (only when needed)</summary>
-   <p style={{fontSize:12,color:"#9fb9d0",margin:"10px 0"}}>For historical or special announcements only. Normal status changes are automatically prepared.</p>
+   <p style={{fontSize:12,color:"#9fb9d0",margin:"10px 0"}}>For historical or special announcements only. Normal plot status changes are automatically published for the same India date.</p>
    <form onSubmit={saveCustom} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:11,alignItems:"end"}}>
     <label style={{fontSize:12,display:"grid",gap:6}}>Date (India)<input required type="date" value={eventDate} onChange={e=>setEventDate(e.target.value)} style={uiInput}/></label>
     <label style={{fontSize:12,display:"grid",gap:6}}>Category

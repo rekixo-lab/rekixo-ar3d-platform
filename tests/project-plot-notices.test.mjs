@@ -41,12 +41,15 @@ test("client admin can publish without Super Admin; public map unchanged",()=>{
  assert.match(page,/plotNewsHistory/);
  assert.doesNotMatch(api,/UPDATE plots SET|UPDATE property_sales SET/);
 });
-test("plot mutations create private draft candidates only",()=>{
+test("plot mutations publish current-day customer-safe status notices",()=>{
  const service=read("app/project-plot-notices.ts");
  assert.match(service,/INSERT OR IGNORE INTO project_plot_notices/);
- assert.match(service,/'draft','automatic'/);
- assert.match(read("app/api/data/route.ts"),/recordPrivatePlotNotice/);
- assert.match(read("app/api/client/deal-progress/route.ts"),/recordPrivatePlotNotice/);
+ assert.match(service,/recordAutomaticPlotNotice/);
+ assert.match(service,/indiaDate\(isoTime\)/);
+ assert.match(service,/state='published'/);
+ assert.match(service,/'published','automatic'/);
+ assert.match(read("app/api/data/route.ts"),/recordAutomaticPlotNotice/);
+ assert.match(read("app/api/client/deal-progress/route.ts"),/recordAutomaticPlotNotice/);
  const ui=read("app/client-plot-notice-drafts.tsx");
  assert.match(ui,/applyGroupState/);
  assert.match(ui,/Publish/);

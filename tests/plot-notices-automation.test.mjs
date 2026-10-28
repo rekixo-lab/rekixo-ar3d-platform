@@ -3,15 +3,18 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const read=p=>readFileSync(p,"utf8");
 
-test("automatic notice source pre-fills date, status label and single plot and prevents repeat draft spam",()=>{
+test("automatic notice publishes a single safe status per plot per IST day without repeat spam",()=>{
  const source=read("app/project-plot-notices.ts");
  assert.match(source,/indiaDate\(isoTime\)/);
  assert.match(source,/330\*60\*1000/);
- assert.match(source,/publicNoticeLabel\(label\)/);
+ assert.match(source,/dealLabels\[key\]\|\|"Plot Updated"/);
  assert.match(source,/On Hold/);
- assert.match(source,/AND NOT EXISTS \(SELECT 1 FROM project_plot_notices/);
+ assert.match(source,/WHERE NOT EXISTS \(SELECT 1 FROM project_plot_notices/);
+ assert.match(source,/state='published'/);
+ assert.match(source,/eventDate\+":"\+category\+":"\+plotId/);
+ assert.match(source,/SELECT 1 AS enabled FROM project_plot_notice_settings/);
  assert.match(source,/source='automatic' AND state IN \('draft','published'\)/);
- assert.match(source,/'draft','automatic'/);
+ assert.match(source,/'published','automatic'/);
 });
 test("approved changes are tenant scoped and batch uses per-record optimistic statuses",()=>{
  const api=read("app/api/client/plot-notices/route.ts");
@@ -25,12 +28,12 @@ test("approved changes are tenant scoped and batch uses per-record optimistic st
  assert.match(api,/A draft contains inactive or missing plot numbers/);
  assert.doesNotMatch(api,/UPDATE plots SET|INSERT INTO sales_payments/);
 });
-test("client admin shows grouped auto drafts, publish selection, and optional manual form",()=>{
+test("client admin shows grouped auto-published notices, manual approval and optional custom form",()=>{
  const ui=read("app/client-plot-notice-drafts.tsx");
  assert.match(ui,/groupedUpdates/);
  assert.match(ui,/new Set\(g\.plotIds\)/);
  assert.match(ui,/Publish Selected/);
- assert.match(ui,/AUTO-FILLED/);
+ assert.match(ui,/AUTO-PUBLISHED/);
  assert.match(ui,/Custom Announcement \(only when needed\)/);
  assert.match(ui,/istToday/);
  assert.match(ui,/groups\.filter\(g=>g\.state==="draft"\)/);
