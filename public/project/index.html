@@ -1009,6 +1009,9 @@ body[data-metro-four-status="1"] .status-option.agreement,body[data-metro-four-s
 body[data-metro-four-status="1"] .show-all .plot[data-metro-visual="agreement"]{fill:rgba(255,48,48,.33)!important;stroke:#ff3030!important}
 body[data-metro-four-status="1"] .plot.selected[data-metro-visual="agreement"]{fill:rgba(255,48,48,.61)!important;stroke:#ff3030!important;filter:drop-shadow(0 0 4px #ff3030a0)!important}
 body[data-metro-four-status="1"] .three-plot-label.agreement{color:#ff3030}
+/* Never interpolate between old status color and new Agreement red.
+   Only the color transition is removed; geometry/pointer handling are unchanged. */
+body[data-metro-four-status="1"] .plot[data-metro-visual]{transition-property:stroke,filter!important}
 body[data-metro-four-status="1"] .status-option.agreement{display:flex}
 body[data-metro-four-status="1"] .status.expanded .status-body{max-height:248px;overflow-y:auto}
 body[data-metro-four-status="1"] .status-option.agreement.active{background:rgba(255,48,48,.14)}
