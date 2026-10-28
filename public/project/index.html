@@ -27,7 +27,20 @@
 @supports(height:100dvh){html,body{height:100dvh}}
 button,input{font:inherit}
 html.rekixo-project-loading .app,html.rekixo-project-error .app{visibility:hidden}
-html.rekixo-project-loading body::after{content:attr(data-masterplan-loading);position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:28px;background:#050914;color:#aab7d2;font-size:15px;font-weight:800;text-align:center}
+/* AR3D unified customer loader: presentation only, no masterplan replacement. */
+.rekixo-loading-screen{position:fixed;inset:0;z-index:9999;display:none;place-items:center;padding:32px 24px;background:radial-gradient(ellipse 75% 45% at 50% 30%,#142c4b 0%,#080f20 60%,#050914 100%);color:#f7f9ff}
+html.rekixo-project-loading .rekixo-loading-screen{display:grid}
+.rekixo-loading-content{width:min(410px,100%);display:grid;gap:21px;justify-items:center;text-align:center}
+.rekixo-loading-brand{display:flex;align-items:center;gap:11px;color:#f3f8ff;letter-spacing:.16em;font-size:20px;font-weight:900}
+.rekixo-loading-brand svg{width:29px;height:29px;fill:none;stroke:#76ccff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 12px #349fe677)}
+.rekixo-loading-label{margin:0;color:#b3c6e4;font-size:14px;line-height:1.5;font-weight:650}
+.rekixo-loading-track{width:100%;height:10px;position:relative;overflow:hidden;background:#26334c;border-radius:999px;box-shadow:inset 0 1px 4px #0005}
+.rekixo-loading-bar{height:100%;width:12%;border-radius:inherit;background:linear-gradient(90deg,#28c4e8,#4787ff,#a36cff);box-shadow:0 0 18px #4787ff7d;transition:width .75s cubic-bezier(.2,.65,.2,1);position:relative;overflow:hidden}
+.rekixo-loading-bar::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent 20%,#ffffff57 48%,transparent 75%);animation:rekixo-loading-snake 1.9s linear infinite;transform:translateX(-100%)}
+.rekixo-loading-quality{display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:650;color:#c3d2e4}
+.rekixo-loading-quality svg{width:16px;height:16px;stroke:#67dfb6;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+@keyframes rekixo-loading-snake{to{transform:translateX(100%)}}
+@media(prefers-reduced-motion:reduce){.rekixo-loading-bar{transition:none}.rekixo-loading-bar::after{animation:none}}
 .rekixo-boot-error{position:fixed;inset:0;z-index:10000;display:none;place-items:center;padding:28px;background:#050914;text-align:center}
 html.rekixo-project-error .rekixo-boot-error{display:grid}
 .rekixo-boot-error-card{width:min(420px,100%);display:grid;justify-items:center;gap:14px}
@@ -52,7 +65,7 @@ html.rekixo-project-error .rekixo-boot-error{display:grid}
 .search svg{width:21px;height:21px;stroke:#7687ae;fill:none;stroke-width:2}.search input{flex:1;min-width:0;height:100%;border:0;outline:0;background:transparent;color:white;font-size:17px;font-weight:600}
 .search input::placeholder{color:#667698}.go{height:46px;border:0;background:transparent;color:#89b7ff;font-weight:950;padding:0 10px}
 .map{position:relative;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#040812;cursor:grab;contain:layout paint}.map.dragging{cursor:grabbing}
-.map.master-loading::after{content:"Loading masterplan…";position:absolute;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);padding:10px 14px;border:1px solid #23304a;border-radius:999px;background:#07101fdd;color:#9db0d4;font-size:12px;font-weight:800;box-shadow:0 8px 28px #0008;pointer-events:none}
+/* Map-level loading badge removed: one continuous AR 3D loading screen. */
 .world{z-index:1;position:absolute;left:50%;top:50%;width:var(--map-w,1200px);height:var(--map-h,2133px);transform-origin:center center;will-change:transform;user-select:none;backface-visibility:hidden;contain:layout paint style;transform:translateZ(0)}
 .master,.hotspots{position:absolute;inset:0;width:var(--map-w,1200px);height:var(--map-h,2133px);display:block}.master{pointer-events:none;-webkit-user-drag:none;image-rendering:auto}
 /* One viewport-sized canvas renders directly from the published ORIGINAL.
@@ -1086,7 +1099,23 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
 @media(prefers-reduced-motion:reduce){.plot-news-banner{transition:none!important}}
 </style>
 </head>
-<body data-masterplan-loading="Loading project…">
+<body>
+<section class="rekixo-loading-screen" id="rekixoLoadingScreen" role="status" aria-live="polite" aria-label="Preparing your experience">
+  <div class="rekixo-loading-content">
+    <div class="rekixo-loading-brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9.5 12 3l9 6.5V20H3V9.5Z"/><path d="m3 9.5 9 6.5 9-6.5M12 16v4"/></svg>
+      <strong>AR 3D</strong>
+    </div>
+    <p class="rekixo-loading-label" id="rekixoLoadingMessage">Preparing your experience</p>
+    <div class="rekixo-loading-track" role="progressbar" aria-label="Project readiness" aria-valuemin="0" aria-valuemax="100" aria-valuenow="12" id="rekixoLoadingTrack">
+      <div class="rekixo-loading-bar" id="rekixoLoadingBar"></div>
+    </div>
+    <div class="rekixo-loading-quality">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m8 12 2.5 2.5 5-5"/></svg>
+      <span>Original quality preserved</span>
+    </div>
+  </div>
+</section>
 <section class="rekixo-boot-error" id="rekixoBootError" role="alert" aria-live="assertive" aria-atomic="true">
   <div class="rekixo-boot-error-card">
     <h1 class="rekixo-boot-error-title" id="rekixoBootErrorTitle">Project load nahi hua</h1>
@@ -1418,11 +1447,68 @@ const rekixoBootSleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const rekixoBootRetryableStatus=status=>
   status===0||status===408||status===425||status===429||status>=500;
 
+// One monotonic progress track for structural data, original verification and first paint.
+// Values are readiness milestones, NOT network byte percentages.
+let REKIXO_LOADING_LEVEL=0;
+function rekixoLoadingProgress(value,message='',reset=false){
+  if(reset)REKIXO_LOADING_LEVEL=0;
+  REKIXO_LOADING_LEVEL=Math.max(REKIXO_LOADING_LEVEL,Math.min(100,Math.max(0,Number(value)||0)));
+  const bar=document.getElementById('rekixoLoadingBar');
+  const track=document.getElementById('rekixoLoadingTrack');
+  const label=document.getElementById('rekixoLoadingMessage');
+  if(bar)bar.style.width=REKIXO_LOADING_LEVEL+'%';
+  if(track)track.setAttribute('aria-valuenow',String(REKIXO_LOADING_LEVEL));
+  if(label&&message)label.textContent=message;
+}
+
+// Start the original download while the live status request is finishing.
+// The published, version-bound byte source and existing fidelity check are unchanged.
+let REKIXO_ORIGINAL_WARMUP=null;
+function rekixoWarmPublishedOriginal(data,run){
+  const s=data&&data.settings||{};
+  if(REKIXO_PARAMS.get('preview')==='1'||!data?.projectId||!s.masterplanName)return;
+  const version=String(data.publishVersion??s.masterplanName??'1');
+  const params=new URLSearchParams();
+  params.set('projectId',String(data.projectId));
+  params.set('variant','original');
+  params.set('v',version);
+  params.set('fidelity','original-v2');
+  const src='/api/project-asset/masterplan?'+params.toString();
+  const warm={src,run,preload:null,probePromise:null};
+  REKIXO_ORIGINAL_WARMUP=warm;
+  window.REKIXO_ORIGINAL_WARMUP=warm;
+  const probe=new URL(src,location.href);
+  probe.searchParams.set('inspect','1');
+  warm.probePromise=(async()=>{
+    const response=await fetch(probe.pathname+probe.search,{
+      cache:'no-store',signal:REKIXO_BOOT_CONTROLLER?.signal,
+      headers:{accept:'application/json'}
+    });
+    if(!response.ok)throw Error('Published original metadata unavailable');
+    const metadata=await response.json();
+    if(metadata?.original===true&&run===REKIXO_BOOT_RUN&&REKIXO_ORIGINAL_WARMUP===warm){
+      const link=document.createElement('link');
+      link.rel='preload';
+      link.as='image';
+      link.href=src;
+      link.setAttribute('fetchpriority','high');
+      document.head.appendChild(link);
+      warm.preload=link;
+      rekixoLoadingProgress(58,'Preparing your experience');
+    }
+    return metadata;
+  })();
+  // When boot fails before reaching the renderer there must be no unhandled rejection.
+  warm.probePromise.catch(()=>{});
+}
+
 function rekixoBootState(state,message='',title=''){
   const root=document.documentElement;
   root.classList.remove('rekixo-project-loading','rekixo-project-error');
-  if(state==='loading')root.classList.add('rekixo-project-loading');
-  if(state==='loading')document.body?.setAttribute('data-masterplan-loading',message||'Loading project…');
+  if(state==='loading'){
+    root.classList.add('rekixo-project-loading');
+    rekixoLoadingProgress(message?46:12,message?'Restoring your view':'Preparing your experience',!message);
+  }
   if(state==='error'){
     root.classList.add('rekixo-project-error');
     const heading=document.getElementById('rekixoBootErrorTitle');
@@ -1468,6 +1554,8 @@ async function rekixoFetchPublicData(){
       error.status=0;
       throw error;
     }
+    rekixoLoadingProgress(36,'Preparing your experience');
+    rekixoWarmPublishedOriginal(data,REKIXO_BOOT_RUN);
     const liveResponse=await livePromise;
     if(liveResponse&&liveResponse.ok){
       try{
@@ -1487,6 +1575,7 @@ async function rekixoFetchPublicData(){
         });
       }catch(_){}
     }
+    rekixoLoadingProgress(44,'Preparing your experience');
     return data;
   }finally{
     clearTimeout(timeout);
@@ -1505,6 +1594,9 @@ function rekixoApplyPublicData(data){
 async function rekixoStartPublicBoot(){
   const run=++REKIXO_BOOT_RUN;
   if(REKIXO_BOOT_CONTROLLER)REKIXO_BOOT_CONTROLLER.abort();
+  if(REKIXO_ORIGINAL_WARMUP?.preload)REKIXO_ORIGINAL_WARMUP.preload.remove();
+  REKIXO_ORIGINAL_WARMUP=null;
+  window.REKIXO_ORIGINAL_WARMUP=null;
   rekixoBootState('loading');
 
   let lastError=null;
@@ -1912,16 +2004,24 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       try{
         const probe=new URL(src,location.href);
         probe.searchParams.set('inspect','1');
-        const response=await fetch(probe.pathname+probe.search,{
-          cache:'no-store',signal:controller.signal,headers:{accept:'application/json'}});
-        if(!current())return;
-        if(!response.ok)throw Error('Original source probe failed');
-        const metadata=await response.json();
+        const warm=window.REKIXO_ORIGINAL_WARMUP;
+        let metadata=null;
+        if(warm?.src===src){
+          try{metadata=await warm.probePromise}catch(_){}
+        }
+        if(!metadata){
+          const response=await fetch(probe.pathname+probe.search,{
+            cache:'no-store',signal:controller.signal,headers:{accept:'application/json'}});
+          if(!current())return;
+          if(!response.ok)throw Error('Original source probe failed');
+          metadata=await response.json();
+        }
         if(!current())return;
         if(metadata.original!==true){unavailable();return;}
         master.onerror=originalError;
         master.onload=async()=>{
           if(!current())return;
+          rekixoLoadingProgress(85,'Preparing your experience');
           const aspect=master.naturalWidth/Math.max(1,master.naturalHeight);
           const sizeMismatch=(expectedWidth>0&&expectedHeight>0)&&
             (Math.abs(master.naturalWidth/expectedWidth-1)>.015||
@@ -1931,6 +2031,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
           }
           try{if(typeof master.decode==='function')await master.decode()}catch(_){}
           if(!current())return;
+          rekixoLoadingProgress(92,'Preparing your experience');
           canvas=document.createElement('canvas');
           canvas.className='master-original-canvas';
           canvas.setAttribute('aria-hidden','true');
@@ -1954,10 +2055,13 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
           master.style.visibility='hidden';
           master.dataset.originalSrc=src;
           master.dataset.previewSrc='';
+          rekixoLoadingProgress(96,'Preparing your experience');
           onReady();
         };
         master.decoding='async';
+        master.fetchPriority='high';
         master.style.visibility='hidden';
+        rekixoLoadingProgress(66,'Preparing your experience');
         master.src=src;
       }catch(error){
         if(current()&&error?.name!=='AbortError')originalError();
@@ -3112,7 +3216,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       if(shellRevealed)return;
       shellRevealed=true;
       // Do not expose a preview/half-loaded map. Load the ORIGINAL during boot.
-      document.body.setAttribute('data-masterplan-loading','Loading original masterplan…');
+      rekixoLoadingProgress(55,'Preparing your experience');
       reset();
     };
     const revealProject=()=>{
@@ -3121,6 +3225,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       reset();
       if(document.documentElement.classList.contains('rekixo-project-error'))return;
       revealed=true;PUBLIC_READY=true;
+      rekixoLoadingProgress(100,'Ready');
       viewport.classList.remove('master-loading');
       document.documentElement.classList.remove('rekixo-project-loading','rekixo-project-error');
       world.style.visibility='visible';
@@ -3140,6 +3245,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     };
     const alignMasterAndReveal=()=>{
       if(revealed||!master)return;
+      rekixoLoadingProgress(90,'Preparing your experience');
       if(master.naturalWidth>0&&master.naturalHeight>0){
         const storedW=Number(s.mapWidth)||W,storedH=Number(s.mapHeight)||H;
         const expectedAspect=storedW/Math.max(1,storedH);
