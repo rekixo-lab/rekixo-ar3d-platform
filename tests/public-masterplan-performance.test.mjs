@@ -52,7 +52,8 @@ test("performance changes never rewrite polygon storage", () => {
 });
 
 test("one AR 3D progress screen replaces both sequential loader badges", () => {
-  assert.match(page, /<strong>AR 3D<\/strong>/);
+  assert.match(page, /<strong>AR3D Vision<\/strong>/);
+  assert.match(page, /<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5\.3-8 12-8 12S4 15\.3 4 10a8 8 0 1 1 16 0Z"\/><circle cx="12" cy="10" r="2\.8"\/><\/svg>/);
   assert.match(page, /id="rekixoLoadingTrack"/);
   assert.match(page, /rekixo-loading-snake/);
   assert.match(page, /Original quality preserved/);
