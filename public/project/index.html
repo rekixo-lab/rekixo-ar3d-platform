@@ -2903,8 +2903,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     metroAgreementMode=data.metroAgreementEnabled===true;
     document.body.dataset.metroFourStatus=metroAgreementMode?'1':'0';
     q('[data-status-filter="agreement"]').hidden=!metroAgreementMode;
-    // Exact public project identity: targeted fix, other existing products unchanged.
-    metroMobileTileSafety=data.projectId==='c024a562-634d-4e49-b647-43209f6e450b';
+    // One original-only 2D renderer serves every published client project.
     renderMetroStatusLabels();
     engine3D?.setMetroFourStatus?.(metroAgreementMode);
     applyPlotStatusTheme(s);
