@@ -8,7 +8,6 @@
 <script>
 (() => {
   document.documentElement.classList.add('rekixo-project-loading');
-  document.body?.setAttribute('data-masterplan-loading','Loading project…');
   document.title = 'Project';
 })();
 </script>
@@ -1083,7 +1082,7 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
 @media(prefers-reduced-motion:reduce){.plot-news-banner{transition:none!important}}
 </style>
 </head>
-<body>
+<body data-masterplan-loading="Loading project…">
 <section class="rekixo-boot-error" id="rekixoBootError" role="alert" aria-live="assertive" aria-atomic="true">
   <div class="rekixo-boot-error-card">
     <h1 class="rekixo-boot-error-title" id="rekixoBootErrorTitle">Project load nahi hua</h1>
@@ -1826,6 +1825,10 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       if(!current())return;
       onUnavailable();
     };
+    const originalError=()=>{
+      if(current())rekixoBootState('error',
+        'Original masterplan load nahi hua. Internet check karke Try Again karein.');
+    };
     (async()=>{
       try{
         const probe=new URL(src,location.href);
@@ -1837,7 +1840,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         const metadata=await response.json();
         if(!current())return;
         if(metadata.original!==true){unavailable();return;}
-        master.onerror=unavailable;
+        master.onerror=originalError;
         master.onload=async()=>{
           if(!current())return;
           const aspect=master.naturalWidth/Math.max(1,master.naturalHeight);
@@ -1862,7 +1865,10 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
             if(current())rekixoBootState('loading','Restoring original masterplan…');
           });
           canvas.addEventListener('contextrestored',()=>{
-            if(current()&&draw())rekixoBootState('ready');
+            if(current()&&draw()){
+              if(!PUBLIC_READY)onReady();
+              else rekixoBootState('ready');
+            }
           });
           viewport.insertBefore(canvas,world);
           refreshNativeMasterplan=draw;
@@ -1875,7 +1881,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         master.style.visibility='hidden';
         master.src=src;
       }catch(error){
-        if(current()&&error?.name!=='AbortError')unavailable();
+        if(current()&&error?.name!=='AbortError')originalError();
       }
     })();
     return()=>{
@@ -3033,6 +3039,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       if(revealed)return;
       // Reset draws the original canvas BEFORE exposing the customer page.
       reset();
+      if(document.documentElement.classList.contains('rekixo-project-error'))return;
       revealed=true;PUBLIC_READY=true;
       viewport.classList.remove('master-loading');
       document.documentElement.classList.remove('rekixo-project-loading','rekixo-project-error');
