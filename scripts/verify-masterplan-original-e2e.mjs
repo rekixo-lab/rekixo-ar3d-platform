@@ -276,8 +276,21 @@ async function journey(target) {
         await page.locator("#outlineToggle").click();
         await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
         const after=await sample();
+        const metroTrace=await page.evaluate(()=>{
+          const poly=document.querySelector('.plot[data-plot-id="P-1"]'),svg=document.querySelector('.hotspots');
+          const source=document.querySelector('.master'),canvas=document.querySelector('.master-original-canvas');
+          const box=poly.getBoundingClientRect(),vp=document.querySelector("#viewport").getBoundingClientRect();
+          return {showAll:svg.classList.contains("show-all"),
+            fill:getComputedStyle(poly).fill,stroke:getComputedStyle(poly).stroke,
+            polyCenter:[box.left+box.width/2,box.top+box.height/2],
+            viewportCenter:[vp.left+vp.width/2,vp.top+vp.height/2],
+            canvasSize:[canvas.width,canvas.height],rasterSize:[source.naturalWidth,source.naturalHeight],
+            mode:document.querySelector('#viewport').dataset.metroRasterPlots,
+            plotCount:document.querySelectorAll(".plot").length};
+        });
         assert.ok(after.slice(0,3).some((v,i)=>Math.abs(v-before[i])>1),
-          "Metro status plot is actually painted in the SAME canvas as the original image");
+          "Metro plot pixel was not repainted with its status: "+
+          JSON.stringify({before,after,metroTrace}));
         for(const button of ["#zoomIn","#zoomIn","#zoomOut","#zoomOut"]){
           await page.locator(button).click();
           await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
