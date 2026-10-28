@@ -1294,10 +1294,11 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
    return Number.isFinite(d.getTime())?new Intl.DateTimeFormat("en-IN",{day:"numeric",month:"short",timeZone:"UTC"}).format(d):"Update";
  };
  const sortedPlotIds=ids=>ids.slice().sort((a,b)=>String(a).localeCompare(String(b),"en",{numeric:true,sensitivity:"base"}));
+ const todayIndia=()=>new Date(Date.now()+330*60000).toISOString().slice(0,10);
  function groupData(items){
   const groupsByKey=new Map();
   for(const notice of items){
-    if(!notice||typeof notice.label!=="string"||typeof notice.eventDate!=="string"||!Array.isArray(notice.plotIds))continue;
+    if(!notice||typeof notice.label!=="string"||notice.eventDate!==todayIndia()||!Array.isArray(notice.plotIds))continue;
     const ids=notice.plotIds.filter(x=>typeof x==="string"&&x.length>0&&x.length<=80);
     if(!ids.length)continue;
     const key=[notice.eventDate,notice.label,notice.category].join("|");
@@ -1307,7 +1308,8 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
   return Array.from(groupsByKey.values()).map(g=>({...g,ids:sortedPlotIds(Array.from(g.ids))})).sort((a,b)=>b.date.localeCompare(a.date)||a.label.localeCompare(b.label));
  }
  function showBanner(){
-  if(!groups.length||closedByVisitor||expanded)return;
+  if(groups.length&&groups[0].date!==todayIndia()){hideBanner();bell.hidden=true;groups=[];lastSignature="";return}
+   if(!groups.length||closedByVisitor||expanded)return;
   const entry=groups[current%groups.length];
   day.textContent=displayDate(entry.date);
   line.textContent=entry.label+" · Plot "+entry.ids.join(", ");
@@ -1367,7 +1369,14 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
   if(!projectId||data.preview)return;
   if(projectId!==loadedFor){run++;reset();loadedFor=projectId}
   void fetchUpdates(projectId);
-  if(!pollTimer)pollTimer=setInterval(()=>{if(!document.hidden)void fetchUpdates(loadedFor)},60000);
+  if(!pollTimer)pollTimer=setInterval(()=>{
+     // Stop showing the previous day's notices even if the tab stays open.
+     if(groups.length&&groups[0].date!==todayIndia()){
+       groups=[];lastSignature="";hideBanner();banner.hidden=true;bell.hidden=true;
+       if(expanded){panel.hidden=true;expanded=false}
+     }
+     if(!document.hidden)void fetchUpdates(loadedFor);
+   },15000);
   if(!rotateTimer)rotateTimer=setInterval(()=>{
    if(groups.length>1&&!expanded&&!closedByVisitor&&document.visibilityState==="visible"){
      current=(current+1)%groups.length;hideBanner();
