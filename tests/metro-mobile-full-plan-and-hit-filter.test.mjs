@@ -29,7 +29,7 @@ test("Metro first frame and reset retain existing framing; only HD compositing c
   assert.equal(other.fit, metro.fit, "all other projects retain their framing");
   assert.equal(metro.minFit, 360 / 1600);
   assert.doesNotMatch(viewer, /metroMobileTileSafety/, "global renderer has no Metro-specific image logic");
-  assert.ok(viewer.includes(metroId));
+  assert.match(viewer,/REKIXO_ORIGINAL_ONLY_2D_VIEWPORT_V1/);
   assert.doesNotMatch(viewer, /metroFullPlanMobile/);
   assert.match(viewer, /scale=focus\?configuredFocusScale\(focus\):fit/);
 });
