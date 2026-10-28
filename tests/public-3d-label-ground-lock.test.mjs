@@ -63,7 +63,7 @@ test('valid ground label is restored only after passing projection checks',()=>{
 });
 
 test('status filter path remains flat and does not add external raised-prism behavior',()=>{
-  assert.match(source,/if\(this\.statusFilter&&st!==this\.statusFilter\)continue;let g=this\.flat\.get\(p\.id\)/);
+  assert.match(source,/if\(!this\.matchesStatusFilter\(p\)\)continue;let g=this\.flat\.get\(p\.id\)/);
   assert.doesNotMatch(source,/this\.raised=new Map\(\)/);
   assert.doesNotMatch(source,/this\.raised\.get\(p\.id\)/);
   assert.doesNotMatch(source,/build\(p,H=0\.55\)/);

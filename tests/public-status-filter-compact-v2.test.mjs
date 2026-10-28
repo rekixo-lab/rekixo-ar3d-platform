@@ -32,7 +32,7 @@ test("status card is exactly 30 percent narrower without changing its vertical l
   assert.match(html, /--status-card-width:117\.6px/);
   const uses = html.match(/width:var\(--status-card-width\)/g) || [];
   assert.equal(uses.length, 2);
-  assert.doesNotMatch(html, /\.status\{[^}]*width:168px/);
+  assert.match(html, /body\[data-metro-four-status="1"\] \.status\{width:168px/);
   assert.match(html, /status-head[^}]*height:49px/);
 });
 
@@ -41,5 +41,5 @@ test("2D and 3D filtering keep canonical geometry untouched", () => {
   assert.match(html, /svg\.getScreenCTM\?\.\(\)/);
   assert.match(html, /matrixTransform\(ctm\.inverse\(\)\)/);
   assert.match(three, /pick\(x,y\)/);
-  assert.match(three, /!this\.showAll\|\|!this\.statusFilter\|\|statusOf\(p\)===this\.statusFilter/);
+  assert.match(three, /!this\.showAll\|\|this\.matchesStatusFilter\(p\)/);
 });

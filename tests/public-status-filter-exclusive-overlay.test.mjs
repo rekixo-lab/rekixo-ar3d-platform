@@ -45,11 +45,11 @@ test("single-select status behavior remains unchanged", () => {
 test("3D already renders only the active status and geometry stays canonical", () => {
   assert.match(
     three,
-    /if\(this\.statusFilter&&st!==this\.statusFilter\)continue/,
+    /if\(!this\.matchesStatusFilter\(p\)\)continue/,
   );
   assert.match(
     three,
-    /!this\.showAll\|\|!this\.statusFilter\|\|statusOf\(p\)===this\.statusFilter/,
+    /!this\.showAll\|\|this\.matchesStatusFilter\(p\)/,
   );
   assert.match(html, /function pointInPolygon\(/);
   assert.match(html, /matrixTransform\(ctm\.inverse\(\)\)/);

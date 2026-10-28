@@ -368,6 +368,11 @@ try {
     assert.equal(await page.locator('.plot[data-plot-id="P-1"]').getAttribute("data-status"),"booked",
       target.name+" underlying booked inventory preserved");
     assert.equal(await page.locator("#countSold").textContent(),"0");
+    assert.equal(await page.locator("#countAgreement").textContent(),"0");
+    assert.equal(await page.locator('[data-status-filter="agreement"]').isVisible(),true,
+      target.name+" Metro should have fourth agreement option");
+    assert.equal(await page.locator("#countTotal").textContent(),"1",
+      target.name+" agreement must not be double counted");
     await page.locator("#searchInput").fill("P-1");
     await page.locator("#searchForm").evaluate(form=>form.requestSubmit());
     await page.locator("#drawer.open").waitFor({state:"visible"});
@@ -387,10 +392,23 @@ try {
     await page.evaluate(()=>document.dispatchEvent(new Event("visibilitychange")));
     await page.locator("#metroAgreementRow").waitFor({state:"visible"});
     assert.equal(await page.locator("#metroAgreementValue").innerText(),"Agreement Done");
+    assert.equal(await page.locator("#countAgreement").textContent(),"1");
+    assert.equal(await page.locator("#countTotal").textContent(),"1");
+    assert.equal(await page.locator('.plot[data-plot-id="P-1"]').getAttribute("data-metro-visual"),"agreement");
+    const agreementFill=await page.locator('.plot[data-plot-id="P-1"]').evaluate(el=>getComputedStyle(el).fill);
+    assert.match(agreementFill,/255, 48, 48/,target.name+" Agreement polygon must be red");
     metroAgreementDone=false;
     await page.evaluate(()=>document.dispatchEvent(new Event("visibilitychange")));
     await page.locator("#metroAgreementRow").waitFor({state:"hidden"});
     assert.equal(await page.locator("#metroAgreementValue").textContent(),"");
+    assert.equal(await page.locator("#countAgreement").textContent(),"0");
+    assert.equal(await page.locator('.plot[data-plot-id="P-1"]').getAttribute("data-metro-visual"),"registered");
+    await page.locator("#closeBtn").click();
+    await page.waitForFunction(()=>!document.querySelector("#drawer")?.classList.contains("open"));
+    await page.locator('[data-status-filter="agreement"]').click();
+    assert.match(await page.locator("#hotspots").getAttribute("class"),/status-filter-agreement/,
+      target.name+" fourth filter must activate");
+    assert.equal(await page.locator("#countTotal").textContent(),"1");
     await page.screenshot({path:path.join(artifactDir,target.name+"-metro-agreement.png"),fullPage:true});
 
 
