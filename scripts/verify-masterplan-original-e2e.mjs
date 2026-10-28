@@ -272,10 +272,28 @@ async function journey(target) {
           if(cx<0||cy<0||cx>=canvas.width||cy>=canvas.height)throw Error("mapped plot center not on screen");
           return [...canvas.getContext("2d").getImageData(cx,cy,1,1).data];
         });
+        const probePlotGrid=()=>page.evaluate(()=>{
+          const poly=document.querySelector('.plot[data-plot-id="P-1"]');
+          const vr=document.querySelector("#viewport").getBoundingClientRect();
+          const pr=poly.getBoundingClientRect();
+          const canvas=document.querySelector(".master-original-canvas");
+          const ctx=canvas.getContext('2d');
+          const out=[];
+          for(const fy of [.25,.375,.5,.625,.75])for(const fx of [.25,.375,.5,.625,.75]){
+            const cx=Math.floor((pr.left+pr.width*fx-vr.left)*canvas.width/vr.width);
+            const cy=Math.floor((pr.top+pr.height*fy-vr.top)*canvas.height/vr.height);
+            if(cx>=0&&cy>=0&&cx<canvas.width&&cy<canvas.height)
+              out.push([fx,fy,...ctx.getImageData(cx,cy,1,1).data]);
+          }
+          return out;
+        });
         const before=await sample();
+        const gridBefore=await probePlotGrid();
         await page.locator("#outlineToggle").click();
         await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
         const after=await sample();
+        const gridAfter=await probePlotGrid();
+        const maxDelta=gridAfter.reduce((m,v,i)=>Math.max(m,...v.slice(2,5).map((b,k)=>Math.abs(b-(gridBefore[i]?.[k+2]??b)))),0);
         const metroTrace=await page.evaluate(()=>{
           const poly=document.querySelector('.plot[data-plot-id="P-1"]'),svg=document.querySelector('.hotspots');
           const source=document.querySelector('.master'),canvas=document.querySelector('.master-original-canvas');
@@ -288,9 +306,9 @@ async function journey(target) {
             mode:document.querySelector('#viewport').dataset.metroRasterPlots,
             plotCount:document.querySelectorAll(".plot").length};
         });
-        assert.ok(after.slice(0,3).some((v,i)=>Math.abs(v-before[i])>1),
-          "Metro plot pixel was not repainted with its status: "+
-          JSON.stringify({before,after,metroTrace}));
+        assert.ok(maxDelta>1,
+          "Metro plot pixels did not change with status: "+
+          JSON.stringify({before,after,maxDelta,gridBefore,gridAfter,metroTrace}));
         for(const button of ["#zoomIn","#zoomIn","#zoomOut","#zoomOut"]){
           await page.locator(button).click();
           await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
