@@ -24,16 +24,23 @@ test("turning the master status toggle OFF clears the active row filter", () => 
 });
 
 test("coarse-pointer status selection commits on pointer release", () => {
-  assert.match(html, /pointerup',e=>\{if\(isCoarse\(e\)&&glassOpt\)setStatusFilter\(glassOpt\.dataset\.statusFilter\)/);
+  assert.match(html, /pointerup',e=>\{/);
+  assert.match(html, /const released=document\.elementFromPoint\(e\.clientX,e\.clientY\)\?\.closest\?\.\('\.status-option'\)/);
+  assert.match(html, /if\(released&&statusBody\.contains\(released\)\)glassOpt=released/);
+  assert.match(html, /if\(glassOpt\)setStatusFilter\(glassOpt\.dataset\.statusFilter\)/);
   assert.doesNotMatch(html, /paintGlass\(e\).*setStatusFilter\(glassOpt\.dataset\.statusFilter,true\)/s);
 });
 
-test("status card is exactly 30 percent narrower without changing its vertical layout", () => {
+test("Metro-only four-row mobile status is 25 percent narrower and shorter", () => {
   assert.match(html, /--status-card-width:117\.6px/);
   const uses = html.match(/width:var\(--status-card-width\)/g) || [];
   assert.equal(uses.length, 2);
-  assert.match(html, /body\[data-metro-four-status="1"\] \.status\{width:168px/);
-  assert.match(html, /status-head[^}]*height:49px/);
+  assert.match(html, /body\[data-metro-four-status="1"\] \.status\{box-sizing:border-box;width:126px/);
+  assert.equal(126 / 168, .75);
+  assert.match(html, /body\[data-metro-four-status="1"\] \.status-head,/);
+  assert.match(html, /height:34px;font-size:9px/);
+  assert.match(html, /\.status-option\{min-height:27px/);
+  assert.match(html, /status-head[^}]*height:49px/, "other projects keep original desktop header");
 });
 
 test("2D and 3D filtering keep canonical geometry untouched", () => {
