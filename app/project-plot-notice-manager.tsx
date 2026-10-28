@@ -19,14 +19,14 @@ export default function ProjectPlotNoticeManager({projectId,notify}:{projectId:s
  }
  return <section style={{marginTop:17,border:"1px solid #30475e",background:"#101d31",padding:18,borderRadius:14,color:"#eaf5ff"}}>
   <h3 style={{margin:"0 0 8px"}}>Plot Update Notifications</h3>
-  <p style={{fontSize:13,color:"#aec4db",lineHeight:1.6}}>Super Admin controls only whether this project has the notification module. The project's <strong>Client Admin</strong> independently creates, approves, publishes, hides and unpublishes dated updates. No Super Admin approval required.</p>
+  <p style={{fontSize:13,color:"#aec4db",lineHeight:1.6}}>Super Admin controls only whether this project has the notification module. Admin plot status and deal changes publish automatically for the current India date only. Client Admin can still hide/unpublish notices and manually publish special announcements. No Super Admin approval required.</p>
   {error&&<p role="alert" style={{color:"#ffb1bf"}}>{error}</p>}
   {!data?<p>Loading…</p>:<>
    <label style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",fontSize:14}}>
     <input type="checkbox" checked={data.enabled} disabled={saving} onChange={e=>void toggle(e.target.checked)} style={{width:22,height:22}}/>
     Enable customer website updates for this project
    </label>
-   <p style={{color:"#9fb5c8",fontSize:12,marginTop:8}}>Private updates remain saved when disabled. Currently {data.notices.filter(n=>n.state==="published").length} published and {data.notices.filter(n=>n.state==="draft").length} draft update(s). Client Admin → Plot Updates is the publishing workspace.</p>
+   <p style={{color:"#9fb5c8",fontSize:12,marginTop:8}}>Private updates remain saved when disabled. Currently {data.notices.filter(n=>n.state==="published").length} published and {data.notices.filter(n=>n.state==="draft").length} draft update(s). Client Admin → Plot Updates manages manual notices and hides unwanted updates; saved status changes go live automatically.</p>
   </>}
  </section>;
 }
