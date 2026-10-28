@@ -1355,13 +1355,15 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
    const fresh=result.enabled===true?groupData(items):[];
    const signature=JSON.stringify(fresh.map(x=>[x.date,x.label,x.category,x.ids]));
    if(signature===lastSignature)return;
-   const had=Boolean(lastSignature),hasNew=Boolean(fresh.length);
+   const hasNew=Boolean(fresh.length);
    lastSignature=signature;groups=fresh;current=0;
+   // A freshly saved plot change should display even after the visitor
+   // dismissed an older announcement during the same day.
+   closedByVisitor=false;
    bell.hidden=!hasNew;
    if(!hasNew){hideBanner();panel.hidden=true;return}
    history();
-   if(!had){closedByVisitor=false;showBanner()}
-   else if(!closedByVisitor&&!expanded)showBanner();
+   if(!expanded)showBanner();
   }catch(_error){/* Never interfere with map loading, gestures or HD textures. */}
  }
  window.REKIXO_PLOT_NOTICES_INIT=data=>{
