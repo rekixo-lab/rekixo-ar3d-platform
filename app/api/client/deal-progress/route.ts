@@ -1,7 +1,7 @@
 import {env} from "cloudflare:workers";
 import {validAdminSession,sameOrigin} from "@/modules/auth";
 import {writeAudit} from "@/modules/audit";
-import {recordPrivatePlotNotice} from "@/app/project-plot-notices";
+import {recordAutomaticPlotNotice} from "@/app/project-plot-notices";
 import {fieldsOf,stagesOf,validDate,validateCustomValue,type CustomField} from "@/app/project-admin-studio-policy";
 
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{"cache-control":"private, no-store"}});
@@ -107,7 +107,7 @@ export async function PATCH(request:Request){
       if(!results[0].results?.length||results[1].meta.changes!==1)return reply({error:"Workflow changed; refresh and retry"},409);
       if(slug&&slug!==(before?.stageSlug||"")){
         const stageLabel=await env.DB.prepare("SELECT label FROM project_deal_stages WHERE project_id=? AND slug=?").bind(projectId,slug).first<{label:string}>();
-        await recordPrivatePlotNotice(projectId,plotId,"deal",stageLabel?.label||slug,"deal:"+plotId+":"+now,session.id,now);
+        await recordAutomaticPlotNotice(projectId,plotId,"deal",stageLabel?.label||slug,"deal:"+plotId+":"+now,session.id,now);
       }
       try{await writeAudit(session,"project.deal_stage_updated",projectId,plotId,{before:before?.stageSlug||null,after:slug||null,holdUntil});}
       catch{console.error("Workflow saved; optional audit log unavailable",{projectId,plotId})}
