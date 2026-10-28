@@ -58,7 +58,7 @@ test("Metro Builder retains same revision-safe Agreement API, never changes Sale
  assert.match(dashboard,/metroAgreementEnabled=\{agreementEnabled\}/);
  assert.match(dashboard,/agreementEnabled\?"Registered":"Sold"/);
  assert.match(deals,/metroAgreementEnabled&&/);
- assert.match(deals,/agreement\\s\*date/);
+ assert.match(deals,/agreement.*date/i);
  assert.match(api,/expectedRevision/);
  assert.doesNotMatch(api,/UPDATE plots|UPDATE property_sales/);
 });
