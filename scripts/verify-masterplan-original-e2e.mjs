@@ -235,7 +235,7 @@ async function journey(target) {
           document.querySelectorAll(".master-native-tile").length > 0;
       });
       assert.equal(await page.locator(".master").evaluate(el=>el.naturalWidth),previewWidth,
-        "the reliable preview remains permanently rendered behind native original tiles");
+        "the reliable preview source stays decoded as the original HD fallback");
       const tileDetails=await page.locator(".master-native-tile").evaluateAll(tiles=>
         tiles.map(t=>({width:t.width,height:t.height,painted:t.width>0&&t.height>0})));
       assert.ok(tileDetails.length>0&&tileDetails.every(t=>t.painted&&t.width<=1536&&t.height<=1536),
@@ -244,13 +244,17 @@ async function journey(target) {
         const mobileSafety=await page.locator(".master-native-tiles").evaluate(layer=>{
           const tiles=[...layer.querySelectorAll(".master-native-tile")];
           const w=Number(document.querySelector(".master").naturalWidth);
+          const master=document.querySelector(".master");
           return {visible:getComputedStyle(layer).visibility==="visible",
+            previewHidden:getComputedStyle(master).visibility==="hidden",
             allUnderBudget:tiles.every(c=>c.width<=1152&&c.height<=1152),
             widths:tiles.map(c=>parseFloat(c.style.width)),
             lefts:tiles.map(c=>parseFloat(c.style.left)),
             fullWidth:w};
         });
         assert.ok(mobileSafety.visible,"Metro mobile HD overlay visible only after complete coverage");
+        assert.ok(mobileSafety.previewHidden,
+          "The old preview must be hidden atomically: it cannot leave a detached left-hand image strip");
         assert.ok(mobileSafety.allUnderBudget,"Metro mobile uses memory-safe 1024px crops with a capped gutter");
         const spans=mobileSafety.lefts.map((left,i)=>({left,right:left+mobileSafety.widths[i]}));
         const touching=spans.some((a,i)=>spans.some((b,j)=>
@@ -263,6 +267,10 @@ async function journey(target) {
       });
       assert.ok(sampledTile[3]===255&&sampledTile[0]>50&&sampledTile[1]>50,
         "original 2D tile contains real painted source pixels rather than a blank transparent canvas");
+      if(target.name!=="c024a562-634d-4e49-b647-43209f6e450b"){
+        assert.equal(await page.locator(".master").evaluate(el=>getComputedStyle(el).visibility),"visible",
+          "other projects keep their original preview-under-tiles presentation");
+      }
       assert.equal(await page.locator("#masterplanQuality").count(), 0, "customer original HD text and background are removed");
       assert.ok(state.requests.filter(v => v === "original").length >= 2, "original metadata is verified before downloading the image");
       const response = await context.request.get(new URL(await page.locator(".master").getAttribute("data-original-src"),base).href);
