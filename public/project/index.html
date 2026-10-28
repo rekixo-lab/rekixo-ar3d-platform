@@ -1948,7 +1948,6 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     // alone never decides panorama mode, so portrait projects stay portrait.
     return size.w/Math.max(1,size.h)>vw/Math.max(1,vh)
   }
-  function metroFullPlanMobile(){return metroMobileTileSafety&&window.matchMedia('(max-width:700px)').matches}
   function calcFit(){
     const mobile = window.matchMedia('(max-width:700px)').matches;
     const size=displaySize();
@@ -2026,6 +2025,11 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   }
   function scheduleRender(){if(!mapRaf)mapRaf=requestAnimationFrame(()=>{mapRaf=0;render()})}
   // REKIXO_PROJECT_START_VIEW_V1
+  function metroFullPlanMobile(){
+    // Safe for isolated start-view harnesses as well as older cached shells.
+    return typeof metroMobileTileSafety!=='undefined'&&metroMobileTileSafety&&
+      typeof window!=='undefined'&&window.matchMedia('(max-width:700px)').matches;
+  }
   function normalizeInitialViewMode(value){
     const mode=String(value||'').trim().toLowerCase();
     return mode==='plots'||mode==='custom'?mode:'legacy'
