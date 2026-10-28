@@ -395,6 +395,12 @@ try {
     assert.equal(await page.locator("#countAgreement").textContent(),"1");
     assert.equal(await page.locator("#countTotal").textContent(),"1");
     assert.equal(await page.locator('.plot[data-plot-id="P-1"]').getAttribute("data-metro-visual"),"agreement");
+    // The selected polygon intentionally transitions fill over 120ms.
+    // Await the settled painted colour, not an intermediate animation frame.
+    await page.waitForFunction(()=>{
+      const plot=document.querySelector('.plot[data-plot-id="P-1"]');
+      return plot&&getComputedStyle(plot).fill.includes('255, 48, 48');
+    },{timeout:3500});
     const agreementFill=await page.locator('.plot[data-plot-id="P-1"]').evaluate(el=>getComputedStyle(el).fill);
     assert.match(agreementFill,/255, 48, 48/,target.name+" Agreement polygon must be red");
     metroAgreementDone=false;
