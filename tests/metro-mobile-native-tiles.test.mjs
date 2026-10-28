@@ -25,7 +25,9 @@ test("Only fully prepared mobile tiles are committed; GPU failure removes HD ove
  assert.match(tileCode,/if\(safeMobileTiles\)staged\.push\(\[key,canvas\]\)/);
  assert.match(tileCode,/document\.createDocumentFragment\(\)/);
  assert.match(tileCode,/fullVisibleCoverage=\[\.\.\.needed\]\.every\(key=>tiles\.has\(key\)\)/);
- assert.match(tileCode,/layer\.style\.visibility=fullVisibleCoverage\?'visible':'hidden'/);
+ assert.match(tileCode,/setMetroSourceVisibility\(fullVisibleCoverage&&tiles\.size>0\)/);
+ assert.match(tileCode,/master\.style\.visibility=ready\?'hidden':'visible'/);
+ assert.match(tileCode,/setMetroSourceVisibility\(false\)/);
  assert.match(tileCode,/safeTileFailed=true/);
  assert.match(tileCode,/layer\.style\.visibility='hidden'/);
  assert.match(tileCode,/setMasterplanQuality\('preview','Preview only'/);
