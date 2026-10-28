@@ -1010,6 +1010,8 @@ body[data-metro-four-status="1"] .show-all .plot[data-metro-visual="agreement"]{
 body[data-metro-four-status="1"] .plot.selected[data-metro-visual="agreement"]{fill:rgba(255,48,48,.61)!important;stroke:#ff3030!important;filter:drop-shadow(0 0 4px #ff3030a0)!important}
 body[data-metro-four-status="1"] .three-plot-label.agreement{color:#ff3030}
 body[data-metro-four-status="1"] .status-option.agreement{display:flex}
+body[data-metro-four-status="1"] .status.expanded .status-body{max-height:248px;overflow-y:auto}
+body[data-metro-four-status="1"] .status-option.agreement.active{background:rgba(255,48,48,.14)}
 body[data-metro-four-status="1"] #metroAgreementRow .agreement-done{color:#ff3030!important}
 body[data-metro-four-status="1"] .show-all.status-filter-agreement .plot:not([data-metro-visual="agreement"]){fill:transparent!important;stroke:transparent!important;filter:none!important}
 body[data-metro-four-status="1"] .show-all.status-filter-agreement .plot.selected:not([data-metro-visual="agreement"]){fill:transparent!important;stroke:transparent!important;filter:none!important}
@@ -2100,7 +2102,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   let metroAgreementMode=false;
   function statusDisplayLabel(status){
     const label=String(status||'available').toLowerCase();
-    return metroAgreementMode&&label==='sold'?'Registered':metroAgreementMode&&label==='agreement'?'Agreement Done':label.charAt(0).toUpperCase()+label.slice(1);
+    return metroAgreementMode&&label==='sold'?'Registered':label.charAt(0).toUpperCase()+label.slice(1);
   }
   function updateMetroAgreementFact(plot){
     const row=q('#metroAgreementRow'),value=q('#metroAgreementValue');
@@ -2204,7 +2206,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       if(el){el.dataset.status=plotStatus(p);syncMetroPlotVisual(p,el)}
     });
     updateStatusCounts();
-    if(statusFilter&&selected&&!matchesStatusFilter(selected,statusFilter)){selected=null;setSelected(null);engine3D?.clear?.()}
+    if(statusFilter==='agreement')clearMismatchedSelection('agreement');
     if(plotPeekPlotId&&plotPeekPoint){const freshPeek=plots.find(p=>String(p.id)===plotPeekPlotId);if(freshPeek)showPlotPeek(freshPeek,plotPeekPoint.x,plotPeekPoint.y);else hidePlotPeek()}
     engine3D?.rebuildLabels?.();
     engine3D?.request?.();
@@ -2794,7 +2796,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   function clearStatusFilter(silent=false){statusFilter=null;svg.classList.remove('status-filter-available','status-filter-booked','status-filter-sold','status-filter-agreement');document.querySelectorAll('.status-option').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false')});engine3D?.setStatusFilter?.(null);if(!silent)toast('Status filter cleared')}
   function ensureStatusOverlayOn(){if(showAll)return;showAll=true;syncBoundaryToggle();svg.classList.add('show-all');engine3D?.setShowAll(true)}
   function clearMismatchedSelection(st){if(!selected||matchesStatusFilter(selected,st))return;selected=null;setSelected(null);engine3D?.clear?.()}
-  function setStatusFilter(st){st=st||null;if(st==='agreement'&&!metroAgreementMode)return;if(!st){clearStatusFilter();return}ensureStatusOverlayOn();statusFilter=st;svg.classList.remove('status-filter-available','status-filter-booked','status-filter-sold','status-filter-agreement');svg.classList.add('status-filter-'+st);document.querySelectorAll('.status-option').forEach(b=>{const active=b.dataset.statusFilter===st;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))});engine3D?.setStatusFilter?.(st);clearMismatchedSelection(st);toast('Showing '+statusDisplayLabel(st)+' plots')}
+  function setStatusFilter(st){st=st||null;if(!st){clearStatusFilter();return}ensureStatusOverlayOn();statusFilter=st;svg.classList.remove('status-filter-available','status-filter-booked','status-filter-sold','status-filter-agreement');svg.classList.add('status-filter-'+st);document.querySelectorAll('.status-option').forEach(b=>{const active=b.dataset.statusFilter===st;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))});engine3D?.setStatusFilter?.(st);clearMismatchedSelection(st);toast('Showing '+statusDisplayLabel(st)+' plots')}
   function syncBoundaryToggle(){const toggle=q('#outlineToggle');toggle.classList.toggle('on',showAll);toggle.setAttribute('aria-pressed',String(showAll))}
   function toggleStatusPanel(){toggleBoundaries()}
   function toggleBoundaries(){showAll=!showAll;if(!showAll)clearStatusFilter(true);syncBoundaryToggle();svg.classList.toggle('show-all',showAll);engine3D?.setShowAll(showAll);toast(showAll?'Plot boundaries ON':'Plot boundaries OFF')}
@@ -2847,7 +2849,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     if(mode3D){
       close();
       if(!engine3D){try{engine3D=new RekixoPlot3D(q('#threeHost'),{plots,imageSrc:q('.master').dataset.originalSrc||q('.master').src,previewImageSrc:q('.master').dataset.previewSrc,mapWidth:W,mapHeight:H,onSelect:p=>{selected=p;setSelected(p.id);openPlot(p,false)},onPreview:(p,x,y)=>showPlotPeek(p,x,y),onPreviewEnd:()=>hidePlotPeek(),onCamera:hud3D})}catch(e){mode3D=false;viewport.classList.remove('mode3d');q('#view3d').textContent='3D';toast('3D is not supported on this device');return}}
-      engine3D.setShowAll(showAll);engine3D.setStatusFilter?.(statusFilter);engine3D.activate();if(selected)engine3D.select(selected.id,false,false);hud3D({yaw:engine3D.cam.yaw,zoomPercent:Math.round(34*engine3D.baseDistance/engine3D.cam.distance)});
+      engine3D.setMetroFourStatus?.(metroAgreementMode);engine3D.setShowAll(showAll);engine3D.setStatusFilter?.(statusFilter);engine3D.activate();if(selected)engine3D.select(selected.id,false,false);hud3D({yaw:engine3D.cam.yaw,zoomPercent:Math.round(34*engine3D.baseDistance/engine3D.cam.distance)});
     }else{
       engine3D?.deactivate();
       updateMapCompassOrientation();
@@ -2940,7 +2942,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         plots.push(p);addPlotPolygon(p);
       }catch(_){}
     });
-    plots.forEach(p=>{const row=live.get(p.id);if(row){const shape={points:p.points,center:p.center,path:p.path};Object.assign(p,row,shape)}const el=svg.querySelector(`[data-plot-id="${p.id}"]`);if(el){el.dataset.status=plotStatus(p);syncMetroPlotVisual(p,el)}});
+    plots.forEach(p=>{const row=live.get(p.id);if(row){const shape={points:p.points,center:p.center,path:p.path};Object.assign(p,row,shape)}const el=svg.querySelector(`[data-plot-id="${p.id}"]`);if(el)el.dataset.status=plotStatus(p)});
     applyContactChannels(s);
     MAP_URL=s.mapUrl||'';
     const resolvedName=String(s.projectName||data.projectName||'Project').trim()||'Project';
