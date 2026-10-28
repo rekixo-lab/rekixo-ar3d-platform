@@ -60,7 +60,11 @@ html.rekixo-project-error .rekixo-boot-error{display:grid}
 .master-original-canvas{position:absolute;inset:0;display:block;width:100%;height:100%;z-index:0;pointer-events:none;image-rendering:auto}
 .hotspots{z-index:2;overflow:visible}
 .map.dragging .plot{transition:none}.map.dragging .plot.selected{filter:none}
-.map.gesture-active .hotspots{visibility:hidden}
+/* Metro original HD on touch devices paints polygons and raster in ONE
+   viewport canvas. Invisible SVG remains accessible/hittable without a second
+   independently composited visual plane. Other projects remain unchanged. */
+.map[data-metro-raster-plots="1"] .hotspots{opacity:0}
+.map.gesture-active:not([data-metro-raster-plots="1"]) .hotspots{visibility:hidden}
 .map.gesture-active .world{will-change:transform}
 .plot{fill:rgba(32,225,125,.001);stroke:transparent;stroke-width:1.1;vector-effect:non-scaling-stroke;cursor:pointer;transition:fill .12s,stroke .12s,filter .12s}
 /* REKIXO_PUBLIC_SVG_FOCUS_SHAPE_V1
@@ -1695,6 +1699,67 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   let cancelMasterplanUpgrade=()=>{},masterplanGeneration=0,refreshNativeMasterplan=()=>{};
   let publicRotation = 0;
   let publicNorthSourceAngle = 0;
+  // Metro City touch only: one raster and one polygon paint in the same frame.
+  // No changes to the canonical SVG, plot inventory, hit testing or saved points.
+  const METRO_RASTER_PROJECT='c024a562-634d-4e49-b647-43209f6e450b';
+  let metroCanvasPaint=false,metroPaintCache=null;
+  function updateMetroCanvasMode(){
+    const touch=(window.matchMedia('(pointer:coarse)').matches||
+      window.matchMedia('(any-pointer:coarse)').matches);
+    const enabled=ACTIVE_PROJECT_ID===METRO_RASTER_PROJECT&&touch&&
+      viewport.clientWidth<=1400&&typeof Path2D!=='undefined';
+    metroCanvasPaint=enabled;
+    viewport.dataset.metroRasterPlots=enabled?'1':'0';
+    metroPaintCache=null;
+    return enabled;
+  }
+  function invalidateMetroPaint(){
+    if(!metroCanvasPaint)return;
+    metroPaintCache=null;
+    if(PUBLIC_READY&&!mode3D)scheduleRender();
+  }
+  function metroPlotPaintCache(){
+    if(metroPaintCache)return metroPaintCache;
+    // Computed SVG paint rules remain authoritative, including all Metro
+    // available/booked/registered/agreement filters and selected highlights.
+    // Cache style reads: mobile pan/zoom must never query 702 SVG styles
+    // for every gesture frame.
+    metroPaintCache=Array.from(svg.querySelectorAll('.plot')).map(el=>{
+      const p=plots.find(item=>item.id===el.dataset.plotId);
+      if(!p)return null;
+      const path=new Path2D();
+      if(el.tagName.toLowerCase()==='path')return{
+        path:new Path2D(el.getAttribute('d')||''),
+        fill:getComputedStyle(el).fill,
+        stroke:getComputedStyle(el).stroke,
+        width:parseFloat(getComputedStyle(el).strokeWidth)||.95,
+      };
+      if(!Array.isArray(p.points)||p.points.length<3)return null;
+      path.moveTo(p.points[0][0],p.points[0][1]);
+      for(let i=1;i<p.points.length;i++)path.lineTo(p.points[i][0],p.points[i][1]);
+      path.closePath();
+      const css=getComputedStyle(el);
+      return{path,fill:css.fill,stroke:css.stroke,width:parseFloat(css.strokeWidth)||.95};
+    }).filter(Boolean);
+    return metroPaintCache;
+  }
+  function paintMetroPolygons(context,pixelRatio,cos,sin,tx,ty){
+    if(!metroCanvasPaint||!showAll&&!svg.querySelector('.plot.selected'))return;
+    context.setTransform(pixelRatio*scale*cos,pixelRatio*scale*sin,
+      -pixelRatio*scale*sin,pixelRatio*scale*cos,pixelRatio*tx,pixelRatio*ty);
+    const shapes=metroPlotPaintCache();
+    for(const shape of shapes){
+      if(shape.fill&&shape.fill!=='none'&&shape.fill!=='transparent'){
+        context.fillStyle=shape.fill;context.fill(shape.path);
+      }
+      if(shape.stroke&&shape.stroke!=='none'&&shape.stroke!=='transparent'){
+        context.strokeStyle=shape.stroke;
+        // SVG uses vector-effect:non-scaling-stroke.
+        context.lineWidth=shape.width/Math.max(.0001,scale);
+        context.stroke(shape.path);
+      }
+    }
+  }
   let publicInitialViewMode='legacy', publicInitialFocusX=.5, publicInitialFocusY=.5;
   world.style.visibility = 'hidden';
   let gesture = null;
@@ -1813,6 +1878,9 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
           // samples only the visible ORIGINAL crop, at actual screen DPR.
           context.drawImage(master,sx,sy,ex-sx,ey-sy,sx,sy,ex-sx,ey-sy);
         }
+        // Metro touch paints polygons in the SAME backing surface/frame as
+        // the original pixels. Neither can visually outrun the other on zoom.
+        paintMetroPolygons(context,pixelRatio,cos,sin,tx,ty);
         return true;
       }catch(error){
         failed=true;
@@ -2183,6 +2251,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     });
     updateStatusCounts();
     if(statusFilter&&(metroAgreementMode||statusFilter==='agreement'))clearMismatchedSelection(statusFilter);
+    invalidateMetroPaint();
     if(plotPeekPlotId&&plotPeekPoint){const freshPeek=plots.find(p=>String(p.id)===plotPeekPlotId);if(freshPeek)showPlotPeek(freshPeek,plotPeekPoint.x,plotPeekPoint.y);else hidePlotPeek()}
     engine3D?.rebuildLabels?.();
     engine3D?.request?.();
@@ -2235,7 +2304,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     poly.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openPlot(p,false)}});
     svg.appendChild(poly);
   });
-  function setSelected(id){svg.querySelectorAll('.plot').forEach(el=>el.classList.toggle('selected',el.dataset.plotId===id))}
+  function setSelected(id){svg.querySelectorAll('.plot').forEach(el=>el.classList.toggle('selected',el.dataset.plotId===id));invalidateMetroPaint()}
   function setLine(id,x1,y1,x2,y2){const el=q(id);el.setAttribute('x1',x1);el.setAttribute('y1',y1);el.setAttribute('x2',x2);el.setAttribute('y2',y2)}
   function diagramPresentationPoints(points){
     // Drawer geometry is presentation-only. Keep canonical/source polygon points
@@ -2770,13 +2839,13 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   q('#resetBtn').onclick=()=>mode3D?engine3D?.reset():reset();
 
   // REKIXO_STATUS_FILTER_COMPACT_V2
-  function clearStatusFilter(silent=false){statusFilter=null;svg.classList.remove('status-filter-available','status-filter-booked','status-filter-sold','status-filter-agreement');document.querySelectorAll('.status-option').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false')});engine3D?.setStatusFilter?.(null);if(!silent)toast('Status filter cleared')}
+  function clearStatusFilter(silent=false){statusFilter=null;svg.classList.remove('status-filter-available','status-filter-booked','status-filter-sold','status-filter-agreement');document.querySelectorAll('.status-option').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false')});engine3D?.setStatusFilter?.(null);invalidateMetroPaint();if(!silent)toast('Status filter cleared')}
   function ensureStatusOverlayOn(){if(showAll)return;showAll=true;syncBoundaryToggle();svg.classList.add('show-all');engine3D?.setShowAll(true)}
   function clearMismatchedSelection(st){if(!selected||matchesStatusFilter(selected,st))return;selected=null;setSelected(null);engine3D?.clear?.()}
-  function setStatusFilter(st){st=st||null;if(!st){clearStatusFilter();return}ensureStatusOverlayOn();statusFilter=st;svg.classList.remove('status-filter-available','status-filter-booked','status-filter-sold','status-filter-agreement');svg.classList.add('status-filter-'+st);document.querySelectorAll('.status-option').forEach(b=>{const active=b.dataset.statusFilter===st;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))});engine3D?.setStatusFilter?.(st);clearMismatchedSelection(st);toast('Showing '+statusDisplayLabel(st)+' plots')}
+  function setStatusFilter(st){st=st||null;if(!st){clearStatusFilter();return}ensureStatusOverlayOn();statusFilter=st;svg.classList.remove('status-filter-available','status-filter-booked','status-filter-sold','status-filter-agreement');svg.classList.add('status-filter-'+st);document.querySelectorAll('.status-option').forEach(b=>{const active=b.dataset.statusFilter===st;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))});engine3D?.setStatusFilter?.(st);clearMismatchedSelection(st);invalidateMetroPaint();toast('Showing '+statusDisplayLabel(st)+' plots')}
   function syncBoundaryToggle(){const toggle=q('#outlineToggle');toggle.classList.toggle('on',showAll);toggle.setAttribute('aria-pressed',String(showAll))}
   function toggleStatusPanel(){toggleBoundaries()}
-  function toggleBoundaries(){showAll=!showAll;if(!showAll)clearStatusFilter(true);syncBoundaryToggle();svg.classList.toggle('show-all',showAll);engine3D?.setShowAll(showAll);toast(showAll?'Plot boundaries ON':'Plot boundaries OFF')}
+  function toggleBoundaries(){showAll=!showAll;if(!showAll)clearStatusFilter(true);syncBoundaryToggle();svg.classList.toggle('show-all',showAll);engine3D?.setShowAll(showAll);invalidateMetroPaint();toast(showAll?'Plot boundaries ON':'Plot boundaries OFF')}
 
   // Keep status gestures isolated from the map; retain glass finger-follow effect.
   ['pointerdown','pointermove','pointerup','pointercancel'].forEach(type=>statusCard.addEventListener(type,e=>e.stopPropagation()));
@@ -2857,7 +2926,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   amenitiesModal.addEventListener('click',e=>{if(e.target===amenitiesModal)closeAmenities()});
   q('#galleryBtn').onclick=openGallery;q('#galleryClose').onclick=closeGallery;q('#lightboxClose').onclick=closeFullImage;galleryModal.addEventListener('click',e=>{if(e.target===galleryModal)closeGallery()});imageLightbox.addEventListener('click',e=>{if(e.target===imageLightbox||e.target.classList.contains('lightbox-figure'))closeFullImage()});document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(imageLightbox.classList.contains('open'))closeFullImage();else if(galleryModal.classList.contains('open'))closeGallery();else if(amenitiesModal.classList.contains('open'))closeAmenities()});q('#locationBtn').onclick=()=>MAP_URL?window.open(MAP_URL,'_blank','noopener,noreferrer'):toast('Location link not configured');
 
-  function onResize(){if(resizeRaf)return;resizeRaf=requestAnimationFrame(()=>{resizeRaf=0;if(mode3D){engine3D?.resize();return}if(publicInitialViewMode==='plots'&&!presentationUserAdjusted){reset();return}const oldFit=fit||1,z=scale/oldFit;calcFit();scale=clamp(fit*z,minFit,fit*4.5);render()})}
+  function onResize(){if(resizeRaf)return;resizeRaf=requestAnimationFrame(()=>{resizeRaf=0;updateMetroCanvasMode();if(mode3D){engine3D?.resize();return}if(publicInitialViewMode==='plots'&&!presentationUserAdjusted){reset();return}const oldFit=fit||1,z=scale/oldFit;calcFit();scale=clamp(fit*z,minFit,fit*4.5);render()})}
   window.addEventListener('resize',onResize);
   window.visualViewport?.addEventListener('resize',onResize);
 
@@ -2885,6 +2954,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     setMasterplanQuality('preview','Preview','Waiting for published masterplan.');
     window.REKIXO_PUBLIC_DATA=data;
     ACTIVE_PROJECT_ID=String(data.projectId||'').trim();
+    updateMetroCanvasMode();
     window.REKIXO_PLOT_NOTICES_INIT?.(data);
     REKIXO_LIVE_STATE_ENABLED=!Boolean(data&&data.preview);
 
@@ -3102,6 +3172,10 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     if(master&&HAS_MASTERPLAN){
       const legacyOnly=()=>{
         if(imageGeneration!==masterplanGeneration)return;
+        // A legacy source has no synced source-canvas. Return to native SVG.
+        metroCanvasPaint=false;
+        viewport.dataset.metroRasterPlots='0';
+        metroPaintCache=null;
         // A project published before original uploads existed has no original
         // bytes to draw; use its canonical published file as a single source.
         master.style.visibility='visible';
