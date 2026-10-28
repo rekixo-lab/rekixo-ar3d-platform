@@ -1460,6 +1460,7 @@ function rekixoLoadingProgress(value,message='',reset=false){
   if(track)track.setAttribute('aria-valuenow',String(REKIXO_LOADING_LEVEL));
   if(label&&message)label.textContent=message;
 }
+window.REKIXO_LOADING_PROGRESS=rekixoLoadingProgress;
 
 // Start the original download while the live status request is finishing.
 // The published, version-bound byte source and existing fidelity check are unchanged.
@@ -2021,7 +2022,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         master.onerror=originalError;
         master.onload=async()=>{
           if(!current())return;
-          rekixoLoadingProgress(85,'Preparing your experience');
+          window.REKIXO_LOADING_PROGRESS?.(85,'Preparing your experience');
           const aspect=master.naturalWidth/Math.max(1,master.naturalHeight);
           const sizeMismatch=(expectedWidth>0&&expectedHeight>0)&&
             (Math.abs(master.naturalWidth/expectedWidth-1)>.015||
@@ -2031,7 +2032,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
           }
           try{if(typeof master.decode==='function')await master.decode()}catch(_){}
           if(!current())return;
-          rekixoLoadingProgress(92,'Preparing your experience');
+          window.REKIXO_LOADING_PROGRESS?.(92,'Preparing your experience');
           canvas=document.createElement('canvas');
           canvas.className='master-original-canvas';
           canvas.setAttribute('aria-hidden','true');
@@ -2055,13 +2056,13 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
           master.style.visibility='hidden';
           master.dataset.originalSrc=src;
           master.dataset.previewSrc='';
-          rekixoLoadingProgress(96,'Preparing your experience');
+          window.REKIXO_LOADING_PROGRESS?.(96,'Preparing your experience');
           onReady();
         };
         master.decoding='async';
         master.fetchPriority='high';
         master.style.visibility='hidden';
-        rekixoLoadingProgress(66,'Preparing your experience');
+        window.REKIXO_LOADING_PROGRESS?.(66,'Preparing your experience');
         master.src=src;
       }catch(error){
         if(current()&&error?.name!=='AbortError')originalError();
@@ -3216,7 +3217,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       if(shellRevealed)return;
       shellRevealed=true;
       // Do not expose a preview/half-loaded map. Load the ORIGINAL during boot.
-      rekixoLoadingProgress(55,'Preparing your experience');
+      window.REKIXO_LOADING_PROGRESS?.(55,'Preparing your experience');
       reset();
     };
     const revealProject=()=>{
@@ -3225,7 +3226,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       reset();
       if(document.documentElement.classList.contains('rekixo-project-error'))return;
       revealed=true;PUBLIC_READY=true;
-      rekixoLoadingProgress(100,'Ready');
+      window.REKIXO_LOADING_PROGRESS?.(100,'Ready');
       viewport.classList.remove('master-loading');
       document.documentElement.classList.remove('rekixo-project-loading','rekixo-project-error');
       world.style.visibility='visible';
@@ -3245,7 +3246,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     };
     const alignMasterAndReveal=()=>{
       if(revealed||!master)return;
-      rekixoLoadingProgress(90,'Preparing your experience');
+      window.REKIXO_LOADING_PROGRESS?.(90,'Preparing your experience');
       if(master.naturalWidth>0&&master.naturalHeight>0){
         const storedW=Number(s.mapWidth)||W,storedH=Number(s.mapHeight)||H;
         const expectedAspect=storedW/Math.max(1,storedH);
