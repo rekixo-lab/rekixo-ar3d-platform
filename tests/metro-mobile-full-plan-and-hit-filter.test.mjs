@@ -28,7 +28,7 @@ test("Metro first frame and reset retain existing framing; only HD compositing c
   assert.equal(metro.fit, 720 / 900, "Metro first-frame cover-fit is unchanged");
   assert.equal(other.fit, metro.fit, "all other projects retain their framing");
   assert.equal(metro.minFit, 360 / 1600);
-  assert.match(viewer, /metroMobileTileSafety=data.projectId==='c024a562-634d-4e49-b647-43209f6e450b'/);
+  assert.doesNotMatch(viewer, /metroMobileTileSafety/, "global renderer has no Metro-specific image logic");
   assert.ok(viewer.includes(metroId));
   assert.doesNotMatch(viewer, /metroFullPlanMobile/);
   assert.match(viewer, /scale=focus\?configuredFocusScale\(focus\):fit/);
