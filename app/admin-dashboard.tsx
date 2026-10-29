@@ -20,7 +20,7 @@ const clientSettingLabels=PROJECT_CONTACT_LABELS;
 const PLOT_PAGE_SIZE=250; // Keep 190 numbered + B/C Noorpur plots visible in one list.
 export default function AdminDashboard({user,signOut,projectId,publicSiteHref}:{user:{name:string;email:string;role:"super_admin"|"client_admin"};signOut:string;projectId:string;publicSiteHref?:string}){
  const initialDefaults=genericDefaults;
- const [tab,setTab]=useState("overview"),[plots,setPlots]=useState<Plot[]>([]),[selected,setSelected]=useState<Plot|null>(null),[gallery,setGallery]=useState<Gallery[]>([]),[settings,setSettings]=useState<ProjectSettings>(initialDefaults),[savedClientSettings,setSavedClientSettings]=useState<Record<string,string>>({}),[busy,setBusy]=useState(false),[statusBusy,setStatusBusy]=useState(""),[deleteBusy,setDeleteBusy]=useState(""),[toast,setToast]=useState(""),[uploadFiles,setUploadFiles]=useState<File[]>([]),[uploadPreviews,setUploadPreviews]=useState<string[]>([]),[uploadProgress,setUploadProgress]=useState<number|null>(null),[uploadCurrent,setUploadCurrent]=useState(0),[plotPage,setPlotPage]=useState(0),[plotTotal,setPlotTotal]=useState(0),[plotCounts,setPlotCounts]=useState({available:0,booked:0,sold:0,agreement:0}),[plotSearch,setPlotSearch]=useState(""),[plotLoading,setPlotLoading]=useState(false);
+ const [tab,setTab]=useState("overview"),[toastTone,setToastTone]=useState<"success"|"error">("success"),[plots,setPlots]=useState<Plot[]>([]),[selected,setSelected]=useState<Plot|null>(null),[gallery,setGallery]=useState<Gallery[]>([]),[settings,setSettings]=useState<ProjectSettings>(initialDefaults),[savedClientSettings,setSavedClientSettings]=useState<Record<string,string>>({}),[busy,setBusy]=useState(false),[statusBusy,setStatusBusy]=useState(""),[deleteBusy,setDeleteBusy]=useState(""),[toast,setToast]=useState(""),[uploadFiles,setUploadFiles]=useState<File[]>([]),[uploadPreviews,setUploadPreviews]=useState<string[]>([]),[uploadProgress,setUploadProgress]=useState<number|null>(null),[uploadCurrent,setUploadCurrent]=useState(0),[plotPage,setPlotPage]=useState(0),[plotTotal,setPlotTotal]=useState(0),[plotCounts,setPlotCounts]=useState({available:0,booked:0,sold:0,agreement:0}),[plotSearch,setPlotSearch]=useState(""),[plotLoading,setPlotLoading]=useState(false);
  const [salesAccess,setSalesAccess]=useState(false),[salesRole,setSalesRole]=useState<"viewer"|"editor"|"approver">("viewer");
  const [studioEnabled,setStudioEnabled]=useState(false);
  const [plotUpdatesEnabled,setPlotUpdatesEnabled]=useState(false);
@@ -39,27 +39,14 @@ export default function AdminDashboard({user,signOut,projectId,publicSiteHref}:{
  const counts=plotCounts;
  const plotPageCount=Math.max(1,Math.ceil(plotTotal/PLOT_PAGE_SIZE));
  useEffect(()=>{setPlotPage(current=>Math.min(current,Math.max(0,Math.ceil(plotTotal/PLOT_PAGE_SIZE)-1)))},[plotTotal]);
- function show(v:string){setToast(v);if(toastTimer.current)clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(""),2600)}
+ function show(v:string,tone:"success"|"error"="success"){setToastTone(tone);setToast(v);if(toastTimer.current)clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(""),tone==="error"?5200:2600)}
  function changeTab(next:string){if(next===tab)return;if(bookingDraft.current.saving){show("Booking details save ho rahi hain. Thoda wait karein.");return}if(bookingDraft.current.dirty&&!window.confirm("Unsaved booking details discard karke doosra section kholein?"))return;if(salesDraft.current&&!window.confirm("Discard unsaved Sale form details?"))return;salesDraft.current=false;if(next!=="sales")setGuidedPlotId(null);setTab(next)}
  function bookingDetailsSaved(plotId:string,details:PlotAdminDetails){savedBookingDetails.current[`${projectId}:${plotId}`]=details;setPlots(current=>current.map(plot=>plot.id===plotId?{...plot,adminDetails:details}:plot));setSelected(current=>current?.id===plotId?{...current,adminDetails:details}:current)}
  async function changeStatus(plot:Plot,status:string){
    if(agreementEnabled&&user.role==="client_admin"){
      const visible=plot.agreementDone?"agreement":plot.status==="sold"?"registered":plot.status;
      if(visible===status)return;
-     if(!["available","booked","registered","agreement"].includes(status)){show("Invalid Metro status");return}
-     if((status==="registered"||status==="agreement")&&plot.status!=="sold"&&salesAccess){
-       try{
-         const response=await fetch("/api/client/sales/assist?plotId="+encodeURIComponent(plot.id),{cache:"no-store"});
-         if(!response.ok)throw Error("Sale lookup failed. Reload and retry.");
-         const data=await response.json() as {plot?:{activeSaleId?:string|null}};
-         if(!data.plot)throw Error("Plot not available for Sale entry.");
-         if(!data.plot.activeSaleId){
-           if(salesRole==="viewer"){show("Sales Editor / Approver access required before Registered / Agreement Done.");return}
-           if(bookingDraft.current.saving||bookingDraft.current.dirty){show("Save or close booking details before opening Sale entry.");return}
-           setGuidedPlotId(plot.id);setTab("sales");return;
-         }
-       }catch(error){show(error instanceof Error?error.message:"Sale lookup failed");return}
-     }
+     if(!["available","booked","registered","agreement"].includes(status)){show("Invalid Metro status","error");return}
      setStatusBusy(plot.id);
      try{
        const response=await fetch("/api/client/metro-status",{method:"PATCH",
@@ -67,17 +54,17 @@ export default function AdminDashboard({user,signOut,projectId,publicSiteHref}:{
          body:JSON.stringify({plotId:plot.id,status,expectedStatus:plot.status,
            expectedAgreementDone:plot.agreementDone===true,expectedAgreementRevision:plot.agreementRevision||0})});
        const data=await response.json() as {ok?:boolean;error?:string;plotId?:string;status?:string;
-         inventoryStatus?:string;agreementDone?:boolean;agreementRevision?:number;agreementSaleVerified?:boolean};
+         inventoryStatus?:string;agreementDone?:boolean;agreementRevision?:number;activeSaleRecorded?:boolean};
        if(!response.ok||data.ok!==true||data.plotId!==plot.id||data.status!==status||
          !Number.isSafeInteger(data.agreementRevision))throw Error(data.error||"Saved Metro status could not be verified.");
        savedAgreements.current[`${projectId}:${plot.id}`]={done:data.agreementDone===true,revision:data.agreementRevision!};
        setPlots(rows=>rows.map(row=>row.id===plot.id?{...row,status:data.inventoryStatus!,
-         agreementDone:data.agreementDone,agreementRevision:data.agreementRevision,agreementSaleVerified:status==="agreement"?true:row.agreementSaleVerified}:row));
+         agreementDone:data.agreementDone,agreementRevision:data.agreementRevision,agreementSaleVerified:data.activeSaleRecorded===true}:row));
        setSelected(row=>row?.id===plot.id?{...row,status:data.inventoryStatus!,
-         agreementDone:data.agreementDone,agreementRevision:data.agreementRevision,agreementSaleVerified:status==="agreement"?true:row.agreementSaleVerified}:row);
+         agreementDone:data.agreementDone,agreementRevision:data.agreementRevision,agreementSaleVerified:data.activeSaleRecorded===true}:row);
        setPlotRefresh(n=>n+1);
        show("Plot "+plot.id+" · "+(status==="agreement"?"Agreement Done":status==="registered"?"Registered":status)+" saved");
-     }catch(error){setPlotRefresh(n=>n+1);show(error instanceof Error?error.message:"Metro status not saved")}
+      }catch(error){setPlotRefresh(n=>n+1);show(error instanceof Error?error.message:"Metro status not saved","error")}
      finally{setStatusBusy("")}
      return;
    }
@@ -105,7 +92,7 @@ export default function AdminDashboard({user,signOut,projectId,publicSiteHref}:{
  async function remove(id:string){if(!confirm("Is image ko gallery se delete karein?"))return;setDeleteBusy(id);try{const r=await fetch(`/api/gallery?id=${id}`,{method:"DELETE"});if(!r.ok)throw new Error();setGallery(x=>x.filter(i=>i.id!==id));show("Image delete ho gayi")}catch{show("Image delete nahi hui. Dobara try karein.")}finally{setDeleteBusy("")}}
  const navItems=user.role==="super_admin"?[...baseNavItems,["users",Users,"Client Admins"] as const]:[...baseNavItems,...(salesAccess?[["sales",Wallet,"Sales & Accounts"] as const]:[]),...(studioEnabled?[["deals",Wallet,"Deal Progress"] as const]:[]),...(plotUpdatesEnabled?[["notices",Wallet,"Plot Updates"] as const]:[])];
  const projectLogoUrl=settings.logoName?`/api/project-asset/logo?projectId=${encodeURIComponent(projectId)}&v=${encodeURIComponent(settings.logoVersion||settings.logoName)}`:"";
- return <div className={`admin-shell ${user.role==="super_admin"?"role-super-admin":"role-client-admin"}`} style={{"--project-accent":settings.accentColor} as React.CSSProperties}><aside className="side"><div className="logo">{projectLogoUrl?<img className="client-project-logo" src={projectLogoUrl} alt={`${settings.brandName} logo`} width={46} height={46}/>:<span>{settings.brandShort.slice(0,4)}</span>}<div><b>{settings.brandName}</b><small>{user.role==="super_admin"?"SUPER ADMIN":"CLIENT ADMIN"}</small></div></div><nav>{navItems.map(([id,Icon,label])=><button key={id} className={tab===id?"active":""} onClick={()=>changeTab(id)}><Icon size={19}/>{label}</button>)}</nav><div className="account"><div className="avatar">{user.name[0]?.toUpperCase()}</div><div><b>{user.name}</b><small>{user.email}</small></div><a href={signOut}>Sign out</a></div></aside>
+ return <div className={`admin-shell ${user.role==="super_admin"?"role-super-admin":"role-client-admin"}${agreementEnabled&&user.role==="client_admin"?" metro-status-admin":""}`} style={{"--project-accent":settings.accentColor} as React.CSSProperties}><aside className="side"><div className="logo">{projectLogoUrl?<img className="client-project-logo" src={projectLogoUrl} alt={`${settings.brandName} logo`} width={46} height={46}/>:<span>{settings.brandShort.slice(0,4)}</span>}<div><b>{settings.brandName}</b><small>{user.role==="super_admin"?"SUPER ADMIN":"CLIENT ADMIN"}</small></div></div><nav>{navItems.map(([id,Icon,label])=><button key={id} className={tab===id?"active":""} onClick={()=>changeTab(id)}><Icon size={19}/>{label}</button>)}</nav><div className="account"><div className="avatar">{user.name[0]?.toUpperCase()}</div><div><b>{user.name}</b><small>{user.email}</small></div><a href={signOut}>Sign out</a></div></aside>
  <main className="content"><header><div><p>{settings.projectName.toUpperCase()} · {user.role==="super_admin"?"SUPER ADMIN":"CLIENT ADMIN"}</p><h1>{tab==="overview"?"Dashboard":tab==="mapper"?"Plot Mapper Engine":tab==="plots"?"Plot Management":tab==="sales"?"Sales & Accounts":tab==="deals"?"Deal Progress":tab==="notices"?"Plot Updates":tab==="gallery"?"Gallery Manager":tab==="users"?"Client Access":"Contact & Location"}</h1></div><a className="site-link" href={publicSiteHref||`/preview/${encodeURIComponent(projectId)}`} target="_blank" rel="noopener noreferrer"><ExternalLink size={17}/> View Site</a></header>
  <MotionSwap motionKey={tab}><div className="admin-motion-panel">
  {tab==="overview"&&<><section className="stats"><Stat label="Total Plots" value={plotTotal} color="blue"/><Stat label="Available" value={counts.available} color="green"/><Stat label="Booked" value={counts.booked} color="amber"/><Stat label={agreementEnabled?"Registered":"Sold"} value={counts.sold} color={agreementEnabled?"green":"red"}/>{agreementEnabled&&<Stat label="Agreement Done" value={counts.agreement} color="red"/>}</section><section className="overview-grid"><div className="card master-card"><div className="card-title"><div><h2>Project masterplan</h2><p>Live inventory ka visual reference</p></div></div><img src={`/api/project-asset/masterplan?projectId=${encodeURIComponent(projectId)}`} alt={`${settings.projectName} masterplan`} loading="eager" decoding="async"/></div><div className="card quick"><h2>Quick actions</h2><button onClick={()=>changeTab("plots")}><MapIcon/>Plot status update karein</button><button onClick={()=>changeTab("gallery")}><Upload/>Gallery image upload karein</button><button onClick={()=>changeTab("settings")}><Phone/>Contact details edit karein</button></div></section></>}
@@ -117,7 +104,7 @@ export default function AdminDashboard({user,signOut,projectId,publicSiteHref}:{
  {tab==="settings"&&<section className="card settings-card"><div className="section-title"><Building2/><div><h2>Contact & Location</h2><p>Super Admin me saved project profile yahan pre-filled hai. Sirf customer-facing details hi edit hongi.</p></div></div><div className="form-grid settings-form"><Field label={clientSettingLabels.location+" *"} wide><input value={settings.location} maxLength={220} placeholder="City / area / district" onChange={e=>setSettings({...settings,location:e.target.value})}/></Field><Field label={clientSettingLabels.address+" *"} wide><input value={settings.address} maxLength={220} placeholder="Complete customer-facing address" onChange={e=>setSettings({...settings,address:e.target.value})}/></Field><Field label={clientSettingLabels.phone1+" *"}><input type="tel" value={settings.phone1} placeholder="+91 98765 43210" onChange={e=>setSettings({...settings,phone1:e.target.value})}/></Field><Field label={clientSettingLabels.phone2}><input type="tel" value={settings.phone2} placeholder="Optional" onChange={e=>setSettings({...settings,phone2:e.target.value})}/></Field><Field label="WhatsApp" wide><span className="client-contact-fallback"><input type="checkbox" checked={!settings.whatsapp} onChange={e=>setSettings({...settings,whatsapp:e.target.checked?"":settings.phone1})}/><span>Primary phone ko WhatsApp ke liye use karein</span></span>{settings.whatsapp?<input type="tel" value={settings.whatsapp} placeholder="+91 98765 43210" onChange={e=>setSettings({...settings,whatsapp:e.target.value})}/>:<small>WhatsApp ke liye primary phone automatic use hoga.</small>}</Field><Field label={clientSettingLabels.mapUrl} wide><input type="url" value={settings.mapUrl} placeholder="https://maps.app.goo.gl/..." onChange={e=>setSettings({...settings,mapUrl:e.target.value})}/>{!settings.mapUrl&&projectMapFallbackUrl(settings)?<small>Blank rehne par full address se Google Maps automatic open hoga.</small>:null}</Field><Field label={clientSettingLabels.brochureUrl} wide><input type="url" value={settings.brochureUrl} placeholder="https://... (optional)" onChange={e=>setSettings({...settings,brochureUrl:e.target.value})}/><small>Brochure na ho to blank chhodein.</small></Field></div><button className="primary" disabled={busy} onClick={saveSettings}><Save size={18}/>Save Contact Details</button></section>}
  {tab==="users"&&user.role==="super_admin"&&<ClientAdminManager notify={show}/>}
  </div></MotionSwap>
- </main><MotionToast message={toast}/></div>
+ </main><MotionToast message={toast} tone={agreementEnabled&&user.role==="client_admin"?toastTone:"success"}/></div>
 }
 function Stat({label,value,color}:{label:string;value:number;color:string}){return <div className={`stat ${color}`}><small>{label}</small><b>{value}</b><span></span></div>}
 function Field({label,wide,children}:{label:string;wide?:boolean;children:React.ReactNode}){return <label className={wide?"wide":""}><span>{label}</span>{children}</label>}
