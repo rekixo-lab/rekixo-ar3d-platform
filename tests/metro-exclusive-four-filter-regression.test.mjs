@@ -115,4 +115,8 @@ test("plot details, peek card and live updates show Agreement Done, not canonica
   for(const key of ["available","booked","registered","agreement"])
     assert.ok(html.includes('.plot-peek[data-metro-visual="'+key+'"]{--peek-rgb:'),
       "peek card tint missing "+key);
+  for(const key of ["available","booked","registered","agreement"])
+    assert.ok(html.includes('.plot.selected[data-metro-visual="'+key+'"]{--rekixo-focus-rgb:'),
+      "selected glow tint missing "+key);
+  assert.match(html,/if\(metroAgreementMode&&statusFilter&&!matchesStatusFilter\(p,statusFilter\)\)clearStatusFilter\(true\)/);
 });
