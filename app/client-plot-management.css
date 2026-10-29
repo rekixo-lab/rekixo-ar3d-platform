@@ -279,3 +279,9 @@
 .client-booking-list.metro-four-status .client-booking-status.available{
   color:#e4f1ff!important;
 }
+
+.client-booking-list.metro-four-status .client-metro-legacy-warning{
+  margin:2px 12px 12px;padding:9px 11px;background:#422b1a;
+  border:1px solid #ad7b2d;border-radius:7px;color:#ffe3ad;
+  font-size:12px;line-height:1.5;
+}
