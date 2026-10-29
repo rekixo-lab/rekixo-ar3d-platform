@@ -19,7 +19,7 @@ function originalHarness({ available=true,drawFailure=false }={}) {
     decoding:"async",decode:async()=>{},src:"",onload:null,onerror:null,
   };
   const sandbox={
-    AbortController,URL,Math,Number,
+    AbortController,URL,Math,Number,setTimeout,clearTimeout,
     location:{href:"https://example.test/project/index.html"},
     fetch:async()=>{requests.push("inspect");return {ok:true,json:async()=>({original:source.value})}},
     window:{devicePixelRatio:2},master,mode3D:false,refreshNativeMasterplan:()=>{},
