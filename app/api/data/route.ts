@@ -81,14 +81,25 @@ export async function GET(request: Request) {
           : env.DB.prepare("SELECT COUNT(*) AS total FROM plots WHERE project_id=? AND inventory_active=1").bind(projectId).first<{ total: number }>(),
         env.DB.prepare("SELECT status,COUNT(*) AS total FROM plots WHERE project_id=? AND inventory_active=1 GROUP BY status").bind(projectId).all<{ status: string; total: number }>(),
       ]);
-      const counts = { available: 0, booked: 0, sold: 0 };
-      for (const row of statusRows.results) {
-        const status = row.status === "booked" || row.status === "sold" ? row.status : "available";
-        counts[status] += Number(row.total || 0);
-      }
+      const counts = { available: 0, booked: 0, sold: 0, agreement: 0 };
       const total = Number(totalRow?.total || 0);
       const agreementEnabled = session.role==="client_admin" && await metroAgreementEnabled(projectId);
       const agreementByPlot = agreementEnabled ? await metroAgreementValues(projectId) : new Map<string,{done:boolean;revision:number}>();
+      if(agreementEnabled){
+        // Public Metro categories are exclusive; count globally, never from a page.
+        const all=await env.DB.prepare("SELECT id,status FROM plots WHERE project_id=? AND inventory_active=1")
+          .bind(projectId).all<{id:string;status:string}>();
+        for(const row of all.results){
+          if(agreementByPlot.get(row.id)?.done){counts.agreement++;continue}
+          const key=row.status==="booked"?"booked":row.status==="sold"?"sold":"available";
+          counts[key]++;
+        }
+      }else{
+        for(const row of statusRows.results){
+          const key=row.status==="booked"?"booked":row.status==="sold"?"sold":"available";
+          counts[key]+=Number(row.total||0);
+        }
+      }
       return Response.json(
         {
           projectId,
