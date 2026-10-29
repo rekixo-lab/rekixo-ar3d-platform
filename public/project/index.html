@@ -2339,10 +2339,11 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   function updateMetroAgreementFact(plot){
     const row=q('#metroAgreementRow'),value=q('#metroAgreementValue');
     if(!row||!value)return;
-    const done=metroAgreementMode&&plot?.agreementDone===true;
-    row.style.display=done?'flex':'none';
-    value.textContent=done?'Agreement Done':'';
-    value.className=done?'agreement-done':'';
+    // Status already reads Agreement Done from the same flag. Never render a
+    // second identical AGREEMENT row below the public STATUS fact.
+    row.style.display='none';
+    value.textContent='';
+    value.className='';
   }
   function renderMetroStatusLabels(){
     for(const status of ['booked','sold']){
