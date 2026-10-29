@@ -81,21 +81,38 @@ export async function GET(request: Request) {
           : env.DB.prepare("SELECT COUNT(*) AS total FROM plots WHERE project_id=? AND inventory_active=1").bind(projectId).first<{ total: number }>(),
         env.DB.prepare("SELECT status,COUNT(*) AS total FROM plots WHERE project_id=? AND inventory_active=1 GROUP BY status").bind(projectId).all<{ status: string; total: number }>(),
       ]);
-      const counts = { available: 0, booked: 0, sold: 0 };
-      for (const row of statusRows.results) {
-        const status = row.status === "booked" || row.status === "sold" ? row.status : "available";
-        counts[status] += Number(row.total || 0);
-      }
+      const counts = { available: 0, booked: 0, sold: 0, agreement: 0 };
       const total = Number(totalRow?.total || 0);
       const agreementEnabled = session.role==="client_admin" && await metroAgreementEnabled(projectId);
       const agreementByPlot = agreementEnabled ? await metroAgreementValues(projectId) : new Map<string,{done:boolean;revision:number}>();
+      // Admin-only boolean diagnostic; never return buyer or payment details.
+      const saleRows=agreementEnabled?await env.DB.prepare(
+        "SELECT plot_id AS plotId FROM property_sales WHERE project_id=? AND state='active'"
+      ).bind(projectId).all<{plotId:string}>():{results:[] as {plotId:string}[]};
+      const activeSalePlots=new Set(saleRows.results.map(row=>row.plotId));
+      if(agreementEnabled){
+        // Public Metro categories are exclusive; count globally, never from a page.
+        const all=await env.DB.prepare("SELECT id,status FROM plots WHERE project_id=? AND inventory_active=1")
+          .bind(projectId).all<{id:string;status:string}>();
+        for(const row of all.results){
+          if(agreementByPlot.get(row.id)?.done){counts.agreement++;continue}
+          const key=row.status==="booked"?"booked":row.status==="sold"?"sold":"available";
+          counts[key]++;
+        }
+      }else{
+        for(const row of statusRows.results){
+          const key=row.status==="booked"?"booked":row.status==="sold"?"sold":"available";
+          counts[key]+=Number(row.total||0);
+        }
+      }
       return Response.json(
         {
           projectId,
           plots: pageRows.map((row) => ({
             ...row.plot,adminDetails:canonicalPlotAdminDetails(row.adminDetails),
             ...(agreementEnabled?{agreementDone:agreementByPlot.get(row.plot.id)?.done||false,
-              agreementRevision:agreementByPlot.get(row.plot.id)?.revision||0}:{})
+              agreementRevision:agreementByPlot.get(row.plot.id)?.revision||0,
+              agreementSaleVerified:activeSalePlots.has(row.plot.id)}:{})
           })),
           agreementEnabled,
           total,
@@ -182,6 +199,12 @@ export async function POST(request: Request) {
       if (!project) return Response.json({ error: "Project nahi mila" }, { status: 404 });
     }
 
+    if(body.type==="plotStatus"&&session.role==="client_admin"&&await metroAgreementEnabled(projectId)){
+      // All Metro Client Admin writes must use the transactionally guarded
+      // four-category route; this legacy three-status endpoint bypasses the flag.
+      return Response.json({error:"Use the Metro four-status dropdown and reload plots.",
+        code:"METRO_STATUS_UNIFIED_ROUTE_REQUIRED"},{status:409});
+    }
     if (body.type === "plotStatus") {
       const plotId = String(body.plotId || "").trim();
       const status = String(body.status || "");

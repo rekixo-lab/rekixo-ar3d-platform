@@ -2,6 +2,7 @@ import {env} from "cloudflare:workers";
 import {validAdminSession,sameOrigin} from "@/modules/auth";
 import {writeAudit} from "@/modules/audit";
 import {recordAutomaticPlotNotice} from "@/app/project-plot-notices";
+import {metroAgreementEnabled,METRO_AGREEMENT_FIELD} from "@/app/metro-agreement";
 import {fieldsOf,stagesOf,validDate,validateCustomValue,type CustomField} from "@/app/project-admin-studio-policy";
 
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{"cache-control":"private, no-store"}});
@@ -76,6 +77,8 @@ export async function PATCH(request:Request){
     if(body.action==="stage"){
       if(!features.dealProgress)return reply({error:"This project has no Deal Progress module"},403);
       const slug=typeof body.stageSlug==="string"?body.stageSlug:"";
+      if((slug==="agreement_done"||slug==="registered")&&await metroAgreementEnabled(projectId))
+        return reply({error:"Use Plot Management Status for Metro City Registered / Agreement Done."},409);
       if(slug&&!/^[a-z][a-z0-9_]{1,47}$/.test(slug))return reply({error:"Invalid stage"},400);
       const note=typeof body.note==="string"?body.note.trim():"";
       if(note.length>600||typeof body.note!=="string")return reply({error:"Note must be under 600 characters"},400);
@@ -116,6 +119,8 @@ export async function PATCH(request:Request){
     if(body.action==="field"){
       if(!features.customFields)return reply({error:"Custom Fields not enabled for this project"},403);
       const fieldKey=typeof body.fieldKey==="string"?body.fieldKey:"";
+      if(fieldKey===METRO_AGREEMENT_FIELD&&await metroAgreementEnabled(projectId))
+        return reply({error:"Metro Agreement Done is updated only from Plot Management Status."},409);
       if(!/^[a-z][a-z0-9_]{1,47}$/.test(fieldKey))return reply({error:"Invalid field"},400);
       const row=await env.DB.prepare("SELECT field_key AS fieldKey,label,field_type AS fieldType,choices_json AS choicesJson,sort_order AS sortOrder,required,enabled FROM project_custom_fields WHERE project_id=? AND field_key=?").bind(projectId,fieldKey).first<Record<string,unknown>>();
       if(!row||Number(row.enabled)!==1)return reply({error:"Field not enabled"},409);
@@ -130,11 +135,6 @@ export async function PATCH(request:Request){
           .bind(value,now,session.id,projectId,plotId,fieldKey,revision,projectId,fieldKey);
       const saved=await statement.all();
       if(!saved.results.length)return reply({error:"Field changed in another session. Refresh and retry."},409);
-      // Only Metro City's public Agreement Done checkbox is eligible; never
-      // expose arbitrary custom-field values or private notes.
-      if(projectId==="c024a562-634d-4e49-b647-43209f6e450b"&&fieldKey==="agreement_done"&&field.fieldType==="checkbox"){
-        await recordAutomaticPlotNotice(projectId,plotId,"deal",value==="true"?"Agreement Done":"Agreement Updated","agreement:"+plotId+":"+now,session.id,now);
-      }
       try{await writeAudit(session,"project.custom_field_updated",projectId,plotId,{fieldKey,revision:newRevision});}
       catch{console.error("Field saved; optional audit log unavailable",{projectId,plotId,fieldKey})}
       return reply({ok:true,fieldKey,value,revision:newRevision});

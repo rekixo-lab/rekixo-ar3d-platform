@@ -15,8 +15,8 @@ test("Metro-only Sold to Registered display, canonical Booked and Sold IDs and o
  assert.match(source,/renderMetroStatusLabels\(\)/);
  assert.match(source,/updateMetroAgreementFact\(p\)/);
  assert.match(source,/updateMetroAgreementFact\(fresh\)/);
- assert.match(source,/row.style.display=done\?'flex':'none'/);
- assert.match(source,/value.textContent=done\?'Agreement Done':''/);
+ assert.match(source,/row.style.display='none'/);
+ assert.match(source,/value.textContent=''/);
  assert.doesNotMatch(source,/Agreement Pending/);
  assert.match(source,/Agreement Done/);
  assert.match(source,/statusDisplayLabel\(st\)/);
@@ -38,32 +38,32 @@ test("public API returns only Metro agreement boolean, not private values or new
  assert.match(live,/status:row\.status==="booked"\|\|row\.status==="sold"\?row\.status:"available"/);
  assert.doesNotMatch(policy,/owner_name|booking_amount|broker_name|SELECT \*/);
 });
-test("checkbox API is session-only, revision-protected and never edits inventory or Sale",()=>{
+test("legacy checkbox API rejects writes and retains Metro-only role gating",()=>{
  const api=read("app/api/client/metro-agreement/route.ts");
  assert.match(api,/validAdminSession\(\)/);
  assert.match(api,/session\.role!=="client_admin"/);
  assert.match(api,/sameOrigin\(request\)/);
  assert.match(api,/metroAgreementEnabled\(session\.projectId\)/);
- assert.match(api,/field_key=\? AND revision=\?/);
- assert.match(api,/DO NOTHING RETURNING revision/);
- assert.match(api,/Agreement was changed in another session/);
- assert.match(api,/writeAudit/);
- assert.doesNotMatch(api,/UPDATE plots|UPDATE property_sales|UPDATE plot_deal_states/);
- const data=read("app/api/data/route.ts");
- assert.match(data,/agreementEnabled/);
- assert.match(data,/agreementRevision/);
- assert.match(data,/session\.role==="client_admin"/);
+ assert.match(api,/METRO_AGREEMENT_LEGACY_WRITE_DISABLED/);
+ assert.doesNotMatch(api,/UPDATE plots|INSERT INTO plot_custom_values|UPDATE plot_custom_values/);
 });
-test("builder checkbox is independent from Deal Progress stage saves",()=>{
- const ui=read("app/client-plot-management.tsx"),shell=read("app/admin-dashboard.tsx");
- const stage=read("app/api/client/deal-progress/route.ts");
- assert.match(ui,/className="client-booking-agreement"/);
- assert.match(ui,/checked=\{plot\.agreementDone===true\}/);
- assert.match(ui,/\/api\/client\/metro-agreement/);
- assert.match(ui,/onAgreementSaved/);
- assert.match(ui,/onAgreementConflict/);
- assert.match(shell,/agreementEnabled=\{agreementEnabled\}/);
+
+test("Metro Admin has one status selection and dedicated transaction route; no checkbox",()=>{
+ const ui=read("app/client-plot-management.tsx");
+ const shell=read("app/admin-dashboard.tsx");
+ const stages=read("app/api/client/deal-progress/route.ts");
+ const dealUi=read("app/client-deal-progress.tsx");
+ const status=read("app/api/client/metro-status/route.ts");
+ assert.match(ui,/<option value="registered">Registered<\/option>/);
+ assert.match(ui,/<option value="agreement">Agreement Done<\/option>/);
+ assert.doesNotMatch(ui,/type="checkbox"|toggleAgreement\(/);
+ assert.match(shell,/\/api\/client\/metro-status/);
+ assert.match(shell,/expectedAgreementRevision:plot\.agreementRevision/);
  assert.match(shell,/savedAgreements/);
- assert.match(stage,/const results=await env.DB.batch\(\[update,event\]\)/);
- assert.doesNotMatch(stage,/agreementStatement|metroAgreementEnabled/);
+ assert.match(status,/env\.DB\.batch\(statements\)/);
+ assert.match(status,/ACTIVE_SALE_STATUS_PROTECTED/);
+ assert.match(status,/AGREEMENT_REQUIRES_SALE/);
+ assert.match(stages,/fieldKey===METRO_AGREEMENT_FIELD/);
+ assert.match(dealUi,/x\.fieldKey==="agreement_done"/);
+ assert.match(stages,/const results=await env\.DB\.batch\(\[update,event\]\)/);
 });

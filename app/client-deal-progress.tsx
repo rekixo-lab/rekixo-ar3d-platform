@@ -53,7 +53,7 @@ export default function ClientDealProgress({notify,metroAgreementEnabled=false}:
   return <section style={{color:"#f0f5ff",minWidth:0}}>
     <header style={{...card,borderColor:"#326758"}}>
       <h2 style={{fontSize:22,margin:"0 0 6px"}}>Deal Progress &amp; Project Fields</h2>
-      <p style={{color:"#a7bed7",fontSize:13,margin:0,lineHeight:1.65}}>Private builder tracking only. Available / Booked / Sold and financial receipts stay controlled by the original Plot Management / Sales &amp; Accounts.</p>
+      <p style={{color:"#a7bed7",fontSize:13,margin:0,lineHeight:1.65}}>Private builder tracking only. {metroAgreementEnabled?"Metro's four public plot statuses are controlled only in Plot Management.":"Available / Booked / Sold are controlled by Plot Management."} Financial receipts remain under Sales &amp; Accounts.</p>
     </header>
     {error&&<p role="alert" style={{...card,color:"#ffacb9",borderColor:"#854857"}}>{error}</p>}
     {!data?<div style={card}>Loading…</div>:!data.enabled?<div style={card}>This project has no configured Deal Progress or Custom Fields module.</div>:<>
@@ -84,17 +84,17 @@ export default function ClientDealProgress({notify,metroAgreementEnabled=false}:
             {detail.features.dealProgress&&<form onSubmit={e=>{e.preventDefault();void write({action:"stage",stageSlug:stage,holdUntil:stage==="hold"?holdUntil:null,note,expectedRevision:current.revision})}} style={{display:"grid",gap:13,marginTop:16}}>
               <label style={label}>Deal Progress stage<select style={input} value={stage} onChange={e=>{setStage(e.target.value);if(e.target.value!=="hold")setHoldUntil("")}}>
                 <option value="">Not started</option>
-                {detail.stages.filter(x=>x.enabled||x.slug===stage).map(x=><option key={x.slug} disabled={!x.enabled} value={x.slug}>{x.label}{x.enabled?"":" (disabled)"}</option>)}
+                {detail.stages.filter(x=>(x.enabled||x.slug===stage)&&(!metroAgreementEnabled||!["agreement_done","registered"].includes(x.slug)||x.slug===stage)).map(x=><option key={x.slug} disabled={!x.enabled||(metroAgreementEnabled&&["agreement_done","registered"].includes(x.slug))} value={x.slug}>{x.label}{metroAgreementEnabled&&["agreement_done","registered"].includes(x.slug)?" (historical — use Plot Management)":x.enabled?"":" (disabled)"}</option>)}
               </select></label>
               {stage==="hold"&&<label style={label}>Optional Hold expiry date<input style={input} type="date" value={holdUntil} onChange={e=>setHoldUntil(e.target.value)}/></label>}
               <label style={label}>Private note<textarea style={{...input,minHeight:84}} value={note} maxLength={600} onChange={e=>setNote(e.target.value)} placeholder="Internal remark (not visible to customer)"/></label>
               {chosen?.requiresSale&&<p style={{fontSize:12,color:"#ffce86",margin:0}}>This stage requires a confirmed active Sale and Sold inventory status. Saving never creates a sale automatically.</p>}
               {stage==="token_received"&&<p style={{fontSize:12,color:"#ffce86",margin:0}}>Token Received here is only a progress label. Record actual money under Sales &amp; Accounts.</p>}
-              <button style={action} disabled={busy}>Save Deal Progress</button>
+              <button style={action} disabled={busy||(metroAgreementEnabled&&["agreement_done","registered"].includes(stage))}>Save Deal Progress</button>
             </form>}
             {detail.features.customFields&&<div style={{marginTop:22}}>
               <h4 style={{fontSize:16}}>Project-specific fields</h4>
-              {detail.fields.filter(x=>x.enabled&&!(metroAgreementEnabled&&(/agreement[_\s-]*date/i.test(x.fieldKey)||/agreement\s*date/i.test(x.label)))).map(field=>{
+              {detail.fields.filter(x=>x.enabled&&!(metroAgreementEnabled&&(x.fieldKey==="agreement_done"||/agreement[_\s-]*date/i.test(x.fieldKey)||/agreement\s*date/i.test(x.label)))).map(field=>{
                 const v=(detail.values||[]).find(x=>x.fieldKey===field.fieldKey);
                 const value=draftValues[field.fieldKey]??"";
                 const onChange=(s:string)=>setDraftValues(prev=>({...prev,[field.fieldKey]:s}));

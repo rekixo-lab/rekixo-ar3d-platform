@@ -265,49 +265,23 @@
 }
 
 
-/* Metro City's per-plot Agreement Done control. Unenabled projects retain original layout. */
-.client-booking-list.with-agreement .client-booking-column-head,
-.client-booking-list.with-agreement .client-booking-summary{
-  grid-template-columns:56px 78px minmax(95px,1fr) 110px minmax(95px,1fr) 102px minmax(122px,135px) 89px;
-  gap:10px;
+/* Metro City unified four-status selector; no separate checkbox/extra grid column. */
+.client-booking-list.metro-four-status .client-booking-status.sold,
+.client-booking-list.metro-four-status .client-booking-status.registered{
+  color:#1ed46b!important;border-color:#248f56!important;
 }
-.client-booking-agreement{display:flex;align-items:center;gap:7px;min-width:0;min-height:44px;
-  color:#d2e6f3;font-size:11px;line-height:1.35;cursor:pointer;}
-.client-booking-agreement input{flex:none;width:19px;height:19px;accent-color:#36d7a1;cursor:pointer;}
-.client-booking-agreement input:disabled{cursor:wait;opacity:.6}
-.client-booking-agreement span{min-width:0;overflow-wrap:anywhere}
-.client-booking-agreement:has(input:checked) span{color:#65e8af;font-weight:800}
-@container (max-width:920px){
- .client-booking-list.with-agreement .client-booking-summary{
-  grid-template-columns:minmax(55px,.85fr) minmax(54px,1fr) 106px;gap:0 8px;
- }
- .client-booking-list.with-agreement .client-booking-agreement{grid-column:1 / 3;grid-row:5;min-height:44px}
- .client-booking-list.with-agreement .client-booking-edit{grid-column:3;grid-row:5;min-width:0}
- .client-booking-list.with-agreement .client-booking-plot:not(.has-details) .client-booking-agreement{grid-row:3}
- .client-booking-list.with-agreement .client-booking-plot:not(.has-details) .client-booking-edit{grid-row:3;grid-column:3}
+.client-booking-list.metro-four-status .client-booking-status.agreement{
+  color:#ff5353!important;border-color:#ff3030!important;background:#2b131c!important;
 }
-@container (max-width:280px){
- .client-booking-list.with-agreement .client-booking-summary{grid-template-columns:minmax(0,1fr) 106px}
- .client-booking-list.with-agreement .client-booking-agreement{grid-column:1;grid-row:5}
- .client-booking-list.with-agreement .client-booking-edit{grid-column:2;grid-row:5}
- .client-booking-list.with-agreement .client-booking-plot:not(.has-details) .client-booking-agreement{grid-column:1;grid-row:3}
- .client-booking-list.with-agreement .client-booking-plot:not(.has-details) .client-booking-edit{grid-column:2;grid-row:3}
+.client-booking-list.metro-four-status .client-booking-status.booked{
+  color:#ffd21a!important;border-color:#c59b1c!important;
 }
-@media (max-width:600px){
- .admin-shell.role-client-admin .client-booking-list.with-agreement .client-booking-summary{
-  grid-template-columns:minmax(59px,.72fr) minmax(0,1fr) minmax(96px,108px);
-  grid-template-rows:minmax(44px,auto) minmax(44px,auto) minmax(44px,auto);
- }
- .admin-shell.role-client-admin .client-booking-list.with-agreement .client-booking-agreement{
-  grid-area:3 / 1 / 4 / 3;min-width:0;align-self:center;
- }
- .admin-shell.role-client-admin .client-booking-list.with-agreement .client-booking-edit,
- .admin-shell.role-client-admin .client-booking-list.with-agreement .client-booking-plot:not(.has-details) .client-booking-edit{
-  grid-area:3 / 3 / 4 / 4;justify-self:stretch;
- }
+.client-booking-list.metro-four-status .client-booking-status.available{
+  color:#e4f1ff!important;
 }
 
-/* Metro-only independent Agreement Done action, alongside canonical inventory select. */
-.client-booking-list.with-agreement .client-booking-status.sold{color:#1ed46b;border-color:#248f56}
-.client-booking-list.with-agreement .client-booking-agreement:has(input:checked) span{color:#ff5353;font-weight:800}
-.client-booking-list.with-agreement .client-booking-agreement input{accent-color:#ff3030}
+.client-booking-list.metro-four-status .client-metro-legacy-warning{
+  margin:2px 12px 12px;padding:9px 11px;background:#422b1a;
+  border:1px solid #ad7b2d;border-radius:7px;color:#ffe3ad;
+  font-size:12px;line-height:1.5;
+}

@@ -43,7 +43,8 @@ test("only safe customer-visible status names and ids may be published automatic
  assert.match(source("app/api/data/route.ts"),/if\(existing\.status!==status\)await recordAutomaticPlotNotice/);
  assert.match(source("app/api/client/deal-progress/route.ts"),/recordAutomaticPlotNotice/);
  assert.match(source("app/api/client/sales/route.ts"),/recordAutomaticPlotNotice/);
- assert.match(source("app/api/client/deal-progress/route.ts"),/fieldKey==="agreement_done"/);
+ assert.match(source("app/api/client/deal-progress/route.ts"),/fieldKey===METRO_AGREEMENT_FIELD/);
+ assert.match(source("app/api/client/metro-status/route.ts"),/recordAutomaticPlotNotice/);
 });
 
 test("admins retain hide/unpublish and custom manual notices, feature default is off for other tenants",()=>{
