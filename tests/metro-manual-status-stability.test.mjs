@@ -35,7 +35,7 @@ test("An active Sale cannot be erased by changing Metro public inventory to Avai
 });
 
 test("Metro Admin status directly saves without forced Sales form, other projects retain original Sale workflow",()=>{
-  const start=dashboard.indexOf('if(agreementEnabled&&user.role==="client_admin"){');
+  const start=dashboard.indexOf('if(agreementEnabled){');
   const end=dashboard.indexOf('  if(status==="sold"&&plot.status!=="sold"',start);
   assert.ok(start>=0&&end>start);
   const metro=dashboard.slice(start,end);
@@ -54,8 +54,8 @@ test("Metro-only failed save toast is visibly red, success is green, other proje
   assert.match(toast,/tone\?:"success"\|"error"/);
   assert.match(toast,/data-tone=\{tone\}/);
   assert.match(toast,/tone\?\(tone==="error"\?"alert":"status"\):undefined/);
-  assert.match(dashboard,/agreementEnabled&&user\.role==="client_admin"\?" metro-status-admin":""/);
-  assert.match(dashboard,/agreementEnabled&&user\.role==="client_admin"\?toastTone:undefined/);
+  assert.match(dashboard,/agreementEnabled\?" metro-status-admin":""/);
+  assert.match(dashboard,/agreementEnabled\?toastTone:undefined/);
   assert.match(style,/\.admin-shell\.metro-status-admin \.toast-admin\[data-tone="error"\]/);
   assert.match(style,/border:1px solid #e15a6e/);
   assert.match(style,/bottom:calc\(102px \+ env\(safe-area-inset-bottom,0px\)\)/);
