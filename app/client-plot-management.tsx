@@ -254,11 +254,6 @@ export default function ClientPlotManagement({
                 <span className="client-booking-edit-mobile" aria-hidden="true">{open ? "Close" : hasDetails ? "Edit" : "Add"}</span>
               </button>
             </div>
-            {agreementEnabled&&plot.agreementDone===true&&(plot.status!=="sold"||plot.agreementSaleVerified===false)&&
-              <details className="client-metro-legacy-warning">
-                <summary><span>Record needs review</span><span className="client-metro-review-hint">Details</span></summary>
-                <p>Agreement Done is recorded, but inventory is {plot.status} and an active Sale is not fully verified. Confirm the Sale before correcting this status. Original records are unchanged.</p>
-              </details>}
             {open && renderEditor()}
           </article>
         );
