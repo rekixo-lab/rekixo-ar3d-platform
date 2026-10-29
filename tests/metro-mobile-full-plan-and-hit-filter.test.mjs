@@ -73,9 +73,9 @@ test("compact Metro HUD is strictly tenant/mobile scoped with all four rows", ()
   }
   // Late Metro-specific !important colors must not unhide filtered-out plots.
   for (const [filter, attribute] of [
-    ["available", "data-status=\"available\""],
-    ["booked", "data-status=\"booked\""],
-    ["sold", "data-status=\"sold\""],
+    ["available", "data-metro-visual=\"available\""],
+    ["booked", "data-metro-visual=\"booked\""],
+    ["sold", "data-metro-visual=\"registered\""],
     ["agreement", "data-metro-visual=\"agreement\""],
   ]) {
     assert.ok(viewer.includes('body[data-metro-four-status="1"] .show-all.status-filter-' + filter +

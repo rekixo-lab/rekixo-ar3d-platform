@@ -27,7 +27,7 @@ test("Agreement Done is orthogonal to canonical status and cannot change plot in
  assert.match(html,/function metroVisualStatus\(p\)/);
  assert.match(html,/p\?\.agreementDone===true\?'agreement'/);
  assert.match(html,/function matchesStatusFilter\(p,filter\)/);
- assert.match(html,/filter==='agreement'\?metroAgreementMode&&p\?\.agreementDone===true/);
+ assert.match(html,/metroVisualStatus\(p\)===\(filter==='sold'\?'registered':filter\)/);
  assert.match(html,/function plotStatus\(p\)/);
  assert.match(html,/const mapped=normalized\.map\(\(\[x,y\]\)=>\[x\*W,y\*H\]\)/);
  assert.match(html,/syncMetroPlotVisual\(p,poly\)/);

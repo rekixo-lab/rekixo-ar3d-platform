@@ -1038,16 +1038,36 @@ body[data-metro-four-status="1"] .status.expanded .status-body{max-height:248px;
 body[data-metro-four-status="1"] .status-option.agreement.active{background:rgba(255,48,48,.14)}
 body[data-metro-four-status="1"] #metroAgreementRow .agreement-done{color:#ff3030!important}
 /* Metro's late !important status colors must not override the chosen filter.
-   Agreement Done is a red *subset* of Registered, not extra inventory. */
-body[data-metro-four-status="1"] .show-all.status-filter-available .plot:not([data-status="available"]),
-body[data-metro-four-status="1"] .show-all.status-filter-booked .plot:not([data-status="booked"]),
-body[data-metro-four-status="1"] .show-all.status-filter-sold .plot:not([data-status="sold"]),
+   Agreement Done wins display priority over its underlying Booked or Sold inventory state. */
+body[data-metro-four-status="1"] .show-all.status-filter-available .plot:not([data-metro-visual="available"]),
+body[data-metro-four-status="1"] .show-all.status-filter-booked .plot:not([data-metro-visual="booked"]),
+body[data-metro-four-status="1"] .show-all.status-filter-sold .plot:not([data-metro-visual="registered"]),
 body[data-metro-four-status="1"] .show-all.status-filter-agreement .plot:not([data-metro-visual="agreement"]){fill:transparent!important;stroke:transparent!important;filter:none!important}
-body[data-metro-four-status="1"] .show-all.status-filter-available .plot.selected:not([data-status="available"]),
-body[data-metro-four-status="1"] .show-all.status-filter-booked .plot.selected:not([data-status="booked"]),
-body[data-metro-four-status="1"] .show-all.status-filter-sold .plot.selected:not([data-status="sold"]),
+body[data-metro-four-status="1"] .show-all.status-filter-available .plot.selected:not([data-metro-visual="available"]),
+body[data-metro-four-status="1"] .show-all.status-filter-booked .plot.selected:not([data-metro-visual="booked"]),
+body[data-metro-four-status="1"] .show-all.status-filter-sold .plot.selected:not([data-metro-visual="registered"]),
 body[data-metro-four-status="1"] .show-all.status-filter-agreement .plot.selected:not([data-metro-visual="agreement"]){fill:transparent!important;stroke:transparent!important;filter:none!important}
-body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot-peek__badge{color:#ff3030}
+/* Metro-only detail drawer & hover card use the SAME status as filtered map. */
+body[data-metro-four-status="1"] .drawer[data-status="registered"]{border-top-color:#1ed46b!important}
+body[data-metro-four-status="1"] .drawer[data-status="agreement"]{border-top-color:#ff3030!important}
+body[data-metro-four-status="1"] .drawer[data-status="registered"] .chip{color:#1ed46b;border-color:rgba(30,212,107,.58);background:rgba(30,212,107,.10)}
+body[data-metro-four-status="1"] .drawer[data-status="agreement"] .chip{color:#ff3030;border-color:rgba(255,48,48,.58);background:rgba(255,48,48,.10)}
+body[data-metro-four-status="1"] .drawer[data-status="registered"] .diagram polygon{stroke:#1ed46b;fill:rgba(30,212,107,.08)}
+body[data-metro-four-status="1"] .drawer[data-status="agreement"] .diagram polygon{stroke:#ff3030;fill:rgba(255,48,48,.08)}
+body[data-metro-four-status="1"] .drawer[data-status="registered"] .plotnum{fill:#1ed46b}
+body[data-metro-four-status="1"] .drawer[data-status="agreement"] .plotnum{fill:#ff3030}
+body[data-metro-four-status="1"] #plotStatusValue.registered{color:#1ed46b}
+body[data-metro-four-status="1"] #plotStatusValue.agreement{color:#ff3030}
+/* Status-keyed glow must also follow Metro's visible four-status layer. */
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="available"]{--rekixo-focus-rgb:255,255,255}
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="booked"]{--rekixo-focus-rgb:255,210,26}
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="registered"]{--rekixo-focus-rgb:30,212,107}
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="agreement"]{--rekixo-focus-rgb:255,48,48}
+body[data-metro-four-status="1"] .plot-peek[data-metro-visual="available"]{--peek-rgb:255,255,255}
+body[data-metro-four-status="1"] .plot-peek[data-metro-visual="booked"]{--peek-rgb:255,210,26}
+body[data-metro-four-status="1"] .plot-peek[data-metro-visual="registered"]{--peek-rgb:30,212,107}
+body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"]{--peek-rgb:255,48,48}
+body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot-peek__badge{color:#fff}
 /* Metro City only: at least 25% narrower, with four complete, tappable rows. */
 @media(max-width:700px){
   body[data-metro-four-status="1"] .status{box-sizing:border-box;width:126px;max-width:calc(100vw - 28px);padding:0 6px 6px;border-radius:13px}
@@ -2313,6 +2333,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   let metroAgreementMode=false;
   function statusDisplayLabel(status){
     const label=String(status||'available').toLowerCase();
+    if(metroAgreementMode&&label==='agreement')return 'Agreement Done';
     return metroAgreementMode&&label==='sold'?'Registered':label.charAt(0).toUpperCase()+label.slice(1);
   }
   function updateMetroAgreementFact(plot){
@@ -2345,8 +2366,15 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   }
   function plotStatus(p){const s=String(p?.status||'available').trim().toLowerCase();return s==='enquire'?'available':(s==='booked'?'booked':(s==='sold'?'sold':'available'))}
   function metroVisualStatus(p){const base=plotStatus(p);return !metroAgreementMode?base:p?.agreementDone===true?'agreement':base==='sold'?'registered':base}
+  function publicPlotStatus(p){return metroAgreementMode?metroVisualStatus(p):plotStatus(p)}
   function syncMetroPlotVisual(p,el){if(!el)return;if(metroAgreementMode)el.dataset.metroVisual=metroVisualStatus(p);else delete el.dataset.metroVisual}
-  function matchesStatusFilter(p,filter){return filter==='agreement'?metroAgreementMode&&p?.agreementDone===true:plotStatus(p)===filter}
+  // Filter the final public category, not the canonical inventory status.
+  // Keep the historical 'sold' filter key for Metro's Registered label.
+  function matchesStatusFilter(p,filter){
+    if(!filter)return true;
+    if(metroAgreementMode)return metroVisualStatus(p)===(filter==='sold'?'registered':filter);
+    return filter!=='agreement'&&plotStatus(p)===filter;
+  }
   // Metro-only public touch/hit-testing must respect the visible status filter,
   // just as 3D hitTest already does. Never edit plot coordinates or inventory.
   function metroFilterAllowsPlot(p){return !metroAgreementMode||!showAll||!statusFilter||matchesStatusFilter(p,statusFilter)}
@@ -2376,9 +2404,9 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   }
   function showPlotPeek(p,clientX,clientY){
     if(!p||drawer.classList.contains('open'))return;
-    const card=ensurePlotPeek(),st=plotStatus(p),dimensions=String(p.dimensions||'').trim(),facing=String(p.facing||p.road||'').trim(),area=plotPeekArea(p),detail=[dimensions,facing].filter(Boolean).join(' · ')||'Plot details';
+    const card=ensurePlotPeek(),st=publicPlotStatus(p),dimensions=String(p.dimensions||'').trim(),facing=String(p.facing||p.road||'').trim(),area=plotPeekArea(p),detail=[dimensions,facing].filter(Boolean).join(' · ')||'Plot details';
     const signature=[p.id,st,metroAgreementMode,p.agreementDone===true,area,detail].join('|');
-    if(signature!==plotPeekSignature){plotPeekRefs.badge.textContent=metroAgreementMode&&p.agreementDone===true?'AGREEMENT DONE':statusDisplayLabel(st).toUpperCase();plotPeekRefs.title.textContent='Plot #'+p.id;plotPeekRefs.area.textContent=area;plotPeekRefs.meta.textContent=detail;plotPeekSignature=signature}
+    if(signature!==plotPeekSignature){plotPeekRefs.badge.textContent=statusDisplayLabel(st).toUpperCase();plotPeekRefs.title.textContent='Plot #'+p.id;plotPeekRefs.area.textContent=area;plotPeekRefs.meta.textContent=detail;plotPeekSignature=signature}
     plotPeekPlotId=String(p.id);plotPeekPoint={x:clientX,y:clientY};card.dataset.status=st;card.dataset.metroVisual=metroVisualStatus(p);positionPlotPeek(clientX,clientY);card.classList.add('show');card.setAttribute('aria-hidden','false')
   }
   function hidePlotPeek(){
@@ -2400,7 +2428,20 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       plotPeekPressShown=true;showPlotPeek(p,x,y)
     },PLOT_PEEK_LONG_PRESS_MS)
   }
-  function updateStatusCounts(){const c={available:0,booked:0,sold:0};let agreement=0;plots.forEach(p=>{c[plotStatus(p)]++;if(metroAgreementMode&&p.agreementDone===true)agreement++});q('#countAvailable').textContent=c.available;q('#countBooked').textContent=c.booked;q('#countSold').textContent=c.sold;q('#countAgreement').textContent=agreement;q('#countTotal').textContent=plots.length}
+  function updateStatusCounts(){
+    const c={available:0,booked:0,sold:0};let agreement=0;
+    plots.forEach(p=>{
+      // Metro: the four public counts match their exclusive filter results.
+      // Never rewrite the plot's canonical Booked or Sold inventory status.
+      if(metroAgreementMode&&p.agreementDone===true){agreement++;return}
+      c[plotStatus(p)]++;
+    });
+    q('#countAvailable').textContent=c.available;
+    q('#countBooked').textContent=c.booked;
+    q('#countSold').textContent=c.sold;
+    q('#countAgreement').textContent=agreement;
+    q('#countTotal').textContent=plots.length;
+  }
   function applyLiveState(data){
     if(!data||typeof data!=='object')return;
     const statusById=new Map((Array.isArray(data.statuses)?data.statuses:[]).map(row=>[String(row.id),String(row.status||'available')]));
@@ -2422,7 +2463,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     updateStatusCounts();
     if(statusFilter&&(metroAgreementMode||statusFilter==='agreement'))clearMismatchedSelection(statusFilter);
     invalidateMetroPaint();
-    if(plotPeekPlotId&&plotPeekPoint){const freshPeek=plots.find(p=>String(p.id)===plotPeekPlotId);if(freshPeek)showPlotPeek(freshPeek,plotPeekPoint.x,plotPeekPoint.y);else hidePlotPeek()}
+    if(plotPeekPlotId&&plotPeekPoint){const freshPeek=plots.find(p=>String(p.id)===plotPeekPlotId);if(freshPeek&&metroFilterAllowsPlot(freshPeek))showPlotPeek(freshPeek,plotPeekPoint.x,plotPeekPoint.y);else hidePlotPeek()}
     engine3D?.rebuildLabels?.();
     engine3D?.request?.();
     if(selected){
@@ -2431,7 +2472,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         selected=fresh;
         if(drawer.classList.contains('open')){
           syncPlotPricing(fresh);
-          const st=plotStatus(fresh),statusEl=q('#plotStatusValue');
+          const st=publicPlotStatus(fresh),statusEl=q('#plotStatusValue');
           statusEl.textContent=statusDisplayLabel(st);
           const chip=q('#plotStatusChip');
           if(chip){chip.textContent=statusDisplayLabel(st).toUpperCase();chip.className='chip '+st;}
@@ -2832,7 +2873,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     if(!p) return;
     hidePlotPeek();cancelPlotPeekPress(false);
     selected=p; setSelected(p.id); if(focus) focusPlot(p);
-    const st=plotStatus(p),statusLabel=statusDisplayLabel(st);
+    const st=publicPlotStatus(p),statusLabel=statusDisplayLabel(st);
     drawer.dataset.status=st;
     const chip=q('#plotStatusChip');if(chip){chip.textContent=statusLabel.toUpperCase();chip.className='chip '+st}
     q('#plotTitle').textContent=/^[BC][0-9]+$/i.test(String(p.id)) ? String(p.id) : 'Plot #'+p.id;
@@ -3011,7 +3052,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   // REKIXO_STATUS_FILTER_COMPACT_V2
   function clearStatusFilter(silent=false){statusFilter=null;svg.classList.remove('status-filter-available','status-filter-booked','status-filter-sold','status-filter-agreement');document.querySelectorAll('.status-option').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false')});engine3D?.setStatusFilter?.(null);invalidateMetroPaint();if(!silent)toast('Status filter cleared')}
   function ensureStatusOverlayOn(){if(showAll)return;showAll=true;syncBoundaryToggle();svg.classList.add('show-all');engine3D?.setShowAll(true)}
-  function clearMismatchedSelection(st){if(!selected||matchesStatusFilter(selected,st))return;selected=null;setSelected(null);engine3D?.clear?.()}
+  function clearMismatchedSelection(st){if(!selected||matchesStatusFilter(selected,st))return;selected=null;setSelected(null);engine3D?.clear?.();close();hidePlotPeek()}
   function setStatusFilter(st){st=st||null;if(!st){clearStatusFilter();return}ensureStatusOverlayOn();statusFilter=st;svg.classList.remove('status-filter-available','status-filter-booked','status-filter-sold','status-filter-agreement');svg.classList.add('status-filter-'+st);document.querySelectorAll('.status-option').forEach(b=>{const active=b.dataset.statusFilter===st;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))});engine3D?.setStatusFilter?.(st);clearMismatchedSelection(st);invalidateMetroPaint();toast('Showing '+statusDisplayLabel(st)+' plots')}
   function syncBoundaryToggle(){const toggle=q('#outlineToggle');toggle.classList.toggle('on',showAll);toggle.setAttribute('aria-pressed',String(showAll))}
   function toggleStatusPanel(){toggleBoundaries()}
@@ -3045,7 +3086,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   document.querySelectorAll('.status-option').forEach(b=>b.addEventListener('click',e=>{if(suppressStatusClick){suppressStatusClick=false;e.preventDefault();return}setStatusFilter(b.dataset.statusFilter)}));
   updateStatusCounts();
 
-  q('#searchForm').onsubmit=e=>{e.preventDefault();const id=norm(q('#searchInput').value),p=plots.find(x=>x.id===id);if(!p)return toast('Plot not found');if(mode3D){selected=p;setSelected(p.id);engine3D?.select(p.id,true,false);toast('Plot '+p.id+' selected')}else openPlot(p,true)};
+  q('#searchForm').onsubmit=e=>{e.preventDefault();const id=norm(q('#searchInput').value),p=plots.find(x=>x.id===id);if(!p)return toast('Plot not found');if(metroAgreementMode&&statusFilter&&!matchesStatusFilter(p,statusFilter))clearStatusFilter(true);if(mode3D){selected=p;setSelected(p.id);engine3D?.select(p.id,true,false);toast('Plot '+p.id+' selected')}else openPlot(p,true)};
   /* REKIXO_PLOT_DRAWER_GHOST_CLICK_FIX_V3
      A plot is opened from pointerup. Some mobile browsers can dispatch the
      trailing click after the drawer/scrim have appeared; while the drawer is
@@ -3268,7 +3309,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     document.body.dataset.template=s.template||'plots';
     updateStatusCounts();
     startLiveStatePolling();
-    if(selected){const fresh=plots.find(p=>p.id===selected.id);if(fresh){selected=fresh;if(drawer.classList.contains('open')){q('#sqm').textContent=Number(fresh.sqm).toLocaleString('en-IN')+' Sq.M';q('#sqft').textContent=Number(fresh.sqft).toLocaleString('en-IN')+' Sq.Ft';q('#sqyd').textContent=Number(fresh.sqyd).toLocaleString('en-IN')+' Sq.Yd';q('#dims').textContent=fresh.dimensions||'—';syncFrontDepthFacts(fresh);const freshFacing=String(fresh.facing||'').trim(),freshRoadLabel=q('#roadLabel');if(freshRoadLabel)freshRoadLabel.textContent=freshFacing?'FACING':'ROAD ACCESS';q('#road').textContent=freshFacing||fresh.road||'—';syncPlotPricing(fresh);const st=plotStatus(fresh),statusEl=q('#plotStatusValue');statusEl.textContent=statusDisplayLabel(st);statusEl.className=st;updateMetroAgreementFact(fresh)}}}
+    if(selected){const fresh=plots.find(p=>p.id===selected.id);if(fresh){selected=fresh;if(drawer.classList.contains('open')){q('#sqm').textContent=Number(fresh.sqm).toLocaleString('en-IN')+' Sq.M';q('#sqft').textContent=Number(fresh.sqft).toLocaleString('en-IN')+' Sq.Ft';q('#sqyd').textContent=Number(fresh.sqyd).toLocaleString('en-IN')+' Sq.Yd';q('#dims').textContent=fresh.dimensions||'—';syncFrontDepthFacts(fresh);const freshFacing=String(fresh.facing||'').trim(),freshRoadLabel=q('#roadLabel');if(freshRoadLabel)freshRoadLabel.textContent=freshFacing?'FACING':'ROAD ACCESS';q('#road').textContent=freshFacing||fresh.road||'—';syncPlotPricing(fresh);const st=publicPlotStatus(fresh),statusEl=q('#plotStatusValue');statusEl.textContent=statusDisplayLabel(st);statusEl.className=st;updateMetroAgreementFact(fresh)}}}
     let revealed=false,shellRevealed=false,masterFailures=0,usingCanonical=false;
     let legacyImageTimer=null;
     const clearLegacyImageTimer=()=>{clearTimeout(legacyImageTimer);legacyImageTimer=null};
