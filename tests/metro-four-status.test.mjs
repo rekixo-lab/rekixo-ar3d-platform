@@ -51,14 +51,16 @@ test("3D filter, hit testing and labels retain source status keys",()=>{
  assert.match(three,/inside\(px,py,p\.points\)/);
  assert.match(three,/flatGeom\(p\)/);
 });
-test("Metro Builder retains same revision-safe Agreement API, never changes Sales Ledger",()=>{
- assert.match(admin,/agreementEnabled\?"Registered":"Sold"/);
- assert.match(admin,/agreementBusy===plot\.id/);
- assert.match(admin,/onAgreementSaved/);
- assert.match(dashboard,/metroAgreementEnabled=\{agreementEnabled\}/);
- assert.match(dashboard,/agreementEnabled\?"Registered":"Sold"/);
- assert.match(deals,/metroAgreementEnabled&&/);
- assert.match(deals,/agreement.*date/i);
- assert.match(api,/expectedRevision/);
+test("Metro Builder offers one four-status selector and preserves sales guard",()=>{
+ assert.match(admin,/<option value="agreement">Agreement Done<\/option>/);
+ assert.match(admin,/<option value="registered">Registered<\/option>/);
+ assert.doesNotMatch(admin,/client-booking-agreement|toggleAgreement/);
+ assert.match(dashboard,/\/api\/client\/metro-status/);
+ assert.match(dashboard,/agreementEnabled/);
+ assert.match(deals,/x.fieldKey==="agreement_done"/);
+ assert.match(api,/METRO_AGREEMENT_LEGACY_WRITE_DISABLED/);
+ const unified=read("app/api/client/metro-status/route.ts");
+ assert.match(unified,/env.DB.batch\(statements\)/);
+ assert.match(unified,/AGREEMENT_REQUIRES_SALE/);
  assert.doesNotMatch(api,/UPDATE plots|UPDATE property_sales/);
 });
