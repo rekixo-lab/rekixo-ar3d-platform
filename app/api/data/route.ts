@@ -83,7 +83,9 @@ export async function GET(request: Request) {
       ]);
       const counts = { available: 0, booked: 0, sold: 0, agreement: 0 };
       const total = Number(totalRow?.total || 0);
-      const agreementEnabled = session.role==="client_admin" && await metroAgreementEnabled(projectId);
+      // Both Admin views show the same four exclusive Metro statuses.
+      // All other projects retain their original three-status inventory UI.
+      const agreementEnabled = await metroAgreementEnabled(projectId);
       const agreementByPlot = agreementEnabled ? await metroAgreementValues(projectId) : new Map<string,{done:boolean;revision:number}>();
       // Admin-only boolean diagnostic; never return buyer or payment details.
       const saleRows=agreementEnabled?await env.DB.prepare(
@@ -199,9 +201,9 @@ export async function POST(request: Request) {
       if (!project) return Response.json({ error: "Project nahi mila" }, { status: 404 });
     }
 
-    if(body.type==="plotStatus"&&session.role==="client_admin"&&await metroAgreementEnabled(projectId)){
-      // All Metro Client Admin writes must use the transactionally guarded
-      // four-category route; this legacy three-status endpoint bypasses the flag.
+    if(body.type==="plotStatus"&&await metroAgreementEnabled(projectId)){
+      // No Admin role may bypass Metro's single guarded four-status write
+      // route or mutate canonical inventory without its agreement flag.
       return Response.json({error:"Use the Metro four-status dropdown and reload plots.",
         code:"METRO_STATUS_UNIFIED_ROUTE_REQUIRED"},{status:409});
     }

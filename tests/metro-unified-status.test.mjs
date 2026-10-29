@@ -27,8 +27,8 @@ test("Metro-only four choices map to three canonical inventories plus the agreem
 
 test("unified PATCH validates admin, project, revision, active Sale and read-back",()=>{
  assert.match(api,/sameOrigin\(request\)/);
- assert.match(api,/session\.role!=="client_admin"/);
- assert.match(api,/metroAgreementEnabled\(session\.projectId\)/);
+ assert.match(api,/\["client_admin","super_admin"\]\.includes\(session\.role\)/);
+ assert.match(api,/metroAgreementEnabled\(projectId\)/);
  assert.match(api,/isMetroDisplayStatus\(target\)/);
  assert.match(api,/beforeRevision!==expectedRevision/);
  assert.doesNotMatch(api,/AGREEMENT_REQUIRES_SALE|SALE_DETAILS_REQUIRED/);

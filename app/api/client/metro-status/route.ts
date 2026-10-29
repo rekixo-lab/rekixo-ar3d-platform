@@ -17,8 +17,11 @@ type Existing={status:string;agreementValue:string|null;agreementRevision:number
 export async function PATCH(request:Request){
   if(!sameOrigin(request))return reply({error:"Invalid request origin"},403);
   const session=await validAdminSession();
-  if(!session||session.role!=="client_admin")return reply({error:"Client Admin access required"},401);
-  if(!await metroAgreementEnabled(session.projectId))return reply({error:"Metro City status feature unavailable"},403);
+  if(!session||!["client_admin","super_admin"].includes(session.role))
+    return reply({error:"Admin access required"},401);
+  // Super Admin can select a project; Client Admin can only write their own
+  // session-bound project. The exact Metro tenant and active feature must match.
+
   let body:Record<string,unknown>;
   try{
     const raw=await request.text();
@@ -36,7 +39,10 @@ export async function PATCH(request:Request){
     typeof expectedAgreementDone!=="boolean"||!Number.isSafeInteger(expectedRevision)||
     Number(expectedRevision)<0)return reply({error:"Plot, expected status and revision required"},400);
 
-  const projectId=session.projectId;
+  const projectId=session.role==="super_admin"
+    ?(typeof body.projectId==="string"?body.projectId.trim():""):session.projectId;
+  if(!projectId||!await metroAgreementEnabled(projectId))
+    return reply({error:"Metro City status feature unavailable"},403);
   const existing=await env.DB.prepare(
     "SELECT p.status,cv.field_value AS agreementValue,cv.revision AS agreementRevision,"+
     "(SELECT s.id FROM property_sales s WHERE s.project_id=p.project_id AND s.plot_id=p.id AND s.state='active' LIMIT 1) AS activeSaleId "+

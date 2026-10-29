@@ -4,7 +4,7 @@ Scope: only the verified active Metro City tenant with its enabled `agreement_do
 
 ## Single source of truth for public presentation
 
-The Client Admin Plot Management view contains exactly one status selector:
+Both the Client Admin and the Super Admin project Plot Management views contain exactly one status selector:
 **Available / Booked / Registered / Agreement Done**. There is no separate Agreement Done checkbox or editable Deal Progress Agreement field.
 
 | Public status | Canonical inventory `plots.status` | Metro `agreement_done` |
@@ -18,7 +18,7 @@ Canonical Sold and the Sales Ledger must not be changed into a new database stat
 
 ## Transaction and access requirements
 
-`PATCH /api/client/metro-status` is strictly scoped to the verified, enabled Metro City tenant and authenticated Client Admin. It validates the active plot, previous inventory, agreement flag and revision, then performs inventory and agreement flag changes atomically with a D1 SQL guard against concurrent updates.
+`PATCH /api/client/metro-status` is strictly scoped to the verified, enabled Metro City tenant and authenticated Client Admin or Super Admin. Client Admin derives its project identity only from the session; Super Admin must explicitly select the project, which is verified against the exact Metro ID/slug/name. Both roles use the same transaction and revision guard. The old `/api/data` three-status writer is rejected for Metro under **both** roles. It validates the active plot, previous inventory, agreement flag and revision, then performs inventory and agreement flag changes atomically with a D1 SQL guard against concurrent updates.
 
 **Important distinction:** the four public statuses are builder-maintained inventory milestones. Registered or Agreement Done does **not** certify a financial payment, buyer record or legal registration. A real active Sale is independently recorded and verified in Sales & Accounts; the status action **never** creates or changes a Sale, payment or document.
 
