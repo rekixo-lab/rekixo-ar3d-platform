@@ -1058,6 +1058,11 @@ body[data-metro-four-status="1"] .drawer[data-status="registered"] .plotnum{fill
 body[data-metro-four-status="1"] .drawer[data-status="agreement"] .plotnum{fill:#ff3030}
 body[data-metro-four-status="1"] #plotStatusValue.registered{color:#1ed46b}
 body[data-metro-four-status="1"] #plotStatusValue.agreement{color:#ff3030}
+/* Status-keyed glow must also follow Metro's visible four-status layer. */
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="available"]{--rekixo-focus-rgb:255,255,255}
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="booked"]{--rekixo-focus-rgb:255,210,26}
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="registered"]{--rekixo-focus-rgb:30,212,107}
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="agreement"]{--rekixo-focus-rgb:255,48,48}
 body[data-metro-four-status="1"] .plot-peek[data-metro-visual="available"]{--peek-rgb:255,255,255}
 body[data-metro-four-status="1"] .plot-peek[data-metro-visual="booked"]{--peek-rgb:255,210,26}
 body[data-metro-four-status="1"] .plot-peek[data-metro-visual="registered"]{--peek-rgb:30,212,107}
@@ -3041,7 +3046,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   document.querySelectorAll('.status-option').forEach(b=>b.addEventListener('click',e=>{if(suppressStatusClick){suppressStatusClick=false;e.preventDefault();return}setStatusFilter(b.dataset.statusFilter)}));
   updateStatusCounts();
 
-  q('#searchForm').onsubmit=e=>{e.preventDefault();const id=norm(q('#searchInput').value),p=plots.find(x=>x.id===id);if(!p)return toast('Plot not found');if(mode3D){selected=p;setSelected(p.id);engine3D?.select(p.id,true,false);toast('Plot '+p.id+' selected')}else openPlot(p,true)};
+  q('#searchForm').onsubmit=e=>{e.preventDefault();const id=norm(q('#searchInput').value),p=plots.find(x=>x.id===id);if(!p)return toast('Plot not found');if(metroAgreementMode&&statusFilter&&!matchesStatusFilter(p,statusFilter))clearStatusFilter(true);if(mode3D){selected=p;setSelected(p.id);engine3D?.select(p.id,true,false);toast('Plot '+p.id+' selected')}else openPlot(p,true)};
   /* REKIXO_PLOT_DRAWER_GHOST_CLICK_FIX_V3
      A plot is opened from pointerup. Some mobile browsers can dispatch the
      trailing click after the drawer/scrim have appeared; while the drawer is
