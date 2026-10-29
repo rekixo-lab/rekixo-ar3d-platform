@@ -57,7 +57,7 @@ test("Metro color fill reads the plot's semantic live status, not stale SVG comp
   const fills=context.draws.filter(draw=>draw.type==="fill");
   assert.deepEqual(fills.map(f=>f.id),[1,11,21,31]);
   assert.deepEqual(fills.map(f=>f.style),[
-    "rgba(255,255,255,.33)","rgb(255,210,26)",
+    "rgba(255,255,255,0.33)","rgb(255,210,26)",
     "rgb(30,212,107)","rgb(255,48,48)",
   ]);
   assert.deepEqual(fills.map(f=>f.blend),["source-over","color","color","color"]);
@@ -94,7 +94,7 @@ test("older canvas backends keep a visible red fallback instead of losing fills"
   const scope=viewer(),context=canvas(false);
   scope.paintMetroPolygons(context,1,1,0,0,0);
   const red=context.draws.find(draw=>draw.type==="fill"&&draw.id===31);
-  assert.equal(red.style,"rgba(255,48,48,.78)");
+  assert.equal(red.style,"rgba(255,48,48,0.78)");
   assert.equal(red.blend,"source-over");
 });
 
