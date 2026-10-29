@@ -193,6 +193,12 @@ export async function POST(request: Request) {
       if (!project) return Response.json({ error: "Project nahi mila" }, { status: 404 });
     }
 
+    if(body.type==="plotStatus"&&session.role==="client_admin"&&await metroAgreementEnabled(projectId)){
+      // All Metro Client Admin writes must use the transactionally guarded
+      // four-category route; this legacy three-status endpoint bypasses the flag.
+      return Response.json({error:"Use the Metro four-status dropdown and reload plots.",
+        code:"METRO_STATUS_UNIFIED_ROUTE_REQUIRED"},{status:409});
+    }
     if (body.type === "plotStatus") {
       const plotId = String(body.plotId || "").trim();
       const status = String(body.status || "");
