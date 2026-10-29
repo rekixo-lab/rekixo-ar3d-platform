@@ -253,6 +253,8 @@ export default function ClientPlotManagement({
                 <span className="client-booking-edit-mobile" aria-hidden="true">{open ? "Close" : hasDetails ? "Edit" : "Add"}</span>
               </button>
             </div>
+            {agreementEnabled&&plot.agreementDone===true&&plot.status!=="sold"&&
+              <p className="client-metro-legacy-warning" role="note">Legacy mismatch: Agreement Done was saved, but inventory is {plot.status}. Confirm the Sale before updating; existing data was not changed.</p>}
             {open && renderEditor()}
           </article>
         );
