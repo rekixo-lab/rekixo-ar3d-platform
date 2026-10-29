@@ -38,7 +38,7 @@ test("shared admin motion uses real exit then enter phases with reduced-motion f
 test("Client Admin tab content is motion-swapped without changing status or pricing boundaries", () => {
   assert.match(clientAdmin, /import MotionSwap, \{ MotionToast \} from "\.\/motion-swap";/);
   assert.match(clientAdmin, /<MotionSwap motionKey=\{tab\}>/);
-  assert.match(clientAdmin, /<MotionToast message=\{toast\}\/>/);
+  assert.match(clientAdmin, /<MotionToast message=\{toast\} tone=\{agreementEnabled&&user\.role==="client_admin"\?toastTone:undefined\}\/>/);
   assert.match(clientAdmin, /type:"plotStatus"/);
   assert.match(clientAdmin, /selected&&user\.role==="super_admin"/);
   assert.match(clientAdmin, /user\.role==="client_admin"&&<ClientPlotPricing/);

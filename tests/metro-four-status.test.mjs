@@ -61,6 +61,7 @@ test("Metro Builder offers one four-status selector and preserves sales guard",(
  assert.match(api,/METRO_AGREEMENT_LEGACY_WRITE_DISABLED/);
  const unified=read("app/api/client/metro-status/route.ts");
  assert.match(unified,/env.DB.batch\(statements\)/);
- assert.match(unified,/AGREEMENT_REQUIRES_SALE/);
+ assert.doesNotMatch(unified,/AGREEMENT_REQUIRES_SALE|SALE_DETAILS_REQUIRED/);
+ assert.match(unified,/ACTIVE_SALE_STATUS_PROTECTED/);
  assert.doesNotMatch(api,/UPDATE plots|UPDATE property_sales/);
 });

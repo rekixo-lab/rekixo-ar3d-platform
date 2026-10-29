@@ -6,11 +6,14 @@ import {METRO_AGREEMENT_FIELD,metroAgreementEnabled} from "@/app/metro-agreement
 import {isMetroDisplayStatus,metroDisplayStatus,metroDisplayLabel,metroTarget} from "@/app/metro-status";
 
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{"cache-control":"private, no-store"}});
-type Existing={status:string;agreementValue:string|null;agreementRevision:number|null;activeSaleId:string|null;salesRequired:string|null};
+type Existing={status:string;agreementValue:string|null;agreementRevision:number|null;activeSaleId:string|null};
 
-// One guarded D1 transaction updates both canonical inventory and its Metro-only
-// agreement flag. A failed guard raises a SQLite JSON error BEFORE either write:
-// D1 batch rolls back all statements; partial two-status writes are impossible.
+// Only Metro City's *public plot stage* is changed here, not its Sale Ledger.
+// The builder may mark Registered or Agreement Done for historical/offline deals
+// without manufacturing a payment, buyer, legal document, or financial Sale entry.
+// Existing active Sales remain protected against downgrades to Available/Booked.
+// One guarded D1 transaction changes inventory and agreement flag atomically.
+// The guard intentionally fails before writes on stale revision / tenant / Sale.
 export async function PATCH(request:Request){
   if(!sameOrigin(request))return reply({error:"Invalid request origin"},403);
   const session=await validAdminSession();
@@ -36,8 +39,7 @@ export async function PATCH(request:Request){
   const projectId=session.projectId;
   const existing=await env.DB.prepare(
     "SELECT p.status,cv.field_value AS agreementValue,cv.revision AS agreementRevision,"+
-    "(SELECT s.id FROM property_sales s WHERE s.project_id=p.project_id AND s.plot_id=p.id AND s.state='active' LIMIT 1) AS activeSaleId,"+
-    "(SELECT value FROM settings WHERE project_id=p.project_id AND key='salesAccountsEnabled' LIMIT 1) AS salesRequired "+
+    "(SELECT s.id FROM property_sales s WHERE s.project_id=p.project_id AND s.plot_id=p.id AND s.state='active' LIMIT 1) AS activeSaleId "+
     "FROM plots p LEFT JOIN plot_custom_values cv ON cv.project_id=p.project_id AND cv.plot_id=p.id AND cv.field_key=? "+
     "WHERE p.project_id=? AND p.id=? AND p.inventory_active=1 LIMIT 1"
   ).bind(METRO_AGREEMENT_FIELD,projectId,plotId).first<Existing>();
@@ -50,14 +52,10 @@ export async function PATCH(request:Request){
   const desired=metroTarget(target);
   if(existing.activeSaleId&&desired.inventoryStatus!=="sold")
     return reply({error:"Active Sale exists. Do not move this plot to Available or Booked.",code:"ACTIVE_SALE_STATUS_PROTECTED"},409);
-  if(desired.agreementDone&&!existing.activeSaleId)
-    return reply({error:"Record and confirm the Sale before selecting Agreement Done.",code:"AGREEMENT_REQUIRES_SALE"},409);
-  if(desired.inventoryStatus==="sold"&&existing.salesRequired==="1"&&!existing.activeSaleId)
-    return reply({error:"Create a confirmed Sale in Sales & Accounts before selecting Registered.",code:"SALE_DETAILS_REQUIRED"},409);
-
   if(desired.inventoryStatus===existing.status&&desired.agreementDone===beforeDone)
     return reply({ok:true,plotId,status:target,inventoryStatus:existing.status,
-      agreementDone:beforeDone,agreementRevision:beforeRevision});
+      agreementDone:beforeDone,agreementRevision:beforeRevision,
+      activeSaleRecorded:Boolean(existing.activeSaleId)});
 
   const now=new Date().toISOString();
   // Guard and mutations run in a single SQLite transaction (Cloudflare D1 batch).
@@ -75,15 +73,9 @@ export async function PATCH(request:Request){
       WHERE project_id=p.project_id AND plot_id=p.id AND field_key='agreement_done'),'false')=?
     AND (?='sold' OR NOT EXISTS(SELECT 1 FROM property_sales s
       WHERE s.project_id=p.project_id AND s.plot_id=p.id AND s.state='active'))
-    AND (?!='agreement' OR EXISTS(SELECT 1 FROM property_sales s
-      WHERE s.project_id=p.project_id AND s.plot_id=p.id AND s.state='active'))
-    AND (?!='registered' OR NOT EXISTS(SELECT 1 FROM settings t
-      WHERE t.project_id=p.project_id AND t.key='salesAccountsEnabled' AND t.value='1')
-      OR EXISTS(SELECT 1 FROM property_sales s
-      WHERE s.project_id=p.project_id AND s.plot_id=p.id AND s.state='active'))
   ) THEN 1 ELSE json('metro-status-conflict') END AS allowed`)
     .bind(projectId,plotId,existing.status,beforeRevision,beforeDone?"true":"false",
-      desired.inventoryStatus,target,target);
+      desired.inventoryStatus);
   const statements=[guard];
   if(desired.inventoryStatus!==existing.status){
     statements.push(env.DB.prepare(
@@ -114,12 +106,14 @@ export async function PATCH(request:Request){
   try{
     await writeAudit(session,"project.metro_status_updated",projectId,plotId,{
       previousInventory:existing.status,nextInventory:desired.inventoryStatus,
-      previousAgreement:beforeDone,nextAgreement:desired.agreementDone,revision});
+      previousAgreement:beforeDone,nextAgreement:desired.agreementDone,
+      activeSaleRecorded:Boolean(existing.activeSaleId),revision});
   }catch{console.error("Metro status saved; audit unavailable",{plotId})}
   try{
     await recordAutomaticPlotNotice(projectId,plotId,"inventory",metroDisplayLabel(target),
       "metro-status:"+plotId+":"+now,session.id,now);
   }catch{console.error("Metro status saved; optional notice unavailable",{plotId})}
   return reply({ok:true,plotId,status:metroDisplayStatus(saved.status,desired.agreementDone),
-    inventoryStatus:saved.status,agreementDone:desired.agreementDone,agreementRevision:revision});
+    inventoryStatus:saved.status,agreementDone:desired.agreementDone,
+    agreementRevision:revision,activeSaleRecorded:Boolean(existing.activeSaleId)});
 }

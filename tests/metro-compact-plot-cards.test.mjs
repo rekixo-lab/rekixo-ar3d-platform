@@ -35,8 +35,9 @@ test("Compact rules stay Metro Client Admin only; booking fields and legacy stat
   assert.match(ui,/expectedRevision: editor\.baseline\.revision/);
   assert.match(ui,/plot\.status==="sold"\?"registered"/);
   const api=readFileSync("app/api/client/metro-status/route.ts","utf8");
-  assert.match(api,/AGREEMENT_REQUIRES_SALE/);
+  assert.doesNotMatch(api,/AGREEMENT_REQUIRES_SALE|SALE_DETAILS_REQUIRED/);
+  assert.match(api,/activeSaleRecorded:Boolean\(existing\.activeSaleId\)/);
   assert.match(api,/ACTIVE_SALE_STATUS_PROTECTED/);
-  assert.match(api,/SALE_DETAILS_REQUIRED/);
+  assert.match(api,/activeSaleRecorded:Boolean\(existing\.activeSaleId\)/);
   assert.match(api,/env\.DB\.batch\(statements\)/);
 });
