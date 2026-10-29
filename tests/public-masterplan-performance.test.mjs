@@ -32,7 +32,7 @@ test("boot stays visible until the original source is fully decoded and drawn", 
   assert.match(page,/id="rekixoLoadingScreen"/);
   assert.match(page,/REKIXO_LOADING_PROGRESS\?\.\(100,'Ready'\)/);
   assert.match(page,/prepareOriginalMasterplan\(/);
-  assert.match(page,/if\(typeof master\.decode==='function'\)await master\.decode\(\)/);
+  assert.match(page,/await Promise\.race\(\[\s*master\.decode\(\)/);
   assert.match(page,/\/\/ Reset draws the original canvas BEFORE exposing the customer page/);
   assert.match(page,/document\.documentElement\.classList\.remove\('rekixo-project-loading'/);
   assert.match(page,/master\.onerror=masterFailed/);
