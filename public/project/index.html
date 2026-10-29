@@ -1058,7 +1058,11 @@ body[data-metro-four-status="1"] .drawer[data-status="registered"] .plotnum{fill
 body[data-metro-four-status="1"] .drawer[data-status="agreement"] .plotnum{fill:#ff3030}
 body[data-metro-four-status="1"] #plotStatusValue.registered{color:#1ed46b}
 body[data-metro-four-status="1"] #plotStatusValue.agreement{color:#ff3030}
-body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot-peek__badge{color:#ff3030}
+body[data-metro-four-status="1"] .plot-peek[data-metro-visual="available"]{--peek-rgb:255,255,255}
+body[data-metro-four-status="1"] .plot-peek[data-metro-visual="booked"]{--peek-rgb:255,210,26}
+body[data-metro-four-status="1"] .plot-peek[data-metro-visual="registered"]{--peek-rgb:30,212,107}
+body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"]{--peek-rgb:255,48,48}
+body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot-peek__badge{color:#fff}
 /* Metro City only: at least 25% narrower, with four complete, tappable rows. */
 @media(max-width:700px){
   body[data-metro-four-status="1"] .status{box-sizing:border-box;width:126px;max-width:calc(100vw - 28px);padding:0 6px 6px;border-radius:13px}
