@@ -24,6 +24,6 @@ The legacy checkbox PATCH and Metro-specific canonical-only Client Admin status 
 
 ## Historical data
 
-This release deliberately does **not** rewrite original plot statuses, stored agreement flags, historical Deal Progress, Sale records, buyers, amounts, payments, snapshots, coordinates or masterplans. Any legacy Booked/Available + Agreement Done combination is flagged for manual reconciliation in Client Admin Plot Management; selecting a new status enforces current validation.
+This release deliberately does **not** rewrite original plot statuses, stored agreement flags, historical Deal Progress, Sale records, buyers, amounts, payments, snapshots, coordinates or masterplans. Legacy Booked/Available + Agreement Done combinations remain stored for controlled reconciliation, but the everyday Client Admin plot list no longer shows repetitive amber 'error' banners. These are historical data inconsistencies rather than runtime failures. The server still enforces active Sale and revision checks before any new status transition. Reconciliation requires separately verified financial records; this UI cleanup must not silently alter inventory or Sale history.
 
 Preserve owner, broker, private notes and finance confidentiality. Regression tests cover transaction guard, revision conflicts, active Sale requirements, tenant boundaries, public four-category filters and original masterplan integrity.

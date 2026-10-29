@@ -281,39 +281,8 @@
 }
 
 /* METRO_COMPACT_STATUS_CARDS_V1
-   Closed by default; an accessible native disclosure keeps historical data
-   reviewable without expanding every one of hundreds of plot cards. */
-.client-booking-list.metro-four-status .client-metro-legacy-warning{
-  margin:0 12px 10px;min-width:0;overflow:hidden;
-  background:#302618;border:1px solid #916b31;border-radius:9px;
-  color:#ffdfa8;font-size:12px;line-height:1.45;
-}
-.client-booking-list.metro-four-status .client-metro-legacy-warning summary{
-  display:flex;align-items:center;justify-content:space-between;gap:8px;
-  min-height:40px;padding:7px 12px;cursor:pointer;font-weight:600;
-  list-style:none;
-}
-.client-booking-list.metro-four-status .client-metro-legacy-warning summary::-webkit-details-marker{display:none}
-.client-booking-list.metro-four-status .client-metro-legacy-warning summary::before{
-  content:"!";display:inline-flex;align-items:center;justify-content:center;
-  width:18px;height:18px;flex:0 0 18px;border-radius:50%;
-  background:#795725;color:#ffe2a5;font-size:11px;
-}
-.client-booking-list.metro-four-status .client-metro-legacy-warning summary>span:first-child{
-  flex:1;min-width:0;
-}
-.client-booking-list.metro-four-status .client-metro-review-hint{
-  flex-shrink:0;color:#ffdc9c;font-size:11px;font-weight:500;
-}
-.client-booking-list.metro-four-status .client-metro-review-hint::after{content:" ▾"}
-.client-booking-list.metro-four-status .client-metro-legacy-warning[open] .client-metro-review-hint::after{content:" ▴"}
-.client-booking-list.metro-four-status .client-metro-legacy-warning p{
-  margin:0;padding:3px 12px 12px;border-top:1px solid #75552c;
-  overflow-wrap:anywhere;color:#f4d8ab;
-}
-.client-booking-list.metro-four-status .client-metro-legacy-warning summary:focus-visible{
-  outline:2px solid #ffce75;outline-offset:-3px;
-}
+   Mobile-only layout. Historical Agreement/Sale inconsistencies remain subject
+   to server-side validation but do not create misleading visual error cards. */
 
 /* Layout strictly isolated to Metro City Client Admin on phones. Keep the
    full "Agreement Done" label readable, retain 44px tap targets, and prevent
@@ -348,11 +317,5 @@
     grid-area:2 / 2;justify-self:end;align-self:center;
     width:102px;max-width:100%;min-height:44px;
     padding:5px 9px;font-size:12px!important;
-  }
-  .admin-shell.role-client-admin .client-booking-list.metro-four-status .client-metro-legacy-warning{
-    margin:0 12px 8px;font-size:11px;
-  }
-  .admin-shell.role-client-admin .client-booking-list.metro-four-status .client-metro-legacy-warning summary{
-    min-height:40px;padding:6px 10px;
   }
 }
