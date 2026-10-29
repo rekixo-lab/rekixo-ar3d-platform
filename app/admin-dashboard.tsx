@@ -11,7 +11,7 @@ import type { PlotAdminDetails } from "./plot-admin-details";
 import MotionSwap, { MotionToast } from "./motion-swap";
 import { CLIENT_EDITABLE_SETTING_KEYS } from "./client-admin-policy";
 import { PROJECT_CONTACT_LABELS, projectMapFallbackUrl } from "./project-profile-policy";
-type Plot={id:string;sqft:number;sqm:number;sqyd:number;dimensions:string;road:string;status:string;notes?:string;featured?:boolean;polygon?:string;adminDetails?:PlotAdminDetails|null;agreementDone?:boolean;agreementRevision?:number};
+type Plot={id:string;sqft:number;sqm:number;sqyd:number;dimensions:string;road:string;status:string;notes?:string;featured?:boolean;polygon?:string;adminDetails?:PlotAdminDetails|null;agreementDone?:boolean;agreementRevision?:number;agreementSaleVerified?:boolean};
 type Gallery={id:string;filename:string;caption:string};
 const genericDefaults={projectName:"New Project",brandName:"PROJECT",brandShort:"PRJ",template:"plots",accentColor:"#f0b323",location:"",address:"",phone1:"",phone2:"",whatsapp:"",mapUrl:"",brochureUrl:""};
 type ProjectSettings=typeof genericDefaults&{logoName?:string;logoVersion?:string};
@@ -67,14 +67,14 @@ export default function AdminDashboard({user,signOut,projectId,publicSiteHref}:{
          body:JSON.stringify({plotId:plot.id,status,expectedStatus:plot.status,
            expectedAgreementDone:plot.agreementDone===true,expectedAgreementRevision:plot.agreementRevision||0})});
        const data=await response.json() as {ok?:boolean;error?:string;plotId?:string;status?:string;
-         inventoryStatus?:string;agreementDone?:boolean;agreementRevision?:number};
+         inventoryStatus?:string;agreementDone?:boolean;agreementRevision?:number;agreementSaleVerified?:boolean};
        if(!response.ok||data.ok!==true||data.plotId!==plot.id||data.status!==status||
          !Number.isSafeInteger(data.agreementRevision))throw Error(data.error||"Saved Metro status could not be verified.");
        savedAgreements.current[`${projectId}:${plot.id}`]={done:data.agreementDone===true,revision:data.agreementRevision!};
        setPlots(rows=>rows.map(row=>row.id===plot.id?{...row,status:data.inventoryStatus!,
-         agreementDone:data.agreementDone,agreementRevision:data.agreementRevision}:row));
+         agreementDone:data.agreementDone,agreementRevision:data.agreementRevision,agreementSaleVerified:status==="agreement"?true:row.agreementSaleVerified}:row));
        setSelected(row=>row?.id===plot.id?{...row,status:data.inventoryStatus!,
-         agreementDone:data.agreementDone,agreementRevision:data.agreementRevision}:row);
+         agreementDone:data.agreementDone,agreementRevision:data.agreementRevision,agreementSaleVerified:status==="agreement"?true:row.agreementSaleVerified}:row);
        setPlotRefresh(n=>n+1);
        show("Plot "+plot.id+" · "+(status==="agreement"?"Agreement Done":status==="registered"?"Registered":status)+" saved");
      }catch(error){setPlotRefresh(n=>n+1);show(error instanceof Error?error.message:"Metro status not saved")}
