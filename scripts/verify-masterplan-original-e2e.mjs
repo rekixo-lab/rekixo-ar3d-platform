@@ -74,6 +74,9 @@ const server = http.createServer(async (req, res) => {
     const variant = url.searchParams.get("variant");
     state.requests.push(variant);
     assert.equal(url.searchParams.get("v"), "7", "every image belongs to the published version");
+    if (state.canonicalMissing && variant === "public-canonical") {
+      res.writeHead(404); return res.end();
+    }
     if (variant === "original") {
       state.originalRequested();
       await state.gate;
@@ -184,7 +187,7 @@ async function assertPlotHit(page, name) {
 async function journey(target) {
   let release, requested;
   const state = {
-    missing: Boolean(target.missing), requests: [],
+    missing: Boolean(target.missing), canonicalMissing: Boolean(target.canonicalMissing), requests: [],
     gate: new Promise(resolve => { release = resolve; }),
     requested: new Promise(resolve => { requested = resolve; }),
     originalRequested: () => requested(),
@@ -244,6 +247,10 @@ async function journey(target) {
         "visible", "Only explicitly missing originals use the legacy canonical source");
       assert.equal(state.requests.filter(v => v === "original").length, 1,
         "Unavailable original is checked once, without downloading fallback bytes under original URL");
+      if (state.canonicalMissing) {
+        assert.ok(state.requests.includes("public-canonical"),"Legacy canonical was attempted");
+        assert.ok(state.requests.includes("public"),"Published public image rescued legacy project");
+      }
     } else {
       await page.waitForFunction(() => {
         const master = document.querySelector(".master");
@@ -401,6 +408,8 @@ try {
   await journey({ name: "quality-mobile", viewport: { width: 390, height: 844 }, mobile: true });
   await journey({ name: metroId, viewport: { width: 390, height: 844 }, mobile: true });
   await journey({ name: "quality-legacy-fallback", viewport: { width: 390, height: 844 }, mobile: true, missing: true });
+  await journey({ name: "quality-legacy-public-only", viewport: { width: 390, height: 844 },
+    mobile: true, missing: true, canonicalMissing: true });
 } finally {
   await browser.close();
   await new Promise(resolve => server.close(resolve));

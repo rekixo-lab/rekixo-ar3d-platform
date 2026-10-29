@@ -1957,7 +1957,12 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       isCurrent=()=>true,expectedWidth=0,expectedHeight=0){
     const controller=new AbortController();
     let cancelled=false,canvas=null,context=null,failed=false;
+    let probeTimer=null,originalImageTimer=null,canvasRecoveryTimer=null;
     const current=()=>!cancelled&&isCurrent();
+    const clearOriginalTimers=()=>{
+      clearTimeout(probeTimer);clearTimeout(originalImageTimer);
+      clearTimeout(canvasRecoveryTimer);
+    };
     const draw=()=>{
       if(!current()||!context||mode3D||failed||!master.naturalWidth||!master.naturalHeight)return false;
       const vw=viewport.clientWidth,vh=viewport.clientHeight;
@@ -2012,29 +2017,42 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       onUnavailable();
     };
     const originalError=()=>{
-      if(current())rekixoBootState('error',
-        'Original masterplan load nahi hua. Internet check karke Try Again karein.');
+      if(!current())return;
+      clearTimeout(originalImageTimer);originalImageTimer=null;
+      unavailable();
     };
     (async()=>{
       try{
         const probe=new URL(src,location.href);
         probe.searchParams.set('inspect','1');
         const warm=window.REKIXO_ORIGINAL_WARMUP;
-        let metadata=null;
-        if(warm?.src===src){
-          try{metadata=await warm.probePromise}catch(_){}
-        }
-        if(!metadata){
+        // Parallel inspect can stall on older published projects: never let
+        // its unresolved promise block the legacy public masterplan fallback.
+        const probeMetadata=async()=>{
+          if(warm?.src===src){
+            try{return await warm.probePromise}catch(_){}
+          }
           const response=await fetch(probe.pathname+probe.search,{
             cache:'no-store',signal:controller.signal,headers:{accept:'application/json'}});
-          if(!current())return;
+          if(!current())return null;
           if(!response.ok)throw Error('Original source probe failed');
-          metadata=await response.json();
-        }
+          return response.json();
+        };
+        let metadata=null;
+        try{
+          metadata=await Promise.race([
+            probeMetadata(),
+            new Promise((_,reject)=>{probeTimer=setTimeout(
+              ()=>reject(Error('Original probe timeout')),12000)}),
+          ]);
+        }catch(_){if(current())unavailable();return}
+        finally{clearTimeout(probeTimer);probeTimer=null}
         if(!current())return;
+        metadata=metadata||{original:false};
         if(metadata.original!==true){unavailable();return;}
         master.onerror=originalError;
         master.onload=async()=>{
+          clearTimeout(originalImageTimer);originalImageTimer=null;
           if(!current())return;
           window.REKIXO_LOADING_PROGRESS?.(85,'Preparing your experience');
           const aspect=master.naturalWidth/Math.max(1,master.naturalHeight);
@@ -2044,7 +2062,19 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
           if(Math.abs(aspect/expectedAspect-1)>.015||sizeMismatch){
             unavailable();return;
           }
-          try{if(typeof master.decode==='function')await master.decode()}catch(_){}
+          // onload already makes the image drawable. A second decode() can
+          // remain pending forever on memory-constrained mobile browsers.
+          try{
+            if(typeof master.decode==='function'){
+              let decodeTimer=null;
+              try{
+                await Promise.race([
+                  master.decode(),
+                  new Promise(resolve=>{decodeTimer=setTimeout(resolve,3500)}),
+                ]);
+              }finally{clearTimeout(decodeTimer)}
+            }
+          }catch(_){}
           if(!current())return;
           window.REKIXO_LOADING_PROGRESS?.(92,'Preparing your experience');
           canvas=document.createElement('canvas');
@@ -2057,9 +2087,16 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
           }
           canvas.addEventListener('contextlost',event=>{
             event.preventDefault();
-            if(current())rekixoBootState('loading','Restoring original masterplan…');
+            if(!current())return;
+            rekixoBootState('loading','Restoring original masterplan…');
+            clearTimeout(canvasRecoveryTimer);
+            canvasRecoveryTimer=setTimeout(()=>{
+              if(current())rekixoBootState('error',
+                'Masterplan display interrupted. Try Again se reload karein.');
+            },10000);
           });
           canvas.addEventListener('contextrestored',()=>{
+            clearTimeout(canvasRecoveryTimer);canvasRecoveryTimer=null;
             if(current()&&draw()){
               if(!PUBLIC_READY)onReady();
               else rekixoBootState('ready');
@@ -2078,12 +2115,15 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         master.style.visibility='hidden';
         window.REKIXO_LOADING_PROGRESS?.(66,'Preparing your experience');
         master.src=src;
+        originalImageTimer=setTimeout(()=>{
+          if(current())originalError();
+        },25000);
       }catch(error){
         if(current()&&error?.name!=='AbortError')originalError();
       }
     })();
     return()=>{
-      cancelled=true;controller.abort();
+      cancelled=true;clearOriginalTimers();controller.abort();
       master.onload=null;master.onerror=null;
       if(refreshNativeMasterplan===draw)refreshNativeMasterplan=()=>{};
       canvas?.remove();canvas=null;context=null;
@@ -3230,6 +3270,8 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     startLiveStatePolling();
     if(selected){const fresh=plots.find(p=>p.id===selected.id);if(fresh){selected=fresh;if(drawer.classList.contains('open')){q('#sqm').textContent=Number(fresh.sqm).toLocaleString('en-IN')+' Sq.M';q('#sqft').textContent=Number(fresh.sqft).toLocaleString('en-IN')+' Sq.Ft';q('#sqyd').textContent=Number(fresh.sqyd).toLocaleString('en-IN')+' Sq.Yd';q('#dims').textContent=fresh.dimensions||'—';syncFrontDepthFacts(fresh);const freshFacing=String(fresh.facing||'').trim(),freshRoadLabel=q('#roadLabel');if(freshRoadLabel)freshRoadLabel.textContent=freshFacing?'FACING':'ROAD ACCESS';q('#road').textContent=freshFacing||fresh.road||'—';syncPlotPricing(fresh);const st=plotStatus(fresh),statusEl=q('#plotStatusValue');statusEl.textContent=statusDisplayLabel(st);statusEl.className=st;updateMetroAgreementFact(fresh)}}}
     let revealed=false,shellRevealed=false,masterFailures=0,usingCanonical=false;
+    let legacyImageTimer=null;
+    const clearLegacyImageTimer=()=>{clearTimeout(legacyImageTimer);legacyImageTimer=null};
     const revealShell=()=>{
       if(shellRevealed)return;
       shellRevealed=true;
@@ -3252,16 +3294,18 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       engine3D?.setShowAll(showAll);engine3D?.setStatusFilter?.(statusFilter);
     };
     const loadMaster=(canonical=false,bust=false)=>{
-      if(!master)return;
+      if(!master||revealed)return;
+      clearLegacyImageTimer();
       usingCanonical=canonical;
       const base=canonical?canonicalMasterUrl:preferredMasterUrl;
-      if(!base)return;
-      if(!bust){master.src=base;return}
-      const retryUrl=new URL(base,location.href);
-      retryUrl.searchParams.set('retry',String(Date.now()));
-      master.src=retryUrl.pathname+retryUrl.search;
+      if(!base){masterFailed();return}
+      const retryUrl=bust?new URL(base,location.href):null;
+      if(retryUrl)retryUrl.searchParams.set('retry',String(Date.now()));
+      master.src=retryUrl?retryUrl.pathname+retryUrl.search:base;
+      legacyImageTimer=setTimeout(()=>masterFailed(),20000);
     };
     const alignMasterAndReveal=()=>{
+      clearLegacyImageTimer();
       if(revealed||!master)return;
       window.REKIXO_LOADING_PROGRESS?.(90,'Preparing your experience');
       if(master.naturalWidth>0&&master.naturalHeight>0){
@@ -3284,24 +3328,28 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       revealProject()
     };
     const masterFailed=()=>{
+      clearLegacyImageTimer();
       if(revealed||!master)return;
       masterFailures+=1;
-      if(!usingCanonical&&masterFailures<=2){
-        setTimeout(()=>loadMaster(false,true),180*masterFailures);
-        return
-      }
-      if(!usingCanonical){
-        masterFailures=0;
-        setTimeout(()=>loadMaster(true,true),120);
-        return
-      }
+      // First prefer published canonical, then try the published public image
+      // for old projects that never had a canonical versioned snapshot.
       if(masterFailures<=2){
-        setTimeout(()=>loadMaster(true,true),220*masterFailures);
-        return
+        const source=usingCanonical;
+        setTimeout(()=>loadMaster(source,true),180*masterFailures);
+        return;
       }
+      if(usingCanonical&&preferredMasterUrl&&preferredMasterUrl!==canonicalMasterUrl){
+        masterFailures=0;
+        setTimeout(()=>loadMaster(false,true),120);
+        return;
+      }
+      // The previous implementation only toasted behind a blocking loader.
+      // End deterministically with a visible Try Again instead of an infinite
+      // AR3D spinner, regardless of browser or image CDN behaviour.
       viewport.classList.remove('master-loading');
       world.style.visibility='hidden';
-      toast('Masterplan load nahi hui — network check karke reload karein')
+      rekixoBootState('error',
+        'Published masterplan load nahi hua. Try Again se dobara load karein.');
     };
     revealShell();
     if(master&&HAS_MASTERPLAN){
