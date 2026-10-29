@@ -62,7 +62,7 @@ test("Metro Admin has one status selection and dedicated transaction route; no c
  assert.match(shell,/savedAgreements/);
  assert.match(status,/env\.DB\.batch\(statements\)/);
  assert.match(status,/ACTIVE_SALE_STATUS_PROTECTED/);
- assert.match(status,/AGREEMENT_REQUIRES_SALE/);
+ assert.doesNotMatch(status,/AGREEMENT_REQUIRES_SALE|SALE_DETAILS_REQUIRED/);
  assert.match(stages,/fieldKey===METRO_AGREEMENT_FIELD/);
  assert.match(dealUi,/x\.fieldKey==="agreement_done"/);
  assert.match(stages,/const results=await env\.DB\.batch\(\[update,event\]\)/);
