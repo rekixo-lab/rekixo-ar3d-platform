@@ -255,7 +255,10 @@ export default function ClientPlotManagement({
               </button>
             </div>
             {agreementEnabled&&plot.agreementDone===true&&(plot.status!=="sold"||plot.agreementSaleVerified===false)&&
-              <p className="client-metro-legacy-warning" role="note">Historical record requires review: Agreement Done was saved with inventory {plot.status}, but the required Registered / active Sale conditions are not fully verified. Original data is unchanged.</p>}
+              <details className="client-metro-legacy-warning">
+                <summary><span>Record needs review</span><span className="client-metro-review-hint">Details</span></summary>
+                <p>Agreement Done is recorded, but inventory is {plot.status} and an active Sale is not fully verified. Confirm the Sale before correcting this status. Original records are unchanged.</p>
+              </details>}
             {open && renderEditor()}
           </article>
         );
