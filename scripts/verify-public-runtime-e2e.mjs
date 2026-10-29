@@ -403,8 +403,13 @@ try {
     assert.equal(await page.locator("#metroAgreementRow").isVisible(),false);
     metroAgreementDone=true;
     await page.evaluate(()=>document.dispatchEvent(new Event("visibilitychange")));
-    await page.locator("#metroAgreementRow").waitFor({state:"visible"});
-    assert.equal(await page.locator("#metroAgreementValue").innerText(),"Agreement Done");
+    await page.waitForFunction(()=>
+      document.querySelector("#plotStatusValue")?.textContent==="Agreement Done" &&
+      document.querySelector("#plotStatusChip")?.textContent==="AGREEMENT DONE");
+    assert.equal(await page.locator("#metroAgreementRow").isVisible(),false,
+      target.name+" Agreement Done is already the status, no duplicate detail row");
+    assert.equal(await page.locator("#countSold").textContent(),"0",
+      target.name+" Registered filter/count must exclude Agreement Done");
     assert.equal(await page.locator("#countAgreement").textContent(),"1");
     assert.equal(await page.locator("#countTotal").textContent(),"1");
     assert.equal(await page.locator('.plot[data-plot-id="P-1"]').getAttribute("data-metro-visual"),"agreement");
@@ -412,9 +417,12 @@ try {
     assert.match(agreementFill,/255, 48, 48/,target.name+" Agreement polygon must be red");
     metroAgreementDone=false;
     await page.evaluate(()=>document.dispatchEvent(new Event("visibilitychange")));
-    await page.locator("#metroAgreementRow").waitFor({state:"hidden"});
+    await page.waitForFunction(()=>
+      document.querySelector("#plotStatusValue")?.textContent==="Registered" &&
+      document.querySelector("#countAgreement")?.textContent==="0");
+    assert.equal(await page.locator("#metroAgreementRow").isVisible(),false);
     assert.equal(await page.locator("#metroAgreementValue").textContent(),"");
-    assert.equal(await page.locator("#countAgreement").textContent(),"0");
+    assert.equal(await page.locator("#countSold").textContent(),"1");
     assert.equal(await page.locator('.plot[data-plot-id="P-1"]').getAttribute("data-metro-visual"),"registered");
     await page.locator("#closeBtn").click();
     await page.waitForFunction(()=>!document.querySelector("#drawer")?.classList.contains("open"));
