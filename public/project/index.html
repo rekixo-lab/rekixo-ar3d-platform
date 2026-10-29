@@ -1038,14 +1038,14 @@ body[data-metro-four-status="1"] .status.expanded .status-body{max-height:248px;
 body[data-metro-four-status="1"] .status-option.agreement.active{background:rgba(255,48,48,.14)}
 body[data-metro-four-status="1"] #metroAgreementRow .agreement-done{color:#ff3030!important}
 /* Metro's late !important status colors must not override the chosen filter.
-   Agreement Done is a red *subset* of Registered, not extra inventory. */
-body[data-metro-four-status="1"] .show-all.status-filter-available .plot:not([data-status="available"]),
-body[data-metro-four-status="1"] .show-all.status-filter-booked .plot:not([data-status="booked"]),
-body[data-metro-four-status="1"] .show-all.status-filter-sold .plot:not([data-status="sold"]),
+   Agreement Done wins display priority over its underlying Booked or Sold inventory state. */
+body[data-metro-four-status="1"] .show-all.status-filter-available .plot:not([data-metro-visual="available"]),
+body[data-metro-four-status="1"] .show-all.status-filter-booked .plot:not([data-metro-visual="booked"]),
+body[data-metro-four-status="1"] .show-all.status-filter-sold .plot:not([data-metro-visual="registered"]),
 body[data-metro-four-status="1"] .show-all.status-filter-agreement .plot:not([data-metro-visual="agreement"]){fill:transparent!important;stroke:transparent!important;filter:none!important}
-body[data-metro-four-status="1"] .show-all.status-filter-available .plot.selected:not([data-status="available"]),
-body[data-metro-four-status="1"] .show-all.status-filter-booked .plot.selected:not([data-status="booked"]),
-body[data-metro-four-status="1"] .show-all.status-filter-sold .plot.selected:not([data-status="sold"]),
+body[data-metro-four-status="1"] .show-all.status-filter-available .plot.selected:not([data-metro-visual="available"]),
+body[data-metro-four-status="1"] .show-all.status-filter-booked .plot.selected:not([data-metro-visual="booked"]),
+body[data-metro-four-status="1"] .show-all.status-filter-sold .plot.selected:not([data-metro-visual="registered"]),
 body[data-metro-four-status="1"] .show-all.status-filter-agreement .plot.selected:not([data-metro-visual="agreement"]){fill:transparent!important;stroke:transparent!important;filter:none!important}
 body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot-peek__badge{color:#ff3030}
 /* Metro City only: at least 25% narrower, with four complete, tappable rows. */
@@ -2306,7 +2306,13 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   function plotStatus(p){const s=String(p?.status||'available').trim().toLowerCase();return s==='enquire'?'available':(s==='booked'?'booked':(s==='sold'?'sold':'available'))}
   function metroVisualStatus(p){const base=plotStatus(p);return !metroAgreementMode?base:p?.agreementDone===true?'agreement':base==='sold'?'registered':base}
   function syncMetroPlotVisual(p,el){if(!el)return;if(metroAgreementMode)el.dataset.metroVisual=metroVisualStatus(p);else delete el.dataset.metroVisual}
-  function matchesStatusFilter(p,filter){return filter==='agreement'?metroAgreementMode&&p?.agreementDone===true:plotStatus(p)===filter}
+  // Filter the final public category, not the canonical inventory status.
+  // Keep the historical 'sold' filter key for Metro's Registered label.
+  function matchesStatusFilter(p,filter){
+    if(!filter)return true;
+    if(metroAgreementMode)return metroVisualStatus(p)===(filter==='sold'?'registered':filter);
+    return filter!=='agreement'&&plotStatus(p)===filter;
+  }
   // Metro-only public touch/hit-testing must respect the visible status filter,
   // just as 3D hitTest already does. Never edit plot coordinates or inventory.
   function metroFilterAllowsPlot(p){return !metroAgreementMode||!showAll||!statusFilter||matchesStatusFilter(p,statusFilter)}
@@ -2360,7 +2366,20 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
       plotPeekPressShown=true;showPlotPeek(p,x,y)
     },PLOT_PEEK_LONG_PRESS_MS)
   }
-  function updateStatusCounts(){const c={available:0,booked:0,sold:0};let agreement=0;plots.forEach(p=>{c[plotStatus(p)]++;if(metroAgreementMode&&p.agreementDone===true)agreement++});q('#countAvailable').textContent=c.available;q('#countBooked').textContent=c.booked;q('#countSold').textContent=c.sold;q('#countAgreement').textContent=agreement;q('#countTotal').textContent=plots.length}
+  function updateStatusCounts(){
+    const c={available:0,booked:0,sold:0};let agreement=0;
+    plots.forEach(p=>{
+      // Metro: the four public counts match their exclusive filter results.
+      // Never rewrite the plot's canonical Booked or Sold inventory status.
+      if(metroAgreementMode&&p.agreementDone===true){agreement++;return}
+      c[plotStatus(p)]++;
+    });
+    q('#countAvailable').textContent=c.available;
+    q('#countBooked').textContent=c.booked;
+    q('#countSold').textContent=c.sold;
+    q('#countAgreement').textContent=agreement;
+    q('#countTotal').textContent=plots.length;
+  }
   function applyLiveState(data){
     if(!data||typeof data!=='object')return;
     const statusById=new Map((Array.isArray(data.statuses)?data.statuses:[]).map(row=>[String(row.id),String(row.status||'available')]));
