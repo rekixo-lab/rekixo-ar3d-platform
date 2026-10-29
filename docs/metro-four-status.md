@@ -28,7 +28,7 @@ Canonical Sold and the Sales Ledger must not be changed into a new database stat
 - When status save fails because of a stale revision, invalid permission or active-Sale protection, the Admin sees a **red error**; successful updates show a separate success notification.
 
 Legacy checkbox and canonical-only Client Admin writes stay blocked. Legacy Deal Progress registered/agreement_done entries are read-only; the single four-status dropdown is the only edit surface for Metro.
-  
+
 ## Historical data
 
 This release deliberately does **not** rewrite original plot statuses, stored agreement flags, historical Deal Progress, Sale records, buyers, amounts, payments, snapshots, coordinates or masterplans. Legacy Booked/Available + Agreement Done combinations remain stored for controlled reconciliation, but the everyday Client Admin plot list no longer shows repetitive amber 'error' banners. These are historical data inconsistencies rather than runtime failures. The server still enforces active Sale and revision checks before any new status transition. Reconciliation requires separately verified financial records; this UI cleanup must not silently alter inventory or Sale history.
