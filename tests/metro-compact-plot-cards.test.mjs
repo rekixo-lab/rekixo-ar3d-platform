@@ -38,6 +38,6 @@ test("Compact rules stay Metro Client Admin only; booking fields and legacy stat
   assert.doesNotMatch(api,/AGREEMENT_REQUIRES_SALE|SALE_DETAILS_REQUIRED/);
   assert.match(api,/activeSaleRecorded:Boolean\(existing\.activeSaleId\)/);
   assert.match(api,/ACTIVE_SALE_STATUS_PROTECTED/);
-  assert.match(api,/SALE_DETAILS_REQUIRED/);
+  assert.match(api,/activeSaleRecorded:Boolean\(existing\.activeSaleId\)/);
   assert.match(api,/env\.DB\.batch\(statements\)/);
 });
