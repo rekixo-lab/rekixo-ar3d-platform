@@ -14,7 +14,7 @@ test("Metro touch and coarse tablets only use one canvas for original and polygo
   assert.match(page,/\.map\.gesture-active:not\(\[data-metro-raster-plots="1"\]\) \.hotspots\{visibility:hidden\}/);
   assert.match(page,/context\.drawImage\(master,sx,sy,ex-sx,ey-sy,sx,sy,ex-sx,ey-sy\);[\s\S]*?paintMetroPolygons\(context,pixelRatio,cos,sin,tx,ty\);/);
   assert.match(page,/context\.setTransform\(pixelRatio\*scale\*cos,pixelRatio\*scale\*sin/);
-  assert.match(page,/context\.lineWidth=shape\.width\/Math\.max\(\.0001,scale\)/);
+  assert.match(page,/context\.lineWidth=\(highlighted\?2\.05:\.95\)\/Math\.max\(\.0001,scale\)/);
 });
 
 test("Metro gate cannot apply to non-Metro sites or to desktop/fine-pointer",()=>{
