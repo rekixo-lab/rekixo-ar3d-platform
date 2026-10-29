@@ -12,7 +12,7 @@ const clientPlots=read("app/client-plot-management.tsx");
 const otherApi=read("app/api/data/route.ts");
 
 test("Metro four public inventory statuses do not fabricate or demand a financial Sale",()=>{
-  assert.match(api,/metroAgreementEnabled\(session\.projectId\)/);
+  assert.match(api,/metroAgreementEnabled\(projectId\)/);
   assert.match(api,/isMetroDisplayStatus\(target\)/);
   assert.match(api,/desired\.inventoryStatus===existing\.status&&desired\.agreementDone===beforeDone/);
   assert.match(api,/env\.DB\.batch\(statements\)/);
