@@ -31,9 +31,11 @@ test("unified PATCH validates admin, project, revision, active Sale and read-bac
  assert.match(api,/metroAgreementEnabled\(session\.projectId\)/);
  assert.match(api,/isMetroDisplayStatus\(target\)/);
  assert.match(api,/beforeRevision!==expectedRevision/);
- assert.match(api,/AGREEMENT_REQUIRES_SALE/);
+ assert.doesNotMatch(api,/AGREEMENT_REQUIRES_SALE|SALE_DETAILS_REQUIRED/);
+ assert.match(api,/activeSaleRecorded:Boolean\(existing\.activeSaleId\)/);
+ assert.doesNotMatch(api,/INSERT INTO property_sales|UPDATE property_sales|DELETE FROM property_sales/);
  assert.match(api,/ACTIVE_SALE_STATUS_PROTECTED/);
- assert.match(api,/SALE_DETAILS_REQUIRED/);
+ assert.match(api,/ACTIVE_SALE_STATUS_PROTECTED/);
  assert.match(api,/json\('metro-status-conflict'\)/);
  assert.match(api,/env\.DB\.batch\(statements\)/);
  assert.match(api,/saved\.status!==desired\.inventoryStatus/);
@@ -71,7 +73,7 @@ INSERT INTO property_sales VALUES('metro','4','active','sale4');
 guard=s["sql"]
 def check(plot,previous,rev,flag,target,category,project='metro'):
  try:
-  return con.execute(guard,(project,plot,previous,rev,flag,target,category,category)).fetchone()[0]==1
+  return con.execute(guard,(project,plot,previous,rev,flag,target)).fetchone()[0]==1
  except sqlite3.DatabaseError:
   return False
 assert check('4','sold',2,'false','sold','agreement')
@@ -79,16 +81,19 @@ assert not check('4','sold',1,'false','sold','agreement'),"stale agreement revis
 assert not check('4','booked',2,'false','sold','agreement'),"stale inventory"
 assert not check('4','sold',2,'true','sold','agreement'),"stale checkbox"
 assert not check('4','sold',2,'false','booked','booked'),"active sale blocks booked"
-assert not check('3','booked',0,'false','sold','agreement'),"unconfirmed agreement"
-assert not check('3','booked',0,'false','sold','registered'),"sales setting needs sale"
+assert check('3','booked',0,'false','sold','agreement'),"Metro public agreement may be entered without an accounting Sale"
+assert check('3','booked',0,'false','sold','registered'),"Metro public registration does not create accounting Sale"
+assert check('3','booked',0,'false','booked','booked'),"no-op public status does not require Sale"
 assert not check('3','booked',0,'false','booked','booked',project='other'),"tenant gate"
 with con:
  assert check('4','sold',2,'false','sold','agreement')
  con.execute("UPDATE plot_custom_values SET field_value='true',revision=revision+1 WHERE project_id='metro' AND plot_id='4'")
 assert not check('4','sold',2,'false','sold','agreement'),"repeated submission rejected"
 assert check('4','sold',3,'true','sold','registered'),"agreement rollback is legal"
+assert check('4','sold',3,'true','sold','agreement'),"idempotent agreement still valid"
+assert not check('4','sold',3,'true','available','available'),"active financial Sale cannot be erased by display reset"
 assert con.execute("SELECT status FROM plots WHERE project_id='other'").fetchone()[0]=='booked'
-print("PASS: guarded Metro transition SQL, stale revisions, sales and tenant isolation")
+print("PASS: manual Metro public status, guarded financial Sales, stale revisions and tenant isolation")
 `;
  const r=spawnSync("python3",["-c",py],{input:JSON.stringify({sql:guard}),encoding:"utf8"});
  assert.equal(r.status,0,r.stderr||r.stdout);
