@@ -1008,27 +1008,31 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
   #metroAgreementRow .agreement-done{color:#ff3030;font-weight:900}
 </style>
 <style id="rekixo-metro-four-status-v1">
-/* METRO_FOUR_STATUS_V1: strictly visual; inventory and polygons unchanged. */
+/* METRO_FOUR_STATUS_V2: transparent, source-over plot tints preserve
+   masterplan-embedded plot numbers/texture at every zoom. The previous opaque
+   mix-blend-mode:color layer flattened the plot labels in Safari and desktop.
+   Selected fills retain the SAME alpha, using a white outline for focus.
+   Presentation-only; inventory, original image and geometry are unchanged. */
 [data-status-filter="agreement"][hidden]{display:none!important}
 body[data-metro-four-status="1"] .status-option.available,body[data-metro-four-status="1"] .status-option.available b{color:#fff!important}
 body[data-metro-four-status="1"] .show-all .plot[data-metro-visual="available"]{fill:rgba(255,255,255,.33)!important;stroke:#fff!important}
-body[data-metro-four-status="1"] .plot.selected[data-metro-visual="available"]{fill:rgba(255,255,255,.61)!important;stroke:#fff!important;filter:drop-shadow(0 0 4px rgba(255,255,255,.7))!important}
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="available"]{fill:rgba(255,255,255,.33)!important;stroke:#fff!important;filter:drop-shadow(0 0 4px rgba(255,255,255,.7))!important}
 body[data-metro-four-status="1"] .three-plot-label.available{color:#fff}
 body[data-metro-four-status="1"] .status-option.booked,body[data-metro-four-status="1"] .status-option.booked b{color:#ffd21a!important}
-body[data-metro-four-status="1"] .show-all .plot[data-metro-visual="booked"]{fill:#ffd21a!important;mix-blend-mode:color;stroke:#ffd21a!important}
-body[data-metro-four-status="1"] .plot.selected[data-metro-visual="booked"]{fill:#ffd21a!important;mix-blend-mode:color;stroke:#fff!important;filter:drop-shadow(0 0 4px #ffd21aa0)!important}
+body[data-metro-four-status="1"] .show-all .plot[data-metro-visual="booked"]{fill:rgba(255,210,26,.38)!important;stroke:#ffd21a!important}
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="booked"]{fill:rgba(255,210,26,.38)!important;stroke:#fff!important;filter:drop-shadow(0 0 4px #ffd21aa0)!important}
 body[data-metro-four-status="1"] .three-plot-label.booked{color:#ffd21a}
 body[data-metro-four-status="1"] .status-option.sold,body[data-metro-four-status="1"] .status-option.sold b{color:#1ed46b!important}
-body[data-metro-four-status="1"] .show-all .plot[data-metro-visual="registered"]{fill:#1ed46b!important;mix-blend-mode:color;stroke:#1ed46b!important}
-body[data-metro-four-status="1"] .plot.selected[data-metro-visual="registered"]{fill:#1ed46b!important;mix-blend-mode:color;stroke:#fff!important;filter:drop-shadow(0 0 4px #1ed46ba0)!important}
+body[data-metro-four-status="1"] .show-all .plot[data-metro-visual="registered"]{fill:rgba(30,212,107,.38)!important;stroke:#1ed46b!important}
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="registered"]{fill:rgba(30,212,107,.38)!important;stroke:#fff!important;filter:drop-shadow(0 0 4px #1ed46ba0)!important}
 body[data-metro-four-status="1"] .three-plot-label.registered{color:#1ed46b}
 body[data-metro-four-status="1"] .status-option.agreement,body[data-metro-four-status="1"] .status-option.agreement b{color:#ff3030!important}
-body[data-metro-four-status="1"] .show-all .plot[data-metro-visual="agreement"]{fill:#ff3030!important;mix-blend-mode:color;stroke:#ff3030!important}
-body[data-metro-four-status="1"] .plot.selected[data-metro-visual="agreement"]{fill:#ff3030!important;mix-blend-mode:color;stroke:#fff!important;filter:drop-shadow(0 0 4px #ff3030a0)!important}
+body[data-metro-four-status="1"] .show-all .plot[data-metro-visual="agreement"]{fill:rgba(255,48,48,.44)!important;stroke:#ff3030!important}
+body[data-metro-four-status="1"] .plot.selected[data-metro-visual="agreement"]{fill:rgba(255,48,48,.44)!important;stroke:#fff!important;filter:drop-shadow(0 0 4px #ff3030a0)!important}
 body[data-metro-four-status="1"] .three-plot-label.agreement{color:#ff3030}
 /* Never interpolate between old status color and new Agreement red.
    Only the color transition is removed; geometry/pointer handling are unchanged. */
-body[data-metro-four-status="1"] .plot[data-metro-visual]{transition-property:stroke,filter!important}
+body[data-metro-four-status="1"] .plot[data-metro-visual]{mix-blend-mode:normal!important;transition-property:stroke,filter!important}
 body[data-metro-four-status="1"] .status-option.agreement{display:flex}
 body[data-metro-four-status="1"] .status.expanded .status-body{max-height:248px;overflow-y:auto}
 body[data-metro-four-status="1"] .status-option.agreement.active{background:rgba(255,48,48,.14)}
@@ -1843,9 +1847,11 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     }).filter(Boolean);
     return metroPaintCache;
   }
-  const METRO_PAINT_RGB=Object.freeze({
-    available:'255,255,255',booked:'255,210,26',
-    registered:'30,212,107',agreement:'255,48,48',
+  // Must match the Metro-only SVG fill alpha above. Paint only translucent
+  // source-over colors; the actual plot numbers live in the original raster.
+  const METRO_PAINT_TINT=Object.freeze({
+    available:['255,255,255',.33],booked:['255,210,26',.38],
+    registered:['30,212,107',.38],agreement:['255,48,48',.44],
   });
   function paintMetroPolygons(context,pixelRatio,cos,sin,tx,ty){
     if(!metroCanvasPaint||!showAll&&!selected)return;
@@ -1858,18 +1864,12 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         if(!showAll&&!highlighted)continue;
         if(showAll&&statusFilter&&!matchesStatusFilter(plot,statusFilter))continue;
         const visual=metroVisualStatus(plot);
-        const rgb=METRO_PAINT_RGB[visual]||METRO_PAINT_RGB.available;
-        // 'color' blends hue/saturation while retaining the original plan's
-        // luminance, white plot numbers and texture. Transparent red over olive
-        // masterplan pixels caused the photographed orange/brown flicker.
-        // Safari supports 'color'; older canvases fall back to an opaque-enough
-        // alpha tint instead of silently dropping the fill.
-        context.globalCompositeOperation=visual==='available'?'source-over':'color';
-        const colorBlend=visual!=='available'&&context.globalCompositeOperation==='color';
-        if(!colorBlend)context.globalCompositeOperation='source-over';
-        context.fillStyle=colorBlend?'rgb('+rgb+')':'rgba('+rgb+','+(visual==='available'?.33:.78)+')';
-        context.fill(shape.path);
+        const [rgb,alpha]=METRO_PAINT_TINT[visual]||METRO_PAINT_TINT.available;
+        // Never use 'color' blend or opaque paint: it erases white plot
+        // numbers baked into the ORIGINAL image, especially on iOS WebKit.
         context.globalCompositeOperation='source-over';
+        context.fillStyle='rgba('+rgb+','+alpha+')';
+        context.fill(shape.path);
         context.strokeStyle=highlighted?'#ffffff':'rgba('+rgb+',.97)';
         context.lineWidth=(highlighted?2.05:.95)/Math.max(.0001,scale);
         context.stroke(shape.path);

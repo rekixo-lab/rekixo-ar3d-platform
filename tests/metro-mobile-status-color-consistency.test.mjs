@@ -57,10 +57,10 @@ test("Metro color fill reads the plot's semantic live status, not stale SVG comp
   const fills=context.draws.filter(draw=>draw.type==="fill");
   assert.deepEqual(fills.map(f=>f.id),[1,11,21,31]);
   assert.deepEqual(fills.map(f=>f.style),[
-    "rgba(255,255,255,0.33)","rgb(255,210,26)",
-    "rgb(30,212,107)","rgb(255,48,48)",
+    "rgba(255,255,255,0.33)","rgba(255,210,26,0.38)",
+    "rgba(30,212,107,0.38)","rgba(255,48,48,0.44)",
   ]);
-  assert.deepEqual(fills.map(f=>f.blend),["source-over","color","color","color"]);
+  assert.deepEqual(fills.map(f=>f.blend),["source-over","source-over","source-over","source-over"]);
   assert.ok(context.draws.filter(draw=>draw.type==="stroke").every(draw=>draw.blend==="source-over"));
 });
 
@@ -71,7 +71,7 @@ test("Metro canvas reflects live Agreement Done updates even when Path2D geometr
   const second=canvas();
   scope.paintMetroPolygons(second,1,1,0,0,0);
   const fill=second.draws.find(draw=>draw.type==="fill"&&draw.id===31);
-  assert.equal(fill.style,"rgb(30,212,107)");
+  assert.equal(fill.style,"rgba(30,212,107,0.38)");
   assert.equal(scope.metroPlotPaintCache().length,4);
 });
 
@@ -90,22 +90,43 @@ test("Metro status filters and selection paint only eligible polygons",()=>{
   assert.equal(selected.draws.find(draw=>draw.type==="stroke").style,"#ffffff");
 });
 
-test("older canvas backends keep a visible red fallback instead of losing fills",()=>{
+test("Canvas backends without color-blend support retain translucent red and plot numbers",()=>{
   const scope=viewer(),context=canvas(false);
   scope.paintMetroPolygons(context,1,1,0,0,0);
   const red=context.draws.find(draw=>draw.type==="fill"&&draw.id===31);
-  assert.equal(red.style,"rgba(255,48,48,0.78)");
+  assert.equal(red.style,"rgba(255,48,48,0.44)");
   assert.equal(red.blend,"source-over");
 });
 
-test("Metro SVG fallback uses luminance-preserving status colors and rescale invalidates geometry",()=>{
-  for(const [status,color] of Object.entries({
-    booked:"#ffd21a",registered:"#1ed46b",agreement:"#ff3030",
-  })){
-    assert.match(page,new RegExp("show-all \\.plot\\[data-metro-visual=\\\""+
-      status+"\\\"\\]\\{fill:"+color+"!important;mix-blend-mode:color"));
+test("Metro SVG and Canvas use matching translucent tint without covering plot labels",()=>{
+  const palette={
+    available:{rgb:"255,255,255",alpha:.33},
+    booked:{rgb:"255,210,26",alpha:.38},
+    registered:{rgb:"30,212,107",alpha:.38},
+    agreement:{rgb:"255,48,48",alpha:.44},
+  };
+  for(const [status,{rgb,alpha}] of Object.entries(palette)){
+    const cssAlpha=String(alpha).replace(/^0/,"");
+    const literal="fill:rgba("+rgb+","+cssAlpha+")!important";
+    assert.ok(page.includes('.show-all .plot[data-metro-visual="'+status+'"]{'+literal),
+      "All-status SVG tint must be translucent for "+status);
+    assert.ok(page.includes('.plot.selected[data-metro-visual="'+status+'"]{'+literal),
+      "Selected SVG tint must not hide plot number for "+status);
+    assert.ok(alpha>=.25&&alpha<=.45,"Alpha too high and would conceal number");
   }
+  assert.match(page,/body\[data-metro-four-status="1"\] \.plot\[data-metro-visual\]\{mix-blend-mode:normal!important/);
+  assert.match(renderer,/context\.globalCompositeOperation='source-over'/);
+  assert.doesNotMatch(renderer,/globalCompositeOperation='color'|colorBlend/);
+  assert.doesNotMatch(page,/fill:#ff3030!important;mix-blend-mode:color/);
   assert.match(page,/function rescaleNormalizedPlots\(\)\{[\s\S]*?invalidateMetroPaint\(\);\s*\}/);
   assert.match(page,/ACTIVE_PROJECT_ID===METRO_RASTER_PROJECT&&touch/);
   assert.doesNotMatch(renderer,/getComputedStyle/);
+});
+
+test("Red status overlay maintains meaningful contrast between embedded number and plot background",()=>{
+  const tint=[255,48,48],alpha=.44;
+  const over=base=>base.map((channel,i)=>Math.round((1-alpha)*channel+alpha*tint[i]));
+  const number=over([255,255,255]),plot=over([100,96,48]);
+  assert.ok(number.every((channel,i)=>channel>plot[i]+80),
+    "Original white plot number must remain visibly lighter than colored plot");
 });

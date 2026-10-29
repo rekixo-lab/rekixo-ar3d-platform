@@ -9,7 +9,7 @@ const dashboard=read("app/admin-dashboard.tsx");
 const deals=read("app/client-deal-progress.tsx");
 const api=read("app/api/client/metro-agreement/route.ts");
 test("Metro-only four status options preserve canonical project plots",()=>{
- assert.match(html,/METRO_FOUR_STATUS_V1/);
+ assert.match(html,/METRO_FOUR_STATUS_V2/);
  assert.match(html,/document\.body\.dataset\.metroFourStatus=metroAgreementMode\?'1':'0'/);
  assert.match(html,/q\('\[data-status-filter="agreement"\]'\)\.hidden=!metroAgreementMode/);
  assert.match(html,/metroVisualStatus\(p\)/);
