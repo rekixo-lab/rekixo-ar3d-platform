@@ -34,8 +34,8 @@ test("Agreement Done is orthogonal to canonical status and cannot change plot in
  assert.match(html,/updateStatusCounts\(\)/);
  assert.match(html,/q\('#countTotal'\)\.textContent=plots\.length/);
  assert.match(html,/q\('#countAgreement'\)\.textContent=agreement/);
- assert.match(html,/value\.textContent=done\?'Agreement Done':''/);
- assert.match(html,/row\.style\.display=done\?'flex':'none'/);
+ assert.match(html,/row.style.display='none'/);
+ assert.match(html,/value.textContent=''/);
 });
 
 test("Metro white yellow green red paint is presentation only, preserving public original masterplan",()=>{
@@ -54,16 +54,15 @@ test("Metro white yellow green red paint is presentation only, preserving public
  assert.match(html,/master-original-canvas/);
 });
 
-test("Client Admin gets Registered terminology and keeps existing optimistic Agreement checkbox",()=>{
- assert.match(admin,/agreementEnabled\?"Registered":"Sold"/);
- assert.match(admin,/checked=\{plot\.agreementDone===true\}/);
- assert.match(admin,/\/api\/client\/metro-agreement/);
- assert.match(shell,/agreementEnabled\?"Registered":"Sold"/);
- assert.match(shell,/agreementEnabled=\{agreementEnabled\}/);
- assert.ok(deals.includes("x.enabled&&!(metroAgreementEnabled&&"));
- assert.match(deals,/inventoryLabel\(detail\.plot\.status\)/);
+test("Client Admin four statuses save atomically; other projects retain Sold",()=>{
+ assert.match(admin,/<option value="registered">Registered<\/option>/);
+ assert.match(admin,/<option value="agreement">Agreement Done<\/option>/);
+ assert.doesNotMatch(admin,/client-booking-agreement/);
+ assert.match(shell,/\/api\/client\/metro-status/);
+ assert.match(shell,/agreementEnabled/);
+ assert.ok(deals.includes('x.fieldKey==="agreement_done"'));
+ assert.match(deals,/inventoryLabel\(detail.plot.status\)/);
 });
-
 test("Metro mobile status list accommodates fourth row; other projects stay unchanged",()=>{
  assert.match(html,/body\[data-metro-four-status="1"\] \.status\.expanded \.status-body/);
  assert.match(html,/\[data-status-filter="agreement"\]\[hidden\]\{display:none!important\}/);
