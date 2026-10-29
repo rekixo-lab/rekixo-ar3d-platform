@@ -85,6 +85,11 @@ export async function GET(request: Request) {
       const total = Number(totalRow?.total || 0);
       const agreementEnabled = session.role==="client_admin" && await metroAgreementEnabled(projectId);
       const agreementByPlot = agreementEnabled ? await metroAgreementValues(projectId) : new Map<string,{done:boolean;revision:number}>();
+      // Admin-only boolean diagnostic; never return buyer or payment details.
+      const saleRows=agreementEnabled?await env.DB.prepare(
+        "SELECT plot_id AS plotId FROM property_sales WHERE project_id=? AND state='active'"
+      ).bind(projectId).all<{plotId:string}>():{results:[] as {plotId:string}[]};
+      const activeSalePlots=new Set(saleRows.results.map(row=>row.plotId));
       if(agreementEnabled){
         // Public Metro categories are exclusive; count globally, never from a page.
         const all=await env.DB.prepare("SELECT id,status FROM plots WHERE project_id=? AND inventory_active=1")
@@ -106,7 +111,8 @@ export async function GET(request: Request) {
           plots: pageRows.map((row) => ({
             ...row.plot,adminDetails:canonicalPlotAdminDetails(row.adminDetails),
             ...(agreementEnabled?{agreementDone:agreementByPlot.get(row.plot.id)?.done||false,
-              agreementRevision:agreementByPlot.get(row.plot.id)?.revision||0}:{})
+              agreementRevision:agreementByPlot.get(row.plot.id)?.revision||0,
+              agreementSaleVerified:activeSalePlots.has(row.plot.id)}:{})
           })),
           agreementEnabled,
           total,
