@@ -12,6 +12,7 @@ type Plot = {
   adminDetails?: PlotAdminDetails | null;
   agreementDone?:boolean;
   agreementRevision?:number;
+  agreementSaleVerified?:boolean;
 };
 
 type Draft = { ownerName: string; bookingAmount: string; brokerName: string };
@@ -253,8 +254,8 @@ export default function ClientPlotManagement({
                 <span className="client-booking-edit-mobile" aria-hidden="true">{open ? "Close" : hasDetails ? "Edit" : "Add"}</span>
               </button>
             </div>
-            {agreementEnabled&&plot.agreementDone===true&&plot.status!=="sold"&&
-              <p className="client-metro-legacy-warning" role="note">Legacy mismatch: Agreement Done was saved, but inventory is {plot.status}. Confirm the Sale before updating; existing data was not changed.</p>}
+            {agreementEnabled&&plot.agreementDone===true&&(plot.status!=="sold"||plot.agreementSaleVerified===false)&&
+              <p className="client-metro-legacy-warning" role="note">Historical record requires review: Agreement Done was saved with inventory {plot.status}, but the required Registered / active Sale conditions are not fully verified. Original data is unchanged.</p>}
             {open && renderEditor()}
           </article>
         );
