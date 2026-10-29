@@ -24,7 +24,7 @@ test("boot screen remains until the original is verified, decoded, and drawn",()
   assert.match(viewer,/prepareOriginalMasterplan\(\s*master,originalMasterUrl/);
   assert.match(renderer,/probe\.searchParams\.set\('inspect','1'\)/);
   assert.match(renderer,/if\(metadata\.original!==true\)\{unavailable\(\);return;\}/);
-  assert.match(renderer,/await master\.decode\(\)/);
+  assert.match(renderer,/await Promise\.race\(\[\s*master\.decode\(\)/);
   assert.match(viewer,/\/\/ Reset draws the original canvas BEFORE exposing the customer page/);
   assert.match(renderer,/master\.style\.visibility='hidden'/);
 });
