@@ -15,7 +15,7 @@ test("fourth status exists only when verified Metro agreement feature is enabled
  assert.match(html,/metroAgreementMode=data\.metroAgreementEnabled===true/);
  assert.match(html,/dataset\.metroFourStatus=metroAgreementMode\?'1':'0'/);
  assert.match(html,/\.hidden=!metroAgreementMode/);
- assert.match(html,/METRO_FOUR_STATUS_V1/);
+ assert.match(html,/METRO_FOUR_STATUS_V2/);
  assert.match(html,/statusDisplayLabel\(status\)/);
  assert.match(html,/label==='sold'\?'Registered'/);
  assert.match(html,/data-status-filter="booked"/);
