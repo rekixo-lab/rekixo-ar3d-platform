@@ -98,7 +98,7 @@ export default function MotionSwap({
   );
 }
 
-export function MotionToast({ message }: { message: string }) {
+export function MotionToast({ message, tone="success" }: { message: string; tone?:"success"|"error" }) {
   const [rendered, setRendered] = useState(message);
   const [state, setState] = useState<"open" | "closing">("open");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -126,7 +126,7 @@ export function MotionToast({ message }: { message: string }) {
   if (!rendered) return null;
 
   return (
-    <div className="toast-admin" data-motion-state={state}>
+    <div className="toast-admin" data-motion-state={state} data-tone={tone} role={tone==="error"?"alert":"status"}>
       {rendered}
     </div>
   );
