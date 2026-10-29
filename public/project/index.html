@@ -2061,7 +2061,19 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
           if(Math.abs(aspect/expectedAspect-1)>.015||sizeMismatch){
             unavailable();return;
           }
-          try{if(typeof master.decode==='function')await master.decode()}catch(_){}
+          // onload already makes the image drawable. A second decode() can
+          // remain pending forever on memory-constrained mobile browsers.
+          try{
+            if(typeof master.decode==='function'){
+              let decodeTimer=null;
+              try{
+                await Promise.race([
+                  master.decode(),
+                  new Promise(resolve=>{decodeTimer=setTimeout(resolve,3500)}),
+                ]);
+              }finally{clearTimeout(decodeTimer)}
+            }
+          }catch(_){}
           if(!current())return;
           window.REKIXO_LOADING_PROGRESS?.(92,'Preparing your experience');
           canvas=document.createElement('canvas');
