@@ -18,7 +18,7 @@ test("Metro-only four choices map to three canonical inventories plus the agreem
  assert.match(client,/<option value="agreement">Agreement Done<\/option>/);
  assert.match(client,/plot\.agreementDone\?"agreement":plot\.status==="sold"\?"registered"/);
  assert.doesNotMatch(client,/type="checkbox"|client-booking-agreement|onAgreementSaved/);
- assert.match(client,/client-metro-legacy-warning/);
+ assert.doesNotMatch(client,/client-metro-legacy-warning|Record needs review/);
  assert.match(admin,/\/api\/client\/metro-status/);
  assert.match(admin,/setPlotRefresh\(n=>n\+1\)/);
  assert.match(admin,/value=\{counts\.agreement\}/);
