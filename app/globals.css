@@ -785,6 +785,25 @@ body {
   font-weight: 700;
   font-size: 13px;
 }
+
+/* Metro-only: a rejected status update is NOT a green success notification. */
+.admin-shell.metro-status-admin .toast-admin[data-tone="error"]{
+  background:#3b1720;
+  border:1px solid #e15a6e;
+  color:#ffe4ea;
+}
+.admin-shell.metro-status-admin .toast-admin{
+  z-index:32;
+  max-width:min(450px,calc(100vw - 30px));
+  overflow-wrap:anywhere;
+}
+@media(max-width:900px){
+  .admin-shell.metro-status-admin .toast-admin{
+    bottom:calc(102px + env(safe-area-inset-bottom,0px));
+    font-size:13px;
+    line-height:1.45;
+  }
+}
 @media (max-width: 900px) {
   .admin-shell {
     grid-template-columns: 1fr;
