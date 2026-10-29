@@ -2048,7 +2048,8 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
         }catch(_){if(current())unavailable();return}
         finally{clearTimeout(probeTimer);probeTimer=null}
         if(!current())return;
-        if(metadata?.original!==true){unavailable();return;}
+        metadata=metadata||{original:false};
+        if(metadata.original!==true){unavailable();return;}
         master.onerror=originalError;
         master.onload=async()=>{
           clearTimeout(originalImageTimer);originalImageTimer=null;
