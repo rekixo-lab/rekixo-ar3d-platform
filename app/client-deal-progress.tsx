@@ -90,7 +90,7 @@ export default function ClientDealProgress({notify,metroAgreementEnabled=false}:
               <label style={label}>Private note<textarea style={{...input,minHeight:84}} value={note} maxLength={600} onChange={e=>setNote(e.target.value)} placeholder="Internal remark (not visible to customer)"/></label>
               {chosen?.requiresSale&&<p style={{fontSize:12,color:"#ffce86",margin:0}}>This stage requires a confirmed active Sale and Sold inventory status. Saving never creates a sale automatically.</p>}
               {stage==="token_received"&&<p style={{fontSize:12,color:"#ffce86",margin:0}}>Token Received here is only a progress label. Record actual money under Sales &amp; Accounts.</p>}
-              <button style={action} disabled={busy}>Save Deal Progress</button>
+              <button style={action} disabled={busy||(metroAgreementEnabled&&["agreement_done","registered"].includes(stage))}>Save Deal Progress</button>
             </form>}
             {detail.features.customFields&&<div style={{marginTop:22}}>
               <h4 style={{fontSize:16}}>Project-specific fields</h4>
