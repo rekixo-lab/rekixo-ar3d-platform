@@ -1064,6 +1064,8 @@ body[data-metro-four-status="1"] .plot.selected[data-metro-visual="booked"]{--re
 body[data-metro-four-status="1"] .plot.selected[data-metro-visual="registered"]{--rekixo-focus-rgb:30,212,107}
 body[data-metro-four-status="1"] .plot.selected[data-metro-visual="agreement"]{--rekixo-focus-rgb:255,48,48}
 body[data-metro-four-status="1"] .plot-peek[data-metro-visual="available"]{--peek-rgb:255,255,255}
+/* White Available badge requires dark ink: retain the white status fill and all other badge colors. */
+body[data-metro-four-status="1"] .plot-peek[data-metro-visual="available"] .plot-peek__badge{color:#111827}
 body[data-metro-four-status="1"] .plot-peek[data-metro-visual="booked"]{--peek-rgb:255,210,26}
 body[data-metro-four-status="1"] .plot-peek[data-metro-visual="registered"]{--peek-rgb:30,212,107}
 body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"]{--peek-rgb:255,48,48}
