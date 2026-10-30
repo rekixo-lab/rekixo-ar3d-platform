@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 
 const html=readFileSync("public/project/index.html","utf8");
-const styles=html.slice(0,html.indexOf("</style>"));
+const styles=html.slice(0,html.indexOf("</head>")); // Metro overrides live in later inline style blocks
 const rule=(selector)=>{
  const start=styles.indexOf(selector+"{");
  assert.ok(start>=0,"Missing CSS rule for "+selector);
