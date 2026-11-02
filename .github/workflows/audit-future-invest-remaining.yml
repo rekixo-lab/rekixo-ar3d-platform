@@ -32,9 +32,9 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Dry-run PDF plot 107 three-segment DRAIN depth correction
+      - name: Apply PDF-verified plot 107 multi-segment DRAIN depth total
         run: node scripts/repair-plot107-drain-once.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          FIX_PLOT107: "no"
+          FIX_PLOT107: "yes"
