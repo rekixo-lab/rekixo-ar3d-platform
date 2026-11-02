@@ -31,9 +31,9 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Dry-run four irregular PDF segment-sum corrections
+      - name: Apply four PDF-proven segment-sum corrections with verified backup
         run: node scripts/repair-future-invest-segments-once.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CONFIRMED_SEGMENT_REPAIR: "no"
+          CONFIRMED_SEGMENT_REPAIR: "yes"
