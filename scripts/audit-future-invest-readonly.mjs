@@ -140,3 +140,7 @@ if(!mode||readiness==="already_applied"){
  if(Number(post[0]?.publish_version)!==2)throw Error("STOP published version changed");
  console.log("REPAIR_COMPLETE "+JSON.stringify({id:pid,plots:planned.length,polygonsChanged:0,areaChanged:0,backupKey:key}));
 }
+
+const revisionSettings=q('published_data_revision',"SELECT key,value FROM published_settings WHERE project_id='"+pid+"' AND key='publicDataRevision' LIMIT 1");
+const snapVerify=q('snapshot_cache_check',"SELECT publish_version FROM project_public_snapshots WHERE project_id='"+pid+"' LIMIT 1");
+console.log('AUDIT_CACHE_REVISION '+JSON.stringify({projectId:pid,projectVersion:project[0].publish_version,snapshotVersion:snapVerify[0]?.publish_version,revision:revisionSettings[0]?.value??null,publishedRevisionRows:revisionSettings.length}));
