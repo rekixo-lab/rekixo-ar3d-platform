@@ -17,7 +17,7 @@ function q(sql){
 const p=q("SELECT id,slug,publish_version AS version FROM projects WHERE id='"+P+"' AND status='active'");
 const snapshot=q("SELECT publish_version AS version FROM project_public_snapshots WHERE project_id='"+P+"'");
 const rev=q("SELECT value FROM published_settings WHERE project_id='"+P+"' AND key='publicDataRevision'");
-if(p.length!==1||p[0].slug!=="future-invest-realty-ec6b45"||p[0].version!==2||snapshot[0]?.version!==2||rev[0]?.value!=="fi-segment-repair-20261102-946b2d9228968313108f")throw Error("published project version or cache revision changed");
+if(p.length!==1||p[0].slug!=="future-invest-realty-ec6b45"||p[0].version!==2||snapshot[0]?.version!==2||rev[0]?.value!=="fi-drain-chain-20261102-38201da4d974d4de")throw Error("published project version or cache revision changed");
 const fields="id,front,back,depth,depth2,front_label,back_label,depth_label,depth2_label,front_edge_index,back_edge_index,depth_edge_index,depth2_edge_index,polygon,edge_semantics,sqm,sqft,sqyd,status,road,side_dimensions";
 const draft=q("SELECT "+fields+",notes FROM plots WHERE project_id='"+P+"' AND inventory_active=1 ORDER BY id");
 const pub=q("SELECT "+fields+" FROM published_plots WHERE project_id='"+P+"' ORDER BY id");
@@ -37,7 +37,8 @@ const expect={
   "16":{depth:13.9,depth_label:"13.9 m (46 ft; PDF outer edge 7.8+6.1 m)"},
   "23":{depth:13.8,depth_label:"13.8 m (46 ft; PDF two-segment side 6.3+7.5 m)",depth2:13.7,depth2_label:"13.7 m (45 ft; PDF opposite continuous side)"},
   "50":{depth2:13.6,depth2_label:"13.6 m (45 ft; PDF outer edge 10.0+3.6 m)"},
-  "123":{depth2:13.8,depth2_label:"13.8 m (45 ft; PDF outer edge 7.7+6.1 m)"}
+  "123":{depth2:13.8,depth2_label:"13.8 m (45 ft; PDF outer edge 7.7+6.1 m)"},
+  "107":{depth2:19.2,depth2_label:"19.2 m (63 ft; PDF DRAIN boundary 6.1+4.5+8.6 m, 3 segments)"}
 };
 function expectedEdge203(src){const x=JSON.parse(src);x.roles={front:[2],back:[0],depthA:[3],depthB:[1]};return JSON.stringify(x)}
 let changed=0;
@@ -63,8 +64,14 @@ for(const x of pub){
  const pts=JSON.parse(x.polygon);
  if(!Array.isArray(pts)||pts.length<3)continue;
  const len=pts.map((a,i)=>{const b=pts[(i+1)%pts.length];return Math.hypot((a[0]-b[0])*4096,(a[1]-b[1])*2304)*0.1184});
- const m=["front","back","depth","depth2"].map((k,i)=>{const j=x[["front_edge_index","back_edge_index","depth_edge_index","depth2_edge_index"][i]];return j!==null&&j>=0&&j<len.length&&x[k]!=null?Math.abs(x[k]/len[j]-1):null});
+ const roles=JSON.parse(x.edge_semantics||"{}").roles||{};
+ const m=["front","back","depth","depth2"].map((k,i)=>{
+   const role=["front","back","depthA","depthB"][i],fallback=x[["front_edge_index","back_edge_index","depth_edge_index","depth2_edge_index"][i]];
+   const segments=Array.isArray(roles[role])?roles[role]:(Number.isInteger(fallback)?[fallback]:[]);
+   const expected=segments.reduce((n,j)=>n+(len[j]||0),0);
+   return expected>0&&x[k]!=null?Math.abs(x[k]/expected-1):null;
+ });
  if(m.some(v=>v!=null&&v>0.25))remaining.push({id:x.id,vertices:pts.length,maxSideDifferencePercent:+(Math.max(...m.filter(v=>v!==null))*100).toFixed(1)});
 }
-console.log("POST_STATUS "+JSON.stringify({projectId:P,checked:243,correctionsPersisted:10,polygonChanges:0,areaChanges:0,draftPublishedMetadataMatch:true,cacheRevision:rev[0].value,unresolvedSideGeometryFlags:remaining.length,flagged:remaining}));
+console.log("POST_STATUS "+JSON.stringify({projectId:P,checked:243,correctionsPersisted:11,polygonChanges:0,areaChanges:0,draftPublishedMetadataMatch:true,cacheRevision:rev[0].value,unresolvedSideGeometryFlags:remaining.length,flagged:remaining,strictFourEdgeReview:remaining.filter(v=>v.vertices===4&&!['1','2'].includes(String(v.id)))}));
 console.log("READ_ONLY_COMPLETE");
