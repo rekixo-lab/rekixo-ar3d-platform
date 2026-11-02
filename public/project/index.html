@@ -2407,7 +2407,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   }
   function showPlotPeek(p,clientX,clientY){
     if(!p||drawer.classList.contains('open'))return;
-    const card=ensurePlotPeek(),st=publicPlotStatus(p),dimensions=String(p.dimensions||'').trim(),facing=String(p.facing||p.road||'').trim(),area=plotPeekArea(p),detail=[dimensions,facing].filter(Boolean).join(' · ')||'Plot details';
+    const card=ensurePlotPeek(),st=publicPlotStatus(p),dimensions=futureInvestCompactFacts()?'':String(p.dimensions||'').trim(),facing=String(p.facing||p.road||'').trim(),area=plotPeekArea(p),detail=[dimensions,facing].filter(Boolean).join(' · ')||'Plot details';
     const signature=[p.id,st,metroAgreementMode,p.agreementDone===true,area,detail].join('|');
     if(signature!==plotPeekSignature){plotPeekRefs.badge.textContent=statusDisplayLabel(st).toUpperCase();plotPeekRefs.title.textContent='Plot #'+p.id;plotPeekRefs.area.textContent=area;plotPeekRefs.meta.textContent=detail;plotPeekSignature=signature}
     plotPeekPlotId=String(p.id);plotPeekPoint={x:clientX,y:clientY};card.dataset.status=st;card.dataset.metroVisual=metroVisualStatus(p);positionPlotPeek(clientX,clientY);card.classList.add('show');card.setAttribute('aria-hidden','false')
@@ -2541,6 +2541,25 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     return rounded+' '+(unit==='m'?'m':'ft')
   }
   function cleanDimensionLabel(value){return String(value||'').replace(/[\u0000-\u001f\u007f]+/g,' ').replace(/\s+/g,' ').trim()}
+
+  // FUTURE_INVEST_COMPACT_PUBLIC_FACTS_V1 — display-only; original PDF/CAD source data stays intact.
+  function futureInvestCompactFacts(){
+    return typeof ACTIVE_PROJECT_ID!=='undefined'&&ACTIVE_PROJECT_ID==='ec6b45b5-7232-475a-bba8-468caccfe568'
+  }
+  function compactFutureInvestMeasurement(value){
+    const source=cleanDimensionLabel(value);
+    const base=source.match(/^([≈~]?\s*\d+(?:\.\d+)?)\s*(m|ft)\b/i);
+    if(!base)return source;
+    const second=source.slice(base[0].length).match(/^\s*\(\s*(\d+(?:\.\d+)?)\s*(m|ft)\b/i);
+    const primary=base[1].replace(/\s+/g,'')+' '+base[2].toLowerCase();
+    return primary+(second?' ('+second[1]+' '+second[2].toLowerCase()+')':'')
+  }
+  function compactFutureInvestEdgeList(value){
+    const source=cleanDimensionLabel(value);
+    const matches=[...source.matchAll(/\b(?:CAD\s+)?Edge\s+(\d+)\s*:\s*(≈\s*)?(\d+(?:\.\d+)?)\s*(m|ft)\b/gi)];
+    return matches.map(match=>match[1]+': '+(match[2]?'≈':'')+match[3]+' '+match[4].toLowerCase()).join(' · ')
+  }
+
   function parseSideDimensionFacts(value){
     const sides=cleanDimensionLabel(value);
     const tokenPattern=/~?\s*\d+(?:\.\d+)?\s*(?:'\s*(?:-\s*\d+\s*")?|ft\b|m\b)/gi;
@@ -2584,6 +2603,10 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     const back=cleanDimensionLabel(p.backLabel)||plotEdgeMeasurementValue(p,'back',validPlotSideEdge(p.backEdgeIndex,p.points.length))||plotLengthText(p.back,p.dimensionUnit)||parsedSides.back;
     const depth2=cleanDimensionLabel(p.depth2Label)||plotEdgeMeasurementValue(p,'depthB',validPlotSideEdge(p.depth2EdgeIndex,p.points.length))||plotLengthText(p.depth2,p.dimensionUnit)||parsedSides.depth2;
     const edge=validPlotSideEdge(p.frontEdgeIndex,p.points.length);
+    if(futureInvestCompactFacts()){
+      return{front:compactFutureInvestMeasurement(front),depth:compactFutureInvestMeasurement(depth),
+        back:compactFutureInvestMeasurement(back),depth2:compactFutureInvestMeasurement(depth2),sides,edge}
+    }
     return{front,depth,back,depth2,sides,edge}
   }
 
@@ -2647,12 +2670,17 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     // A legacy/imported Side Dimensions string can still mention Depth B.
     // Keep it stored as source evidence, but never surface that stale fourth side
     // when the mapper explicitly saved this plot as a three-side layout.
-    if(sideRow)sideRow.style.display=!threeSide&&semantic.sides?'flex':'none';
+    const compact=futureInvestCompactFacts();
+    const dimsRow=q('#dims')?.closest('.fact');
+    if(dimsRow)dimsRow.style.display=compact?'none':'';
+    const compactSideText=compact&&p.points.length>4?compactFutureInvestEdgeList(semantic.sides):'';
+    const sideText=compact?compactSideText:semantic.sides;
+    if(sideRow)sideRow.style.display=!threeSide&&sideText?'flex':'none';
     if(frontValue)frontValue.textContent=semantic.front||'—';
     if(backValue)backValue.textContent=semantic.back||'—';
     if(depthValue)depthValue.textContent=semantic.depth||'—';
     if(depth2Value)depth2Value.textContent=threeSide?'—':semantic.depth2||'—';
-    if(sideValue)sideValue.textContent=threeSide?'—':semantic.sides||'—'
+    if(sideValue)sideValue.textContent=threeSide?'—':sideText||'—'
   }
   function setLegacyDiagramDimensionsVisible(visible){
     ['depthLine','depthTopTick','depthBottomTick','depthTopGuide','depthBottomGuide','depthText',
