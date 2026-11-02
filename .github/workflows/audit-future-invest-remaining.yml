@@ -1,0 +1,25 @@
+name: Future Invest Remaining Plot D1 Readonly Audit
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/audit-future-invest-remaining.mjs"
+      - ".github/workflows/audit-future-invest-remaining.yml"
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Read only D1 plots, never modify geometry
+        run: node scripts/audit-future-invest-remaining.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
