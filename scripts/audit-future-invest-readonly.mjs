@@ -37,3 +37,22 @@ for(const plot of p.values()){
  if(hit){flags.push(data);console.log("AUDIT_LENGTH_FLAG "+JSON.stringify(data))}
 }
 console.log("AUDIT_LENGTH_SUMMARY "+JSON.stringify({checked:p.size,flagged:flags.length,flaggedIds:flags.map(x=>x.id)}));
+
+
+const mirrored={
+  "18.3/9.1":[12,17,19,32,37,39,43,65,67,68,70,83,101,114,116,131,133,161,163,177,192],
+  "18.1/7.6":[153],"24.4/10.7":[199],"13.7/6.1":[215,226]
+};
+const planned=[];
+for(const [pair,ids] of Object.entries(mirrored)){const [long,short]=pair.split("/").map(Number);for(const id of ids)planned.push({id,old:[long,long,short,short],next:[short,short,long,long],mapping:[2,3,0,1]})}
+for(const [id,f,b,d1,d2] of [[28,5.2,5.8,8.4,13.7],[146,9,10.8,8.2,14.2],[147,7.6,9.1,14.2,19.2],[148,7.6,9.1,19.2,24.3],[208,6.1,7.2,13.1,16.9]])planned.push({id,old:[f,b,d1,d2],next:[f,b,d2,d1],mapping:[0,1,3,2]});
+planned.push({id:210,old:[16.5,22.1,9.1,10.7],next:[9.1,10.7,16.5,22.1],mapping:[2,3,0,1]});
+function mismatchMetric(x,values){const pix=pixels(x),tot=[];if(!pix)return 1000;for(let k=0;k<4;k++){const idx=x.idx[k],val=values[k],expected=pix.len[idx]*meterPerPixel;if(!Number.isInteger(idx)||!(expected>0))return 1000;tot.push(Math.abs(val/expected-1))}return tot.reduce((a,b)=>a+b,0)/4}
+let ready=0;
+for(const item of planned){const x=p.get(String(item.id)),y=d.get(String(item.id));const exact=!!x&&!!y&&x.unit==="m"&&y.unit==="m"&&x.size.every((v,j)=>Number(v)===item.old[j])&&y.size.every((v,j)=>Number(v)===item.old[j])&&JSON.stringify(x.idx)===JSON.stringify(y.idx)&&JSON.stringify(x.polygon)===JSON.stringify(y.polygon);
+const before=x?mismatchMetric(x,item.old):999,after=x?mismatchMetric(x,item.next):999;
+const ok=exact&&before>0.2&&after<0.2&&after<before*.5;
+if(ok)ready++;
+console.log("AUDIT_REPAIR_DRYRUN "+JSON.stringify({id:item.id,exact,old:item.old,next:item.next,beforePercent:Number((before*100).toFixed(1)),afterPercent:Number((after*100).toFixed(1)),safe:ok}));
+}
+console.log("AUDIT_REPAIR_DRYRUN_SUMMARY "+JSON.stringify({planned:planned.length,ready,allReady:ready===planned.length}));
