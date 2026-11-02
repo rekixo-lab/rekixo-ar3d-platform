@@ -2544,7 +2544,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
 
   // FUTURE_INVEST_COMPACT_PUBLIC_FACTS_V1 — display-only; original PDF/CAD source data stays intact.
   function futureInvestCompactFacts(){
-    return ACTIVE_PROJECT_ID==='ec6b45b5-7232-475a-bba8-468caccfe568'
+    return typeof ACTIVE_PROJECT_ID!=='undefined'&&ACTIVE_PROJECT_ID==='ec6b45b5-7232-475a-bba8-468caccfe568'
   }
   function compactFutureInvestMeasurement(value){
     const source=cleanDimensionLabel(value);
