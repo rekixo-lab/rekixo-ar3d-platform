@@ -1,0 +1,25 @@
+name: Future Invest Realty D1 Read-Only Audit
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/audit-future-invest-readonly.mjs"
+      - ".github/workflows/audit-future-invest-readonly.yml"
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Query only plot measurement tables for one project
+        run: node scripts/audit-future-invest-readonly.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
