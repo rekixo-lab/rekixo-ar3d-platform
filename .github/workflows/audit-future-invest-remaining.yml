@@ -24,9 +24,9 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Dry-run guarded six-plot correction, no writes
+      - name: Apply exactly six guarded plot corrections with R2 backup
         run: node scripts/repair-future-invest-remaining-once.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CONFIRMED_REPAIR: "no"
+          CONFIRMED_REPAIR: "yes"
