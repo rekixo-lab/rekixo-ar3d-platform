@@ -17,7 +17,7 @@ const proj=query("project","SELECT id,slug,publish_version AS publishVersion FRO
 if(proj.length!==1)throw Error("project mismatch");
 const fields="id,sqm,sqft,sqyd,front,back,depth,depth2,dimension_unit AS unit,front_label AS frontLabel,back_label AS backLabel,depth_label AS depthLabel,depth2_label AS depth2Label,front_edge_index AS frontIndex,back_edge_index AS backIndex,depth_edge_index AS depthIndex,depth2_edge_index AS depth2Index,road,dimensions,side_dimensions AS sideDimensions,notes,polygon,edge_semantics AS edgeSemantics,updated_at AS updatedAt";
 const source=query("source","SELECT "+fields+" FROM plots WHERE project_id='"+projectId+"' AND id IN ("+selected+") ORDER BY CAST(id AS INTEGER)");
-const published=query("published","SELECT "+fields+" FROM published_plots WHERE project_id='"+projectId+"' AND id IN ("+selected+") ORDER BY CAST(id AS INTEGER)");
+const published=query("published","SELECT "+fields.replace(",notes,polygon",",polygon").replace(",updated_at AS updatedAt","")+" FROM published_plots WHERE project_id='"+projectId+"' AND id IN ("+selected+") ORDER BY CAST(id AS INTEGER)");
 const publishedScale=query("scale","SELECT key,value FROM published_settings WHERE project_id='"+projectId+"' AND key IN ('mapHeight','mapWidth','publicDataRevision')");
 const summary=query("count","SELECT (SELECT COUNT(*) FROM plots WHERE project_id='"+projectId+"' AND inventory_active=1) AS draftCount,(SELECT COUNT(*) FROM published_plots WHERE project_id='"+projectId+"') AS pubCount");
 if(summary.length!==1||summary[0].draftCount!==243||summary[0].pubCount!==243)throw Error("unexpected row counts");
@@ -32,6 +32,6 @@ const pubMap=new Map(published.map(v=>[String(v.id),normalized(v)]));
 console.log("AUDIT_CONTEXT "+JSON.stringify({projectId,version:proj[0].publishVersion,settings:publishedScale,counts:summary[0]}));
 for(const id of ids){
  const draft=draftMap.get(String(id)),pub=pubMap.get(String(id));
- console.log("AUDIT_PLOT "+JSON.stringify({id,draft,published:pub,drift:JSON.stringify(draft)!==JSON.stringify(pub)}));
+ console.log("AUDIT_PLOT "+JSON.stringify({id,draft,published:pub,drift:JSON.stringify(Object.fromEntries(Object.entries(draft||{}).filter(([key])=>!["notes","updatedAt"].includes(key))))!==JSON.stringify(pub)}));
 }
 console.log("READ_ONLY_COMPLETE");
