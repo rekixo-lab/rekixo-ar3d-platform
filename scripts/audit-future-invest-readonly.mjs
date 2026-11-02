@@ -24,14 +24,14 @@ function median(values){const a=[...values].filter(x=>Number.isFinite(x)&&x>0).s
 function pixels(x){const pts=x.polygon;if(!Array.isArray(pts)||pts.length<3)return null;const W=4096,H=2304;let ar=0;const len=[];for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length];const ax=a[0]*W,ay=a[1]*H,bx=b[0]*W,by=b[1]*H;len.push(Math.hypot(bx-ax,by-ay));ar+=ax*by-bx*ay}return {len,area:Math.abs(ar)/2}}
 const samples=[];
 for(const plot of p.values()){const pix=pixels(plot);if(!pix||plot.verts!==4||plot.unit!=="m")continue;for(let k=0;k<4;k++){const idx=plot.idx[k],v=Number(plot.size[k]);if(Number.isInteger(idx)&&idx>=0&&idx<pix.len.length&&v>0&&pix.len[idx]>0){const rate=v/pix.len[idx];if(rate>0.02&&rate<0.4)samples.push(rate)}}}
-const med=median(samples),filtered=samples.filter(x=>x>=med*.65&&x<=med*1.35),scale=median(filtered);
-console.log("AUDIT_GEOMETRY_SCALE "+JSON.stringify({sampleCount:samples.length,inliers:filtered.length,metersPerPixel:scale,medianInitial:med}));
+const med=median(samples),filtered=samples.filter(x=>x>=med*.65&&x<=med*1.35),meterPerPixel=median(filtered);
+console.log("AUDIT_GEOMETRY_SCALE "+JSON.stringify({sampleCount:samples.length,inliers:filtered.length,metersPerPixel:meterPerPixel,medianInitial:med}));
 const flags=[];
 for(const plot of p.values()){
  const pix=pixels(plot);if(!pix)continue;
- const sizes=plot.size.map(Number),meas=plot.idx.map(idx=>Number.isInteger(idx)&&idx>=0&&idx<pix.len.length?pix.len[idx]*scale:null);
+ const sizes=plot.size.map(Number),meas=plot.idx.map(idx=>Number.isInteger(idx)&&idx>=0&&idx<pix.len.length?pix.len[idx]*meterPerPixel:null);
  const mismatch=sizes.map((n,j)=>n>0&&meas[j]>0?Math.round((n/meas[j]-1)*1000)/10:null);
- const geomArea=pix.area*scale*scale,areap=Number(plot.area[0]),areaGap=areap>0?Math.round((areap/geomArea-1)*1000)/10:null;
+ const geomArea=pix.area*meterPerPixel*meterPerPixel,areap=Number(plot.area[0]),areaGap=areap>0?Math.round((areap/geomArea-1)*1000)/10:null;
  const hit=mismatch.some(x=>x!==null&&Math.abs(x)>25)||(areaGap!==null&&Math.abs(areaGap)>25);
  const data={id:plot.id,unit:plot.unit,verts:plot.verts,side:plot.size,calculatedSides:meas.map(x=>x===null?null:Number(x.toFixed(2))),sideDifferencePercent:mismatch,area:areap,geometryEstimatedArea:Number(geomArea.toFixed(2)),areaDifferencePercent:areaGap};
  if(hit){flags.push(data);console.log("AUDIT_LENGTH_FLAG "+JSON.stringify(data))}
