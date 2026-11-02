@@ -51,8 +51,10 @@ function mismatchMetric(x,values){const pix=pixels(x),tot=[];if(!pix)return 1000
 let ready=0;
 for(const item of planned){const x=p.get(String(item.id)),y=d.get(String(item.id));const exact=!!x&&!!y&&x.unit==="m"&&y.unit==="m"&&x.size.every((v,j)=>Number(v)===item.old[j])&&y.size.every((v,j)=>Number(v)===item.old[j])&&JSON.stringify(x.idx)===JSON.stringify(y.idx)&&JSON.stringify(x.polygon)===JSON.stringify(y.polygon);
 const before=x?mismatchMetric(x,item.old):999,after=x?mismatchMetric(x,item.next):999;
-const ok=exact&&before>0.2&&after<0.2&&after<before*.5;
+const ok=exact&&before>0.10&&after<0.2&&after<before*.4;
 if(ok)ready++;
 console.log("AUDIT_REPAIR_DRYRUN "+JSON.stringify({id:item.id,exact,old:item.old,next:item.next,beforePercent:Number((before*100).toFixed(1)),afterPercent:Number((after*100).toFixed(1)),safe:ok}));
 }
 console.log("AUDIT_REPAIR_DRYRUN_SUMMARY "+JSON.stringify({planned:planned.length,ready,allReady:ready===planned.length}));
+
+export {q,project,pid,draft,pub,d,p,planned,meterPerPixel,pixels,mismatchMetric};
