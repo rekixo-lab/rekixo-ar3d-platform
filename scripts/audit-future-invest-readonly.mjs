@@ -58,3 +58,85 @@ console.log("AUDIT_REPAIR_DRYRUN "+JSON.stringify({id:item.id,exact,old:item.old
 console.log("AUDIT_REPAIR_DRYRUN_SUMMARY "+JSON.stringify({planned:planned.length,ready,allReady:ready===planned.length}));
 
 export {q,project,pid,draft,pub,d,p,planned,meterPerPixel,pixels,mismatchMetric};
+
+
+/* Production data-only correction, gated OFF by default.
+   Invariants: exact project/version, 243 rows, verified R2 backup, unchanged area,
+   polygons, vertex order, edge-role indices, status and all other projects. */
+import {readFileSync,writeFileSync} from "node:fs";
+import {createHash,randomBytes} from "node:crypto";
+const mode=process.env.EXECUTE_SAFE_REPAIR==="yes";
+function quote(v){return v===null||v===undefined?"NULL":typeof v==="number"&&Number.isFinite(v)?String(v):"'"+String(v).replaceAll("'","''")+"'";}
+function wr(args){const r=spawnSync("./node_modules/.bin/wrangler",args,{encoding:"utf8",maxBuffer:30_000_000,timeout:60000,env:process.env});if(r.status!==0)throw Error("wrangler failed "+args.slice(0,4).join(" ")+": "+r.stderr.slice(0,600));return r.stdout.trim();}
+function sourceRow(a,id){return a.find(x=>String(x.id)===String(id));}
+function matches(x,vals){return x?.size.every((v,i)=>Number(v)===vals[i]);}
+function immutable(x,y){return x&&y&&x.unit===y.unit&&JSON.stringify(x.idx)===JSON.stringify(y.idx)&&JSON.stringify(x.polygon)===JSON.stringify(y.polygon);}
+function repairPreflight(){
+ if(project.length!==1||project[0].slug!=="future-invest-realty-ec6b45"||Number(project[0].publish_version)!==2||draft.length!==243||pub.length!==243||planned.length!==31)throw Error("STOP project scope/version/count mismatch");
+ const allDone=planned.every(it=>matches(d.get(String(it.id)),it.next)&&matches(p.get(String(it.id)),it.next));
+ if(allDone)return "already_applied";
+ for(const it of planned){
+  const x=d.get(String(it.id)),y=p.get(String(it.id));
+  if(!immutable(x,y)||x.unit!=="m"||!matches(x,it.old)||!matches(y,it.old))throw Error("STOP changed record #"+it.id);
+  const before=mismatchMetric(y,it.old),after=mismatchMetric(y,it.next);
+  if(!(before>0.1&&after<0.2&&after<before*.4))throw Error("STOP area/edge validation #"+it.id);
+  const a=sourceRow(draft,it.id),b=sourceRow(pub,it.id);
+  if(JSON.stringify([a.fl,a.bl,a.dl,a.d2l])!==JSON.stringify([b.fl,b.bl,b.dl,b.d2l]))throw Error("STOP labels changed #"+it.id);
+ }
+ return "ready";
+}
+const readiness=repairPreflight();
+console.log("REPAIR_GATE "+JSON.stringify({status:readiness,execute:mode,candidateRows:planned.length,projectId:pid}));
+if(!mode||readiness==="already_applied"){
+ console.log("REPAIR_NO_WRITE "+(mode?"already applied":"dry run only"));
+}else{
+ const backup={schema:"future-invest-measurements-before-v1",project:project[0],timestamp:new Date().toISOString(),candidateIds:planned.map(x=>x.id),draft,published:pub};
+ const local="/tmp/future-invest-measurements-original.json",verify="/tmp/future-invest-measurements-readback.json",body=JSON.stringify(backup);
+ writeFileSync(local,body,{mode:0o600});
+ const key="projects/"+pid+"/backups/measurements-before-20261102-"+new Date().toISOString().replace(/[-:.TZ]/g,"")+"-"+randomBytes(5).toString("hex")+".json";
+ const blob="tiyansh-gallery-production/"+key;
+ wr(["r2","object","put",blob,"--remote","--file",local,"--content-type","application/json"]);
+ wr(["r2","object","get",blob,"--remote","--file",verify]);
+ const sha=x=>createHash("sha256").update(x).digest("hex");
+ if(sha(readFileSync(verify))!==sha(Buffer.from(body)))throw Error("STOP backup readback failed, no D1 writes");
+ console.log("REPAIR_BACKUP_VERIFIED key="+key+" sha256="+sha(Buffer.from(body)));
+ const fields=["front","back","depth","depth2","front_label","back_label","depth_label","depth2_label"];
+ function nextValue(it,index){
+  if(index<4)return it.next[index];
+  const a=sourceRow(pub,it.id);return [a.fl,a.bl,a.dl,a.d2l][it.mapping[index-4]];
+ }
+ function sqlFor(table){
+  const sets=fields.map((field,index)=>field+"=CASE id "+planned.map(it=>"WHEN "+quote(String(it.id))+" THEN "+quote(nextValue(it,index))).join(" ")+" ELSE "+field+" END").join(", ");
+  const conditions=planned.map(it=>{
+   const a=sourceRow(pub,it.id),v=it.old;
+   return "(id="+quote(String(it.id))+" AND front IS "+quote(v[0])+" AND back IS "+quote(v[1])+" AND depth IS "+quote(v[2])+" AND depth2 IS "+quote(v[3])+" AND polygon IS "+quote(a.polygon)+" AND edge_semantics IS "+quote(a.semantics)+" AND front_edge_index IS "+quote(a.fi)+" AND back_edge_index IS "+quote(a.bi)+" AND depth_edge_index IS "+quote(a.di)+" AND depth2_edge_index IS "+quote(a.d2i)+")";
+  }).join(" OR ");
+  return "UPDATE "+table+" SET "+sets+" WHERE project_id="+quote(pid)+" AND ("+conditions+") AND EXISTS (SELECT 1 FROM projects WHERE id="+quote(pid)+" AND slug='future-invest-realty-ec6b45' AND publish_version=2 AND public_status='published')";
+ }
+ function update(table){
+  const result=JSON.parse(wr(["d1","execute","tiyansh-production","--remote","--json","--command",sqlFor(table)]));
+  const blocks=Array.isArray(result)?result:[result];
+  if(blocks.some(x=>x?.success===false))throw Error("STOP "+table+" D1 rejected update");
+  const count=blocks.reduce((n,x)=>n+Number(x?.meta?.changes||0),0);
+  console.log("REPAIR_UPDATE "+table+" count="+count);
+  if(count!==planned.length)throw Error("STOP partial update "+table+" rows="+count);
+ }
+ function verifyTable(table){
+  const all=q("verify_"+table,"SELECT id,sqft,sqm,sqyd,front,back,depth,depth2,front_label AS fl,back_label AS bl,depth_label AS dl,depth2_label AS d2l,front_edge_index AS fi,back_edge_index AS bi,depth_edge_index AS di,depth2_edge_index AS d2i,polygon,edge_semantics AS semantics FROM "+table+" WHERE project_id="+quote(pid));
+  if(all.length!==243)throw Error("STOP changed row count "+table);
+  const old=table==="plots"?draft:pub;
+  for(const it of planned){
+   const a=sourceRow(all,it.id),b=sourceRow(old,it.id);
+   if(!a||!it.next.every((v,i)=>Number(a[["front","back","depth","depth2"][i]])===v))throw Error("STOP measurement verification "+table+" #"+it.id);
+   for(const field of ["sqft","sqm","sqyd","fi","bi","di","d2i","polygon","semantics"])if(a[field]!==b[field])throw Error("STOP immutable changed "+table+" #"+it.id+" "+field);
+   const before=[b.fl,b.bl,b.dl,b.d2l],after=[a.fl,a.bl,a.dl,a.d2l];
+   if(!after.every((v,j)=>v===before[it.mapping[j]]))throw Error("STOP label assignment "+table+" #"+it.id);
+  }
+  console.log("REPAIR_VERIFIED "+table+" count="+planned.length+" polygons_unchanged=true areas_unchanged=true");
+ }
+ update("plots");verifyTable("plots");
+ update("published_plots");verifyTable("published_plots");
+ const post=q("version_post","SELECT publish_version FROM projects WHERE id="+quote(pid));
+ if(Number(post[0]?.publish_version)!==2)throw Error("STOP published version changed");
+ console.log("REPAIR_COMPLETE "+JSON.stringify({id:pid,plots:planned.length,polygonsChanged:0,areaChanged:0,backupKey:key}));
+}
