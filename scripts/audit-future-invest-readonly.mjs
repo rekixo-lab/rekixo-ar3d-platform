@@ -144,3 +144,32 @@ if(!mode||readiness==="already_applied"){
 const revisionSettings=q('published_data_revision',"SELECT key,value FROM published_settings WHERE project_id='"+pid+"' AND key='publicDataRevision' LIMIT 1");
 const snapVerify=q('snapshot_cache_check',"SELECT publish_version FROM project_public_snapshots WHERE project_id='"+pid+"' LIMIT 1");
 console.log('AUDIT_CACHE_REVISION '+JSON.stringify({projectId:pid,projectVersion:project[0].publish_version,snapshotVersion:snapVerify[0]?.publish_version,revision:revisionSettings[0]?.value??null,publishedRevisionRows:revisionSettings.length}));
+
+
+if(process.env.BUMP_CACHE_REVISION==="yes"){
+ if(pid!=="ec6b45b5-7232-475a-bba8-468caccfe568"||Number(project[0].publish_version)!==2||Number(snapVerify[0]?.publish_version)!==2||pub.length!==243||draft.length!==243)throw Error("STOP cache-bump identity/version guard");
+ if(!planned.every(it=>matches(d.get(String(it.id)),it.next)&&matches(p.get(String(it.id)),it.next)))throw Error("STOP side-field correction incomplete");
+ if(revisionSettings.length){
+  if(!String(revisionSettings[0].value).startsWith("fi-measurements-20261102-"))throw Error("STOP unexpected prior revision");
+  console.log("CACHE_ALREADY_BUMPED "+revisionSettings[0].value);
+ }else{
+  const backup=JSON.stringify({schema:"cache-revision-before-v1",project:project[0],snapshotVersion:2,previousRevision:null,updatedMeasurementPlots:31});
+  const local="/tmp/fi-cache-before.json",readback="/tmp/fi-cache-readback.json";
+  writeFileSync(local,backup,{mode:0o600});
+  const key="projects/"+pid+"/backups/public-data-revision-before-20261102-"+randomBytes(8).toString("hex")+".json";
+  const remote=args=>{const r=spawnSync("./node_modules/.bin/wrangler",args,{encoding:"utf8",maxBuffer:3000000,timeout:60000,env:process.env});if(r.status!==0)throw Error("STOP remote cache revision "+r.stderr.slice(0,350));return r.stdout.trim()};
+  remote(["r2","object","put","tiyansh-gallery-production/"+key,"--remote","--file",local,"--content-type","application/json"]);
+  remote(["r2","object","get","tiyansh-gallery-production/"+key,"--remote","--file",readback]);
+  const hash=x=>createHash("sha256").update(x).digest("hex");
+  if(hash(readFileSync(readback))!==hash(Buffer.from(backup)))throw Error("STOP cache revision backup verification failed");
+  console.log("CACHE_BACKUP_VERIFIED "+key);
+  const revision="fi-measurements-20261102-"+randomBytes(10).toString("hex");
+  const sql="INSERT INTO published_settings (project_id,key,value) SELECT '"+pid+"','publicDataRevision','"+revision+"' WHERE EXISTS (SELECT 1 FROM projects WHERE id='"+pid+"' AND slug='future-invest-realty-ec6b45' AND publish_version=2 AND public_status='published') AND EXISTS (SELECT 1 FROM project_public_snapshots WHERE project_id='"+pid+"' AND publish_version=2) AND NOT EXISTS (SELECT 1 FROM published_settings WHERE project_id='"+pid+"' AND key='publicDataRevision')";
+  const z=JSON.parse(remote(["d1","execute","tiyansh-production","--remote","--json","--command",sql]));
+  const changed=(Array.isArray(z)?z:[z]).reduce((n,v)=>n+Number(v.meta?.changes||0),0);
+  if(changed!==1)throw Error("STOP unexpected cache revision change count "+changed);
+  const verified=q("cache_bump_readback","SELECT value FROM published_settings WHERE project_id='"+pid+"' AND key='publicDataRevision'");
+  if(verified.length!==1||verified[0].value!==revision)throw Error("STOP cache revision persisted mismatch");
+  console.log("CACHE_REVISION_COMPLETE "+JSON.stringify({projectId:pid,revision,changeCount:1,backupKey:key,polygonChanges:0,publishVersion:2}));
+ }
+}else console.log("CACHE_REVISION_DRYRUN_ONLY");
