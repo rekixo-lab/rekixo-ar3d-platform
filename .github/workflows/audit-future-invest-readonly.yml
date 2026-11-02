@@ -1,4 +1,4 @@
-name: Future Invest Realty Public Data Cache Revision Refresh
+name: Future Invest Realty Post-Repair Read-Only Verification
 on:
   pull_request:
     branches: [main]
@@ -18,10 +18,10 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Refresh data revision after R2 backup and 31-plot verification
+      - name: Verify corrected measurements and new revision without database writes
         run: node scripts/audit-future-invest-readonly.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           EXECUTE_SAFE_REPAIR: "no"
-          BUMP_CACHE_REVISION: "yes"
+          BUMP_CACHE_REVISION: "no"
