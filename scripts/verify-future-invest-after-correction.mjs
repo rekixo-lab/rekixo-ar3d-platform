@@ -17,7 +17,7 @@ function q(sql){
 const p=q("SELECT id,slug,publish_version AS version FROM projects WHERE id='"+P+"' AND status='active'");
 const snapshot=q("SELECT publish_version AS version FROM project_public_snapshots WHERE project_id='"+P+"'");
 const rev=q("SELECT value FROM published_settings WHERE project_id='"+P+"' AND key='publicDataRevision'");
-if(p.length!==1||p[0].slug!=="future-invest-realty-ec6b45"||p[0].version!==2||snapshot[0]?.version!==2||rev[0]?.value!=="fi-side-repair-20261102-1bb2e9520796c60ea96f")throw Error("published project version or cache revision changed");
+if(p.length!==1||p[0].slug!=="future-invest-realty-ec6b45"||p[0].version!==2||snapshot[0]?.version!==2||rev[0]?.value!=="fi-segment-repair-20261102-946b2d9228968313108f")throw Error("published project version or cache revision changed");
 const fields="id,front,back,depth,depth2,front_label,back_label,depth_label,depth2_label,front_edge_index,back_edge_index,depth_edge_index,depth2_edge_index,polygon,edge_semantics,sqm,sqft,sqyd,status,road,side_dimensions";
 const draft=q("SELECT "+fields+",notes FROM plots WHERE project_id='"+P+"' AND inventory_active=1 ORDER BY id");
 const pub=q("SELECT "+fields+" FROM published_plots WHERE project_id='"+P+"' ORDER BY id");
@@ -33,7 +33,11 @@ const expect={
   "127":{front:7.6,back:7.6,depth:13.7,depth2:13.7,front_label:"7.6 m (25 ft)",back_label:"7.6 m (25 ft)",depth_label:"13.7 m (45 ft)",depth2_label:"13.7 m (45 ft)"},
   "203":{back:10.7,back_label:"10.7 m (35 ft; PDF 25 FT WIDE ROAD side)",front_edge_index:2,back_edge_index:0,depth_edge_index:3,depth2_edge_index:1},
   "241":{front:6.1,front_label:"6.1 m (20 ft; PDF road-facing left edge)"},
-  "242":{back:6.1,back_label:"6.1 m (20 ft; PDF opposite boundary)"}
+  "242":{back:6.1,back_label:"6.1 m (20 ft; PDF opposite boundary)"},
+  "16":{depth:13.9,depth_label:"13.9 m (46 ft; PDF outer edge 7.8+6.1 m)"},
+  "23":{depth:13.8,depth_label:"13.8 m (46 ft; PDF two-segment side 6.3+7.5 m)",depth2:13.7,depth2_label:"13.7 m (45 ft; PDF opposite continuous side)"},
+  "50":{depth2:13.6,depth2_label:"13.6 m (45 ft; PDF outer edge 10.0+3.6 m)"},
+  "123":{depth2:13.8,depth2_label:"13.8 m (45 ft; PDF outer edge 7.7+6.1 m)"}
 };
 function expectedEdge203(src){const x=JSON.parse(src);x.roles={front:[2],back:[0],depthA:[3],depthB:[1]};return JSON.stringify(x)}
 let changed=0;
@@ -62,5 +66,5 @@ for(const x of pub){
  const m=["front","back","depth","depth2"].map((k,i)=>{const j=x[["front_edge_index","back_edge_index","depth_edge_index","depth2_edge_index"][i]];return j!==null&&j>=0&&j<len.length&&x[k]!=null?Math.abs(x[k]/len[j]-1):null});
  if(m.some(v=>v!=null&&v>0.25))remaining.push({id:x.id,vertices:pts.length,maxSideDifferencePercent:+(Math.max(...m.filter(v=>v!==null))*100).toFixed(1)});
 }
-console.log("POST_STATUS "+JSON.stringify({projectId:P,checked:243,correctionsPersisted:6,polygonChanges:0,areaChanges:0,draftPublishedMetadataMatch:true,cacheRevision:rev[0].value,unresolvedSideGeometryFlags:remaining.length,flagged:remaining}));
+console.log("POST_STATUS "+JSON.stringify({projectId:P,checked:243,correctionsPersisted:10,polygonChanges:0,areaChanges:0,draftPublishedMetadataMatch:true,cacheRevision:rev[0].value,unresolvedSideGeometryFlags:remaining.length,flagged:remaining}));
 console.log("READ_ONLY_COMPLETE");
