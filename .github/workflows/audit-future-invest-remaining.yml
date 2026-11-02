@@ -6,6 +6,7 @@ on:
       - "scripts/audit-future-invest-remaining.mjs"
       - "scripts/repair-future-invest-remaining-once.mjs"
       - "scripts/verify-future-invest-after-correction.mjs"
+      - "scripts/repair-future-invest-segments-once.mjs"
       - ".github/workflows/audit-future-invest-remaining.yml"
 permissions:
   contents: read
@@ -30,3 +31,9 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Dry-run four irregular PDF segment-sum corrections
+        run: node scripts/repair-future-invest-segments-once.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CONFIRMED_SEGMENT_REPAIR: "no"
