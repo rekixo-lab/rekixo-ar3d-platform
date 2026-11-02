@@ -1,4 +1,4 @@
-name: Future Invest Ten Plot Final Readonly Verification
+name: Future Invest Eleven Plot Final Readonly Verification
 on:
   pull_request:
     branches: [main]
@@ -32,9 +32,3 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Apply PDF-verified plot 107 multi-segment DRAIN depth total
-        run: node scripts/repair-plot107-drain-once.mjs
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          FIX_PLOT107: "yes"
