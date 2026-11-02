@@ -1,10 +1,11 @@
-name: Future Invest Remaining Plot D1 Readonly Audit
+name: Future Invest Final Plot Readonly Verification
 on:
   pull_request:
     branches: [main]
     paths:
       - "scripts/audit-future-invest-remaining.mjs"
       - "scripts/repair-future-invest-remaining-once.mjs"
+      - "scripts/verify-future-invest-after-correction.mjs"
       - ".github/workflows/audit-future-invest-remaining.yml"
 permissions:
   contents: read
@@ -24,9 +25,8 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Apply exactly six guarded plot corrections with R2 backup
-        run: node scripts/repair-future-invest-remaining-once.mjs
+      - name: Independently verify corrected D1 records against R2 backup (read-only)
+        run: node scripts/verify-future-invest-after-correction.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CONFIRMED_REPAIR: "yes"
