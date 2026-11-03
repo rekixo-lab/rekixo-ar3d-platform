@@ -13,6 +13,7 @@ import {
   UserX,
 } from "lucide-react";
 import { generateTemporaryClientPassword } from "./client-password-policy";
+import { FUTURE_INVEST_REALTY_ID } from "./customer-direction-policy";
 
 type ClientAdmin = {
   id: string;
@@ -87,6 +88,13 @@ export default function ClientAdminManager({
   const [projectOptionsLoading, setProjectOptionsLoading] = useState(false);
   const [publicHost, setPublicHost] = useState("");
   const [adminHost, setAdminHost] = useState("");
+  const [reuseExistingAdmin, setReuseExistingAdmin] = useState(true);
+  const [connectedDomain, setConnectedDomain] = useState<{
+    publicUrl: string;
+    adminUrl: string;
+    cloudflareStatus: "attached" | "manual_required";
+    message: string;
+  } | null>(null);
   const [fallbackAdminUrl, setFallbackAdminUrl] = useState("");
   const [credential, setCredential] = useState<{
     name: string;
@@ -186,6 +194,8 @@ export default function ClientAdminManager({
   const selectedProject = projects.find(
     (project) => project.id === existingProjectId,
   );
+  const unifiedDomainMode = existingProjectId === FUTURE_INVEST_REALTY_ID &&
+    Number(selectedProject?.adminCount || 0) > 0 && reuseExistingAdmin;
   const loginMode: "email" | "mobile" = existingProjectId
     ? selectedProject?.loginMode || "email"
     : "mobile";
@@ -295,6 +305,43 @@ export default function ClientAdminManager({
   async function create(event: React.FormEvent) {
     event.preventDefault();
     if (busy) return;
+    if (unifiedDomainMode) {
+      setBusy("create");
+      setConnectedDomain(null);
+      setCredential(null);
+      try {
+        const response = await fetch("/api/admin/users", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: "connect_existing_domain",
+            projectId: existingProjectId,
+            publicHost,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Domain setup failed");
+        setConnectedDomain({
+          publicUrl: data.publicUrl,
+          adminUrl: data.adminUrl,
+          cloudflareStatus: data.cloudflareStatus,
+          message: data.message,
+        });
+        setProjects((current) => current.map((project) =>
+          project.id === existingProjectId
+            ? { ...project, publicHost: data.host, adminHost: data.host }
+            : project,
+        ));
+        notify(data.cloudflareStatus === "attached"
+          ? "Domain Worker से जुड़ गया। SSL/DNS ready होने पर live होगा।"
+          : "Domain mapping saved — Cloudflare में Custom Domain जोड़ना बाकी है।");
+      } catch (error) {
+        notify(error instanceof Error ? error.message : "Domain setup failed");
+      } finally {
+        setBusy("");
+      }
+      return;
+    }
     const password = generateTemporaryClientPassword();
     setBusy("create");
     try {
@@ -594,7 +641,7 @@ export default function ClientAdminManager({
             className="primary client-create-submit"
             disabled={busy === "create"}
           >
-            {busy === "create" ? "Creating…" : "Create Client Access"}
+            {busy === "create" ? "Saving…" : unifiedDomainMode ? "Connect Customer Domain" : "Create Client Access"}
           </button>
         </div>
         <form
@@ -613,8 +660,13 @@ export default function ClientAdminManager({
             <select
               value={existingProjectId}
               onChange={(event) => {
+                const project = projects.find((item) => item.id === event.target.value);
                 setExistingProjectId(event.target.value);
                 setLoginId("");
+                setPublicHost(project?.publicHost || "");
+                setAdminHost(project?.adminHost || "");
+                setReuseExistingAdmin(true);
+                setConnectedDomain(null);
               }}
             >
               <option value="">Create a new project</option>
@@ -643,7 +695,14 @@ export default function ClientAdminManager({
               />
             </label>
           )}
-          <label>
+          {existingProjectId === FUTURE_INVEST_REALTY_ID && Number(selectedProject?.adminCount || 0) > 0 && (
+            <label className="client-unified-choice">
+              <input type="checkbox" checked={reuseExistingAdmin}
+                onChange={(event) => { setReuseExistingAdmin(event.target.checked); setConnectedDomain(null); }}/>
+              <span>Existing admin reuse करें — वेबसाइट और /admin एक ही domain पर</span>
+            </label>
+          )}
+          {!unifiedDomainMode && <label>
             <span>Client name</span>
             <input
               required
@@ -654,7 +713,7 @@ export default function ClientAdminManager({
               placeholder="Client or staff name"
             />
           </label>
-          <label>
+          {!unifiedDomainMode && <label>
             <span>
               {loginMode === "mobile" ? "Client mobile number" : "Client email"}
             </span>
@@ -676,23 +735,46 @@ export default function ClientAdminManager({
             </small>
           </label>
           <label>
-            <span>Website domain (optional)</span>
+            <span>{unifiedDomainMode ? "Customer website domain" : "Website domain (optional)"}</span>
             <input
+              required={unifiedDomainMode}
               value={publicHost}
-              onChange={(event) => setPublicHost(event.target.value)}
-              placeholder="client.com"
+              onChange={(event) => { setPublicHost(event.target.value); setConnectedDomain(null); }}
+              placeholder="www.customer.com"
             />
           </label>
-          <label>
+          {unifiedDomainMode && (
+            <p className="client-domain-hint" style={{gridColumn:"1 / -1",fontSize:12,color:"#a8c5de"}}>
+              Existing admin रहेगा · Login: /admin · नया password नहीं बनेगा।
+              {publicHost.trim() && !publicHost.includes("/") ? `  Preview: https://${publicHost.trim()}/admin` : ""}
+            </p>
+          )}
+          {!unifiedDomainMode && <label>
             <span>Admin domain (optional)</span>
             <input
               value={adminHost}
               onChange={(event) => setAdminHost(event.target.value)}
               placeholder="admin.client.com"
             />
-          </label>
+          </label>}
         </form>
       </div>
+
+      {connectedDomain && (
+        <div className="card" role="status" style={{padding:18,display:"grid",gap:10}}>
+          <strong>{connectedDomain.cloudflareStatus === "attached" ? "Cloudflare Worker attached" : "Cloudflare setup pending"}</strong>
+          <div><span>Customer website: </span><a href={connectedDomain.publicUrl} target="_blank" rel="noreferrer">{connectedDomain.publicUrl}</a></div>
+          <div><span>Existing client admin: </span><a href={connectedDomain.adminUrl} target="_blank" rel="noreferrer">{connectedDomain.adminUrl}</a></div>
+          <small>{connectedDomain.message}</small>
+          {connectedDomain.cloudflareStatus === "manual_required" && <small>
+            Cloudflare → Workers & Pages → rekixo-client-sites → Settings → Domains & Routes → Add Custom Domain.
+            SSL जारी होने के बाद दोनों links जाँचें। केवल DNS save होने से website live नहीं होती।
+          </small>}
+          <button type="button" onClick={() => void navigator.clipboard.writeText(
+            `Website: ${connectedDomain.publicUrl}\nClient Admin: ${connectedDomain.adminUrl}`
+          )}><Copy /> Copy links</button>
+        </div>
+      )}
 
       {credential && (
         <div className="credential-card" role="status">
