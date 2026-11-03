@@ -55,6 +55,7 @@ test("Public and map surfaces are scoped and do not fall back to unfiltered Road
   assert.match(html, /compass\.style\.display=futureInvestCompactFacts\(\)\?'none':''/);
   assert.match(mapper, /!isFutureInvestRealty\(projectId\)\|\|item\.direction!==["']south["']/);
   assert.match(page, /project\.id === FUTURE_INVEST_REALTY_ID \? "70" : "69"/);
+  assert.match(read("app/page.tsx"), /target\.projectId === FUTURE_INVEST_REALTY_ID \? "70" : "69"/);
   assert.match(read("app/api/public-live/route.ts"), /settings\.location=publicSafeText\(projectId,settings\.location\)/);
   assert.match(read("app/project-share-metadata.ts"), /const shareDescription = publicSafeText\(project\.id, settings\.shareDescription\)/);
   assert.match(read("app/api/public-gallery/route.ts"), /caption:publicSafeText\(projectId,item\.caption\)/);
