@@ -48,7 +48,7 @@ test("Public and map surfaces are scoped and do not fall back to unfiltered Road
   const page = read("app/projects/[slug]/page.tsx");
   assert.match(api, /publicSafeFacing\(projectId, facing\)/);
   assert.match(api, /road: publicSafeText\(projectId, publicPlot\.road\)/);
-  assert.match(api, /edgeSemantics: publicSafeSideSemantics\(projectId, publicPlot\.edgeSemantics\)/);
+  assert.match(api, /edgeSemantics: publicPlot\.edgeSemantics == null \? publicPlot\.edgeSemantics : publicSafeSideSemantics\(projectId, publicPlot\.edgeSemantics\)/);
   assert.match(geo, /road: publicSafeText\(projectId, plot\?\.road\)/);
   assert.match(html, /function futureInvestSafeFacing\(/);
   assert.match(html, /function syncPublicRoadFact\(/);
