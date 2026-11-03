@@ -97,7 +97,19 @@ html.rekixo-project-error .rekixo-boot-error{display:grid}
 
 .show-all .plot{stroke-width:.95}.show-all .plot[data-status="available"]{fill:rgba(var(--plot-available-rgb),.26);stroke:rgba(var(--plot-available-rgb),.82)}.show-all .plot[data-status="booked"]{fill:rgba(var(--plot-booked-rgb),.31);stroke:rgba(var(--plot-booked-rgb),.90)}.show-all .plot[data-status="sold"]{fill:rgba(var(--plot-sold-rgb),.32);stroke:rgba(var(--plot-sold-rgb),.92)}
 .map-badge{position:absolute;z-index:7;display:grid;place-items:center;border:1px solid #202b42;background:#09101ee8;box-shadow:0 9px 28px #0007;backdrop-filter:blur(7px)}
-.compass{left:24px;top:24px;width:68px;height:68px;border-radius:50%}.compass svg{width:48px;height:48px}.view-mode{left:24px;top:108px;width:66px;height:66px;border-radius:50%;color:#fff;font-weight:950;font-size:16px;cursor:pointer}
+.compass{left:24px;top:24px;width:68px;height:68px;border-radius:50%}.compass svg{width:48px;height:48px}
+/* Future Invest Realty: CSS-only north/east/west compass; no South label or image assets. */
+.fi-threeway[hidden]{display:none!important}
+.fi-threeway{border:1px solid #2a6a74;background:radial-gradient(circle at 35% 25%,#133344 0%,#071424 56%,#060c18 100%);box-shadow:inset 0 1px #75e5d633,0 0 0 1px #12bd9a20,0 8px 24px #0008}
+.fi-threeway:before{content:"";position:absolute;inset:4px;border:1px solid #51bcb942;border-radius:50%;pointer-events:none}
+.fi-threeway-rose{position:relative;display:block;width:72%;aspect-ratio:1;border-radius:50%;border:1px solid #54748c77;box-shadow:inset 0 0 14px #25dbb010;transition:transform .14s ease-out;will-change:transform}
+.fi-threeway-mark{position:absolute;z-index:2;font-size:9px;font-weight:900;line-height:1;letter-spacing:.02em;color:#9cb7cd;text-shadow:0 1px 5px #000}
+.fi-threeway-mark.n{top:-3px;left:50%;transform:translateX(-50%);color:#78f3d2}
+.fi-threeway-mark.w{top:50%;left:1px;transform:translateY(-50%)}
+.fi-threeway-mark.e{top:50%;right:1px;transform:translateY(-50%)}
+.fi-threeway-needle{position:absolute;left:50%;top:12%;width:13px;height:42%;transform:translateX(-50%);background:linear-gradient(180deg,#ff6e80,#e11d48);clip-path:polygon(50% 0,100% 100%,50% 75%,0 100%);filter:drop-shadow(0 0 4px #ff304c)}
+.fi-threeway-hub{position:absolute;left:50%;top:50%;width:7px;height:7px;transform:translate(-50%,-50%);border:1px solid #e8f7ff;border-radius:50%;background:#12263d;box-shadow:0 0 0 2px #12263d}
+@media(max-width:640px){.fi-threeway-mark{font-size:7px}.fi-threeway-needle{width:9px}.fi-threeway-hub{width:5px;height:5px}}.view-mode{left:24px;top:108px;width:66px;height:66px;border-radius:50%;color:#fff;font-weight:950;font-size:16px;cursor:pointer}
 .view-mode:hover{border-color:#344867}.mini-logo{right:19px;top:22px;width:54px;height:54px;border-radius:50%;background:linear-gradient(145deg,#fff,#dce3ee);color:#111a2d;border:2px solid #fff;box-shadow:0 8px 24px #0008,0 0 0 2px #20c97955;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;line-height:1}.mini-logo strong{font-size:12px;letter-spacing:.02em}.mini-logo span{margin-top:3px;color:#207956;font-size:8px;font-weight:950;letter-spacing:.08em}
 .status{position:absolute;left:10px;top:188px;bottom:auto;z-index:7;width:var(--status-card-width);border:0;background:transparent;border-radius:17px;padding:0;box-shadow:none;overflow:visible}
 .status-head{box-sizing:border-box;height:49px;display:flex;justify-content:space-between;align-items:center;color:#8eb0eb;letter-spacing:.18em;font-size:11px;font-weight:950;padding:0 10px;border:1px solid #22304a;border-radius:17px;background:#081222ed;box-shadow:0 10px 30px #0008;backdrop-filter:blur(8px);transition:.2s}.status.expanded .status-head{padding:0 10px}
@@ -1207,6 +1219,15 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
       </g>
     </svg>
   </div>
+  <div class="map-badge compass fi-threeway" id="futureInvestCompass" role="img" aria-label="Compass showing North, East and West" hidden>
+    <div class="fi-threeway-rose" id="futureInvestCompassRose" aria-hidden="true">
+      <span class="fi-threeway-mark n">N</span>
+      <span class="fi-threeway-mark w">W</span>
+      <span class="fi-threeway-mark e">E</span>
+      <span class="fi-threeway-needle"></span>
+      <span class="fi-threeway-hub"></span>
+    </div>
+  </div>
   <button class="map-badge view-mode" id="view3d">3D</button>
   <div class="map-badge mini-logo" aria-label="TPS 3D"><strong>TPS</strong><span>3D</span></div>
 
@@ -1935,7 +1956,9 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   }
   function setCompassRoseAngle(degrees){
     const rose=q('#compassRose');
-    if(rose)rose.setAttribute('transform',`rotate(${normalizeCompassBearing(degrees).toFixed(3)} 32 32)`)
+    if(rose)rose.setAttribute('transform',`rotate(${normalizeCompassBearing(degrees).toFixed(3)} 32 32)`);
+    const threeway=q('#futureInvestCompassRose');
+    if(threeway)threeway.style.transform=`rotate(${normalizeCompassBearing(degrees).toFixed(3)}deg)`
   }
   function updateMapCompassOrientation(){
     setCompassRoseAngle(publicNorthSourceAngle+publicRotation*90)
@@ -3225,6 +3248,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     window.REKIXO_PUBLIC_DATA=data;
     ACTIVE_PROJECT_ID=String(data.projectId||'').trim();
     const compass=q('.compass');if(compass)compass.style.display=futureInvestCompactFacts()?'none':'';
+    const threewayCompass=q('#futureInvestCompass');if(threewayCompass)threewayCompass.hidden=!futureInvestCompactFacts();
     updateMetroCanvasMode();
     window.REKIXO_PLOT_NOTICES_INIT?.(data);
     REKIXO_LIVE_STATE_ENABLED=!Boolean(data&&data.preview);
