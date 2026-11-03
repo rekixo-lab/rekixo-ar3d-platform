@@ -15,8 +15,8 @@ test("shared public domain delegates clean project links to the canonical helper
   // URL construction now belongs to app/project-links.ts. These route-level
   // checks intentionally verify delegation instead of duplicating helper internals.
   assert.match(publicData, /currentProjectLinks/);
-  assert.match(publicData, /adminUrl:\\s*customerAdminUrl/);
-  assert.match(publicData, /:\\s*links\\.adminUrl/);
+  assert.match(publicData, /adminUrl:\s*customerAdminUrl/);
+  assert.match(publicData, /:\s*links\.adminUrl/);
   assert.match(publicData, /projectId===FUTURE_INVEST_REALTY_ID/);
   assert.match(publicData, /platformUrl:\s*links\.platformUrl/);
   assert.match(domains, /currentProjectLinks/);
