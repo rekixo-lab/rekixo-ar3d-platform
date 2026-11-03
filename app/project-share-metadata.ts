@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { env } from "cloudflare:workers";
+import { publicSafeText } from "@/app/customer-direction-policy";
 import { headers } from "next/headers";
 import { isPlatformAccessHost, projectBySlug } from "@/modules/public-project";
 import { publicSiteEnabled } from "@/modules/public-site-access";
@@ -72,12 +73,17 @@ async function readProjectMeta(slug: string) {
     (rows.results || []).map((row) => [row.key, row.value]),
   );
 
-  const publishedProjectName = snapshotReady ? snapshot?.projectName || project.name : project.name;
+  const publishedProjectName = publicSafeText(project.id, snapshotReady ? snapshot?.projectName || project.name : project.name);
+  const shareTitle = publicSafeText(project.id, settings.shareTitle);
+  const brandName = publicSafeText(project.id, settings.brandName);
+  const location = publicSafeText(project.id, settings.location);
+  const address = publicSafeText(project.id, settings.address);
+  const shareDescription = publicSafeText(project.id, settings.shareDescription);
   const title =
-    settings.shareTitle || settings.projectName || publishedProjectName || "Project";
+    shareTitle || publicSafeText(project.id, settings.projectName) || publishedProjectName || "Project";
   const description =
-    settings.shareDescription ||
-    [settings.brandName, settings.address || settings.location]
+    shareDescription ||
+    [brandName, address || location]
       .filter(Boolean)
       .join(" • ") ||
     `${title} interactive plot visualization.`;
@@ -122,7 +128,7 @@ async function readProjectMeta(slug: string) {
     imageUrl,
     logoUrl,
     hasShareImage: Boolean(settings.shareImage),
-    brandName: settings.brandName || "AR 3D Vision",
+    brandName: brandName || "AR 3D Vision",
     origin,
     canonicalShareUrl,
   };

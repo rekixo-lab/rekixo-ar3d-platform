@@ -11,6 +11,7 @@ import { env } from "cloudflare:workers";
 import {metroAgreementEnabled,metroAgreementValues} from "@/app/metro-agreement";
 import { getAdminSession } from "@/modules/auth";
 import { plotFacingText, plotFacingTextForNorthAngle } from "@/modules/plots";
+import { publicSafeFacing, publicSafeText, publicSafeSideSemantics } from "@/app/customer-direction-policy";
 import { deriveCustomerPlotAreas } from "@/app/plot-area-derivation.mjs";
 import {
   PROJECT_CONTACT_KEYS,
@@ -352,6 +353,12 @@ export async function GET(request: Request) {
           ...liveContactSettings,
         });
 
+    const customerTextSettings = new Set(["projectName", "brandName", "brandShort", "location", "address", "shareTitle", "shareDescription"]);
+    const safePublicSettings = Object.fromEntries(
+      Object.entries(effectivePublicSettings).map(([key, value]) => [
+        key, customerTextSettings.has(key) ? publicSafeText(projectId, value) : value,
+      ]),
+    );
     const pricingEnabled = publicSettings.pricingEnabled === "1";
     const plotFacingEnabled = publicSettings.plotFacingEnabled === "1";
     const plotNorthDirection = publicSettings.plotNorthDirection || "top";
@@ -424,10 +431,10 @@ export async function GET(request: Request) {
       {
         projectId,
         metroAgreementEnabled:metroPublicAgreement,
-        projectName:
+        projectName: publicSafeText(projectId,
           snapshotReady && snapshot?.projectName
             ? snapshot.projectName
-            : project.name || "Project",
+            : project.name || "Project"),
         slug: project.slug,
         preview: Boolean(previewId),
         publishVersion: project.publishVersion,
@@ -459,9 +466,9 @@ export async function GET(request: Request) {
               pointCount: item.pointCount,
               length: item.length,
               unit: item.unit,
-              rawLabel: item.rawLabel,
+              rawLabel: item.rawLabel == null ? item.rawLabel : publicSafeText(projectId, item.rawLabel),
               roadFrontage: Boolean(item.roadFrontage),
-              roadAccess: item.roadAccess,
+              roadAccess: item.roadAccess == null ? item.roadAccess : publicSafeText(projectId, item.roadAccess),
             }),
           );
           const price = pricingEnabled ? pricingByPlot.get(plot.id) : null;
@@ -532,8 +539,17 @@ export async function GET(request: Request) {
               facing = "";
             }
           }
+          facing = publicSafeFacing(projectId, facing);
           return {
             ...publicPlot,
+            road: publicSafeText(projectId, publicPlot.road),
+            dimensions: publicSafeText(projectId, publicPlot.dimensions),
+            sideDimensions: publicPlot.sideDimensions == null ? publicPlot.sideDimensions : publicSafeText(projectId, publicPlot.sideDimensions),
+            frontLabel: publicPlot.frontLabel == null ? publicPlot.frontLabel : publicSafeText(projectId, publicPlot.frontLabel),
+            backLabel: publicPlot.backLabel == null ? publicPlot.backLabel : publicSafeText(projectId, publicPlot.backLabel),
+            depthLabel: publicPlot.depthLabel == null ? publicPlot.depthLabel : publicSafeText(projectId, publicPlot.depthLabel),
+            depth2Label: publicPlot.depth2Label == null ? publicPlot.depth2Label : publicSafeText(projectId, publicPlot.depth2Label),
+            edgeSemantics: publicPlot.edgeSemantics == null ? publicPlot.edgeSemantics : publicSafeSideSemantics(projectId, publicPlot.edgeSemantics),
             featured: Boolean(publicPlot.featured),
             status: liveStatusByPlot.get(plot.id) || publicPlot.status,
             ...(metroPublicAgreement?{agreementDone:metroAgreementByPlot.get(plot.id)?.done||false}:{}),
@@ -552,8 +568,8 @@ export async function GET(request: Request) {
               : {}),
           };
         }),
-        settings: effectivePublicSettings,
-        gallery: structuralOnly ? [] : galleryRows,
+        settings: safePublicSettings,
+        gallery: structuralOnly ? [] : galleryRows.map((row) => ({ ...row, caption: publicSafeText(projectId, row.caption) })),
       },
       {
         headers: {

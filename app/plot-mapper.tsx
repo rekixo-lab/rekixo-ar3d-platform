@@ -64,6 +64,7 @@ import {
   type PlotSideLayout,
   type PlotSideRole,
 } from "./plot-side-semantics";
+import { isFutureInvestRealty } from "./customer-direction-policy";
 import {
   cardinalDirectionDistance,
   displayNorthAngleFromSource,
@@ -5004,7 +5005,7 @@ export default function PlotMapper({
                 { direction: "west", label: "West", arrow: "←", className: "west" },
                 { direction: "east", label: "East", arrow: "→", className: "east" },
                 { direction: "south", label: "South", arrow: "↓", className: "south" },
-              ];
+              ].filter((item) => !isFutureInvestRealty(projectId)||item.direction!=="south");
               return (
                 <div
                   className="mapper-facing-compass-layer"

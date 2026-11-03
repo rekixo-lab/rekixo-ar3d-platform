@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { generatePublishedProjectMetadata } from "@/app/project-share-metadata";
+import { FUTURE_INVEST_REALTY_ID } from "@/app/customer-direction-policy";
 import { panelMode } from "@/modules/auth";
 import { isPlatformAccessHost, projectBySlug } from "@/modules/public-project";
 import { publicSiteEnabled } from "@/modules/public-site-access";
@@ -114,7 +115,7 @@ export default async function SharedProjectPage({
     <main style={{ position: "fixed", inset: 0, background: "#050914" }}>
       <iframe
         title={`${project.name} website`}
-        src={`/__rekixo/project/?projectSlug=${encodeURIComponent(project.slug)}&pv=${encodeURIComponent(String(published?.publishVersion || 0))}&v=69${published?.dataRevision ? `&dataRevision=${encodeURIComponent(published.dataRevision)}` : ""}`}
+        src={`/__rekixo/project/?projectSlug=${encodeURIComponent(project.slug)}&pv=${encodeURIComponent(String(published?.publishVersion || 0))}&v=69${project.id === FUTURE_INVEST_REALTY_ID ? "&displayPolicy=hide-south-v1" : ""}${published?.dataRevision ? `&dataRevision=${encodeURIComponent(published.dataRevision)}` : ""}`}
         loading="eager"
         style={{ width: "100%", height: "100%", border: 0, display: "block" }}
       />

@@ -1,5 +1,6 @@
 import { env, waitUntil } from "cloudflare:workers";
 import { projectBySlug } from "@/modules/public-project";
+import { isFutureInvestRealty, publicSafeText } from "@/app/customer-direction-policy";
 import {
   buildGeoPublicManifest,
   parseGeoPublicManifest,
@@ -44,10 +45,11 @@ function edgeCache() {
   return (caches as unknown as { default: Cache }).default;
 }
 
-function publicGeoCacheKey(request: Request, slug: string) {
+function publicGeoCacheKey(request: Request, slug: string, projectId: string) {
   const url = new URL(request.url);
   url.search = "";
   url.searchParams.set("projectSlug", slug);
+  if (isFutureInvestRealty(projectId)) url.searchParams.set("displayPolicy", "hide-south-v1");
   return new Request(url.toString(), { method: "GET" });
 }
 
@@ -139,6 +141,7 @@ async function loadPublicManifest(options: {
 }
 
 function decorateManifest(
+  projectId: string,
   manifest: GeoPublicManifest,
   plots: Array<{
     id: string;
@@ -166,12 +169,13 @@ function decorateManifest(
     }
     return {
       ...feature,
+      name: publicSafeText(projectId, feature.name),
       status,
       sqft: Number(plot?.sqft || 0),
       sqm: Number(plot?.sqm || 0),
       sqyd: Number(plot?.sqyd || 0),
-      dimensions: String(plot?.dimensions || ""),
-      road: String(plot?.road || ""),
+      dimensions: publicSafeText(projectId, plot?.dimensions),
+      road: publicSafeText(projectId, plot?.road),
     };
   });
   return { features, counts: { total, available, booked, sold } };
@@ -193,7 +197,7 @@ export async function GET(request: Request) {
     // Access gate runs before the manual edge cache so Public Site OFF takes
     // effect immediately even if a Geo response was cached seconds earlier.
     const cache = edgeCache();
-    const cacheKey = publicGeoCacheKey(request, slug);
+    const cacheKey = publicGeoCacheKey(request, slug, source.id);
     const cached = await cache.match(cacheKey);
     if (cached) return cached;
 
@@ -235,7 +239,7 @@ export async function GET(request: Request) {
       publicGoogleMapsBrowserKey(),
     ]);
     const manifestMs = Date.now() - manifestStartedAt;
-    const { features, counts } = decorateManifest(manifestResult.manifest, plotRows.results);
+    const { features, counts } = decorateManifest(source.id, manifestResult.manifest, plotRows.results);
     const baseMasterplanUrl =
       `/api/public-geo-masterplan?projectSlug=${encodeURIComponent(source.slug)}` +
       `&v=${encodeURIComponent(token)}`;

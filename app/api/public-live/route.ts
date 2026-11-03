@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { publicSafeText } from "@/app/customer-direction-policy";
 import { PROJECT_CONTACT_KEYS, publicProjectId, withProjectContactFallbacks } from "@/modules/projects";
 import { publicSiteEnabled, publicSiteUnavailableResponse } from "@/modules/public-site-access";
 import {metroAgreementEnabled,metroAgreementValues} from "@/app/metro-agreement";
@@ -24,6 +25,8 @@ export async function GET(request:Request){
     ? await env.DB.prepare("SELECT plot_id AS plotId,pricing_type AS pricingType,unit,rate,fixed_price AS fixedPrice,currency FROM plot_pricing WHERE project_id=? ORDER BY plot_id").bind(projectId).all<PricingRow>()
     : {results:[] as PricingRow[]};
   const settings=withProjectContactFallbacks(Object.fromEntries(contactResult.results.map(row=>[row.key,row.value])));
+  settings.location=publicSafeText(projectId,settings.location);
+  settings.address=publicSafeText(projectId,settings.address);
   return Response.json(
     {
       projectId,
