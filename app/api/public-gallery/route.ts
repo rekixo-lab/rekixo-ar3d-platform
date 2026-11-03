@@ -1,4 +1,5 @@
 import { desc, eq } from "drizzle-orm";
+import { publicSafeText } from "@/app/customer-direction-policy";
 import { getDb } from "@/modules/db";
 import { gallery } from "@/modules/db/schema";
 import { publicProjectId } from "@/modules/projects";
@@ -14,7 +15,7 @@ export async function GET(request:Request){
     .where(eq(gallery.projectId,projectId))
     .orderBy(desc(gallery.sortOrder));
   return Response.json(
-    {projectId,gallery:items},
+    {projectId,gallery:items.map((item)=>({ ...item,caption:publicSafeText(projectId,item.caption),filename:publicSafeText(projectId,item.filename) }))},
     {headers:{"cache-control":"public,max-age=30,stale-while-revalidate=120","x-rekixo-gallery-metadata":"1"}},
   );
 }
