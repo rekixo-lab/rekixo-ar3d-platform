@@ -2407,7 +2407,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   }
   function showPlotPeek(p,clientX,clientY){
     if(!p||drawer.classList.contains('open'))return;
-    const card=ensurePlotPeek(),st=publicPlotStatus(p),dimensions=futureInvestCompactFacts()?'':String(p.dimensions||'').trim(),facing=String(p.facing||p.road||'').trim(),area=plotPeekArea(p),detail=[dimensions,facing].filter(Boolean).join(' · ')||'Plot details';
+    const card=ensurePlotPeek(),st=publicPlotStatus(p),dimensions=futureInvestCompactFacts()?'':String(p.dimensions||'').trim(),facing=futureInvestSafeFacing(p.facing)||futureInvestSafeText(p.road),area=plotPeekArea(p),detail=[dimensions,facing].filter(Boolean).join(' · ')||'Plot details';
     const signature=[p.id,st,metroAgreementMode,p.agreementDone===true,area,detail].join('|');
     if(signature!==plotPeekSignature){plotPeekRefs.badge.textContent=statusDisplayLabel(st).toUpperCase();plotPeekRefs.title.textContent='Plot #'+p.id;plotPeekRefs.area.textContent=area;plotPeekRefs.meta.textContent=detail;plotPeekSignature=signature}
     plotPeekPlotId=String(p.id);plotPeekPoint={x:clientX,y:clientY};card.dataset.status=st;card.dataset.metroVisual=metroVisualStatus(p);positionPlotPeek(clientX,clientY);card.classList.add('show');card.setAttribute('aria-hidden','false')
@@ -2546,6 +2546,24 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   function futureInvestCompactFacts(){
     return typeof ACTIVE_PROJECT_ID!=='undefined'&&ACTIVE_PROJECT_ID==='ec6b45b5-7232-475a-bba8-468caccfe568'
   }
+  const futureInvestSouthPattern=/\b(?:south(?:[\s-]*(?:east|west)|ern)?|s[\s\/-]?[ew])\b|दक्षिण/iu;
+  function futureInvestSafeText(value){
+    const text=String(value||'').trim();
+    return futureInvestCompactFacts()&&futureInvestSouthPattern.test(text)?'':text
+  }
+  function futureInvestSafeFacing(value){
+    const text=String(value||'').trim();
+    if(!futureInvestCompactFacts()||!futureInvestSouthPattern.test(text))return text;
+    return text.split(/\s*(?:·|[,;]|\s+\/\s+|\s+&\s+)\s*/u)
+      .filter(part=>part&&!futureInvestSouthPattern.test(part)).join(' · ')
+  }
+  function syncPublicRoadFact(p){
+    const facing=futureInvestSafeFacing(p.facing),road=futureInvestSafeText(p.road);
+    const roadLabel=q('#roadLabel'),roadEl=q('#road');
+    if(roadLabel)roadLabel.textContent=facing?'FACING':'ROAD ACCESS';
+    if(roadEl){roadEl.textContent=facing||road||'—';
+      if(roadEl.parentElement)roadEl.parentElement.style.display=futureInvestCompactFacts()&&!facing&&!road?'none':''}
+  }
   function compactFutureInvestMeasurement(value){
     const source=cleanDimensionLabel(value);
     const base=source.match(/^([≈~]?\s*\d+(?:\.\d+)?)\s*(m|ft)\b/i);
@@ -2587,7 +2605,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   }
   function edgeMeasurementText(row){
     if(!row)return '';
-    return cleanDimensionLabel(row.rawLabel)||plotLengthText(row.length,row.unit)
+    return futureInvestSafeText(cleanDimensionLabel(row.rawLabel))||plotLengthText(row.length,row.unit)
   }
   function plotEdgeMeasurementValue(p,role,edge){
     const rows=plotEdgeMeasurementRows(p,role);
@@ -2604,8 +2622,8 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     const depth2=cleanDimensionLabel(p.depth2Label)||plotEdgeMeasurementValue(p,'depthB',validPlotSideEdge(p.depth2EdgeIndex,p.points.length))||plotLengthText(p.depth2,p.dimensionUnit)||parsedSides.depth2;
     const edge=validPlotSideEdge(p.frontEdgeIndex,p.points.length);
     if(futureInvestCompactFacts()){
-      return{front:compactFutureInvestMeasurement(front),depth:compactFutureInvestMeasurement(depth),
-        back:compactFutureInvestMeasurement(back),depth2:compactFutureInvestMeasurement(depth2),sides,edge}
+      return{front:futureInvestSafeText(compactFutureInvestMeasurement(front)),depth:futureInvestSafeText(compactFutureInvestMeasurement(depth)),
+        back:futureInvestSafeText(compactFutureInvestMeasurement(back)),depth2:futureInvestSafeText(compactFutureInvestMeasurement(depth2)),sides:futureInvestSafeText(sides),edge}
     }
     return{front,depth,back,depth2,sides,edge}
   }
@@ -2855,10 +2873,10 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     setLine('#widthLine',left,widthY,right,widthY);setLine('#widthLeftTick',left,widthY-2.5,left,widthY+2.5);setLine('#widthRightTick',right,widthY-2.5,right,widthY+2.5);
     setLine('#widthLeftGuide',0,0,0,0);setLine('#widthRightGuide',0,0,0,0);
     const wt=q('#widthText');wt.textContent=semantic.depth?'Depth · '+semantic.depth:'Depth';wt.setAttribute('aria-label',horizontalText);wt.setAttribute('x',cx);wt.setAttribute('y',widthY+20);
-    const label=q('#diagramLabel');label.textContent=p.id;label.setAttribute('x',cx);label.setAttribute('y',p.facing?cy+3:cy+9);
+    const label=q('#diagramLabel');label.textContent=p.id;label.setAttribute('x',cx);label.setAttribute('y',futureInvestSafeFacing(p.facing)?cy+3:cy+9);
     const facing=q('#diagramFacing');
     if(facing){
-      const facingText=String(p.facing||'').trim();
+      const facingText=futureInvestSafeFacing(p.facing);
       facing.textContent=facingText;
       facing.setAttribute('x',cx);
       facing.setAttribute('y',cy+19);
@@ -2912,10 +2930,9 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     q('#sqft').textContent=Number(p.sqft).toLocaleString('en-IN')+' Sq.Ft';
     q('#sqyd').textContent=Number(p.sqyd).toLocaleString('en-IN')+' Sq.Yd';
     syncPlotPricing(p);
-    q('#dims').textContent=p.dimensions||'—';
+    q('#dims').textContent=futureInvestSafeText(p.dimensions)||'—';
     syncFrontDepthFacts(p);
-    const facing=String(p.facing||'').trim(),roadLabel=q('#roadLabel');if(roadLabel)roadLabel.textContent=facing?'FACING':'ROAD ACCESS';
-    q('#road').textContent=facing||p.road||'—';
+    syncPublicRoadFact(p);
     const statusEl=q('#plotStatusValue');statusEl.textContent=statusLabel;statusEl.className=st;updateMetroAgreementFact(p);diagram(p);
     drawer.scrollTop=0; drawer.classList.add('open'); drawer.setAttribute('aria-hidden','false'); scrim.classList.add('open');
     lastPlotOpenAt=performance.now();
@@ -3199,6 +3216,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     setMasterplanQuality('preview','Preview','Waiting for published masterplan.');
     window.REKIXO_PUBLIC_DATA=data;
     ACTIVE_PROJECT_ID=String(data.projectId||'').trim();
+    const compass=q('.compass');if(compass)compass.style.display=futureInvestCompactFacts()?'none':'';
     updateMetroCanvasMode();
     window.REKIXO_PLOT_NOTICES_INIT?.(data);
     REKIXO_LIVE_STATE_ENABLED=!Boolean(data&&data.preview);
@@ -3340,7 +3358,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     document.body.dataset.template=s.template||'plots';
     updateStatusCounts();
     startLiveStatePolling();
-    if(selected){const fresh=plots.find(p=>p.id===selected.id);if(fresh){selected=fresh;if(drawer.classList.contains('open')){q('#sqm').textContent=Number(fresh.sqm).toLocaleString('en-IN')+' Sq.M';q('#sqft').textContent=Number(fresh.sqft).toLocaleString('en-IN')+' Sq.Ft';q('#sqyd').textContent=Number(fresh.sqyd).toLocaleString('en-IN')+' Sq.Yd';q('#dims').textContent=fresh.dimensions||'—';syncFrontDepthFacts(fresh);const freshFacing=String(fresh.facing||'').trim(),freshRoadLabel=q('#roadLabel');if(freshRoadLabel)freshRoadLabel.textContent=freshFacing?'FACING':'ROAD ACCESS';q('#road').textContent=freshFacing||fresh.road||'—';syncPlotPricing(fresh);const st=publicPlotStatus(fresh),statusEl=q('#plotStatusValue');statusEl.textContent=statusDisplayLabel(st);statusEl.className=st;updateMetroAgreementFact(fresh)}}}
+    if(selected){const fresh=plots.find(p=>p.id===selected.id);if(fresh){selected=fresh;if(drawer.classList.contains('open')){q('#sqm').textContent=Number(fresh.sqm).toLocaleString('en-IN')+' Sq.M';q('#sqft').textContent=Number(fresh.sqft).toLocaleString('en-IN')+' Sq.Ft';q('#sqyd').textContent=Number(fresh.sqyd).toLocaleString('en-IN')+' Sq.Yd';q('#dims').textContent=futureInvestSafeText(fresh.dimensions)||'—';syncFrontDepthFacts(fresh);syncPublicRoadFact(fresh);syncPlotPricing(fresh);const st=publicPlotStatus(fresh),statusEl=q('#plotStatusValue');statusEl.textContent=statusDisplayLabel(st);statusEl.className=st;updateMetroAgreementFact(fresh)}}}
     let revealed=false,shellRevealed=false,masterFailures=0,usingCanonical=false;
     let legacyImageTimer=null;
     const clearLegacyImageTimer=()=>{clearTimeout(legacyImageTimer);legacyImageTimer=null};
