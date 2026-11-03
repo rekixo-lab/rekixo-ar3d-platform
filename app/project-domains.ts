@@ -171,3 +171,36 @@ export async function deleteProjectDomain(projectId: string, hostValue: unknown)
       .run();
   }
 }
+
+
+/**
+ * Set one existing customer's hostname as both public website and /admin entry.
+ * Preserves historical host aliases, other tenants, existing users and plot data.
+ */
+export async function upsertUnifiedProjectDomain(projectId: string, hostValue: unknown) {
+  const host = await assertDomainAvailable(hostValue, projectId);
+  const now = new Date().toISOString();
+  const existing = await env.DB.prepare(
+    "SELECT project_id AS projectId FROM project_domains WHERE host=? LIMIT 1",
+  ).bind(host).first<{ projectId: string }>();
+  if (existing && existing.projectId !== projectId)
+    throw new Error("Domain kisi aur project me use ho raha hai");
+
+  const statements = [
+    env.DB.prepare(
+      "UPDATE project_domains SET public_primary=0,admin_primary=0,updated_at=? WHERE project_id=?",
+    ).bind(now, projectId),
+    existing
+      ? env.DB.prepare(
+          "UPDATE project_domains SET kind='both',status='active',public_primary=1,admin_primary=1,updated_at=? WHERE host=? AND project_id=?",
+        ).bind(now, host, projectId)
+      : env.DB.prepare(
+          "INSERT INTO project_domains (host,project_id,kind,public_primary,admin_primary,status,created_at,updated_at) VALUES (?,?,'both',1,1,'active',?,?)",
+        ).bind(host, projectId, now, now),
+    env.DB.prepare(
+      "UPDATE projects SET public_host=?,admin_host=?,updated_at=? WHERE id=? AND status='active'",
+    ).bind(host, host, now, projectId),
+  ];
+  await env.DB.batch(statements);
+  return host;
+}
