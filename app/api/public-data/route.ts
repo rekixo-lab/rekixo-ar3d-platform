@@ -11,7 +11,7 @@ import { env } from "cloudflare:workers";
 import {metroAgreementEnabled,metroAgreementValues} from "@/app/metro-agreement";
 import { getAdminSession } from "@/modules/auth";
 import { plotFacingText, plotFacingTextForNorthAngle } from "@/modules/plots";
-import { publicSafeFacing, publicSafeText, publicSafeSideSemantics } from "@/app/customer-direction-policy";
+import { FUTURE_INVEST_REALTY_ID,publicSafeFacing, publicSafeText, publicSafeSideSemantics } from "@/app/customer-direction-policy";
 import { deriveCustomerPlotAreas } from "@/app/plot-area-derivation.mjs";
 import {
   PROJECT_CONTACT_KEYS,
@@ -162,7 +162,7 @@ export async function GET(request: Request) {
     }
 
     const project = await env.DB.prepare(
-      "SELECT name,slug,public_status AS publicStatus,published_at AS publishedAt,publish_version AS publishVersion,admin_host AS adminHost FROM projects WHERE id=? AND status='active' LIMIT 1",
+      "SELECT name,slug,public_status AS publicStatus,published_at AS publishedAt,publish_version AS publishVersion,admin_host AS adminHost,public_host AS publicHost FROM projects WHERE id=? AND status='active' LIMIT 1",
     )
       .bind(projectId)
       .first<{
@@ -172,6 +172,7 @@ export async function GET(request: Request) {
         publishedAt: string | null;
         publishVersion: number;
         adminHost: string | null;
+        publicHost: string | null;
       }>();
 
     if (!project) {
@@ -338,6 +339,12 @@ export async function GET(request: Request) {
 
     const adminHost = adminDomain || project.adminHost;
     const links = currentProjectLinks(project.slug, null, adminHost);
+    const isUnifiedCustomerHost = projectId===FUTURE_INVEST_REALTY_ID &&
+      Boolean(project.publicHost) && project.publicHost===project.adminHost &&
+      requestUrl.hostname.toLowerCase()===project.publicHost;
+    const customerAdminUrl = isUnifiedCustomerHost
+      ? `https://${requestUrl.hostname.toLowerCase()}/admin`
+      : links.adminUrl;
     const publicSettings = Object.fromEntries(
       settingRows
         .filter((item) => PUBLIC_SETTING_KEYS.has(item.key))
@@ -439,7 +446,7 @@ export async function GET(request: Request) {
         preview: Boolean(previewId),
         publishVersion: project.publishVersion,
         publishedAt: project.publishedAt,
-        adminUrl: links.adminUrl,
+        adminUrl: customerAdminUrl,
         platformUrl: links.platformUrl,
         engine3d,
         plots: plotRows.map((plot) => {
