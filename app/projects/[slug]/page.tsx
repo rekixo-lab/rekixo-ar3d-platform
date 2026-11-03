@@ -115,7 +115,7 @@ export default async function SharedProjectPage({
     <main style={{ position: "fixed", inset: 0, background: "#050914" }}>
       <iframe
         title={`${project.name} website`}
-        src={`/__rekixo/project/?projectSlug=${encodeURIComponent(project.slug)}&pv=${encodeURIComponent(String(published?.publishVersion || 0))}&v=${project.id === FUTURE_INVEST_REALTY_ID ? "70" : "69"}${published?.dataRevision ? `&dataRevision=${encodeURIComponent(published.dataRevision)}` : ""}`}
+        src={`/__rekixo/project/?projectSlug=${encodeURIComponent(project.slug)}&pv=${encodeURIComponent(String(published?.publishVersion || 0))}&v=69${project.id === FUTURE_INVEST_REALTY_ID ? "&displayPolicy=hide-south-v1" : ""}${published?.dataRevision ? `&dataRevision=${encodeURIComponent(published.dataRevision)}` : ""}`}
         loading="eager"
         style={{ width: "100%", height: "100%", border: 0, display: "block" }}
       />

@@ -539,7 +539,7 @@ export async function GET(request: Request) {
               facing = "";
             }
           }
-          const customerFacing = publicSafeFacing(projectId, facing);
+          facing = publicSafeFacing(projectId, facing);
           return {
             ...publicPlot,
             road: publicSafeText(projectId, publicPlot.road),
@@ -553,7 +553,7 @@ export async function GET(request: Request) {
             featured: Boolean(publicPlot.featured),
             status: liveStatusByPlot.get(plot.id) || publicPlot.status,
             ...(metroPublicAgreement?{agreementDone:metroAgreementByPlot.get(plot.id)?.done||false}:{}),
-            ...(customerFacing ? { facing: customerFacing } : {}),
+            ...(facing ? { facing } : {}),
             ...(edgeMeasurements.length ? { edgeMeasurements } : {}),
             ...(price
               ? {

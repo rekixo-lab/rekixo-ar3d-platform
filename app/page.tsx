@@ -104,7 +104,7 @@ export default async function Home() {
     <main style={{ position: "fixed", inset: 0, background: "#050914" }}>
       <iframe
         title="Client project website"
-        src={`/project/index.html?projectId=${encodeURIComponent(target.projectId || "")}&pv=${encodeURIComponent(String(published?.publishVersion || 0))}&v=${target.projectId === FUTURE_INVEST_REALTY_ID ? "70" : "69"}`}
+        src={`/project/index.html?projectId=${encodeURIComponent(target.projectId || "")}&pv=${encodeURIComponent(String(published?.publishVersion || 0))}&v=69${target.projectId === FUTURE_INVEST_REALTY_ID ? "&displayPolicy=hide-south-v1" : ""}`}
         loading="eager"
         style={{ width: "100%", height: "100%", border: 0, display: "block" }}
       />
