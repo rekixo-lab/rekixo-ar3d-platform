@@ -100,6 +100,41 @@ if (mode === "client" && sharedDomainRoutes.length) {
 }
 
 
+
+// A Wrangler deploy normally reconciles routes from this generated file.
+// Preserve already attached Cloudflare Custom Domains rather than deleting them
+// during the next routine deployment of the shared customer Worker.
+if (mode === "client" && process.env.CLOUDFLARE_API_TOKEN && process.env.CLOUDFLARE_ACCOUNT_ID) {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const token = process.env.CLOUDFLARE_API_TOKEN;
+  const domains = [];
+  for (let page = 1; page <= 20; page++) {
+    const url = new URL(`https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/domains`);
+    url.searchParams.set("service", "rekixo-client-sites");
+    url.searchParams.set("per_page", "100");
+    url.searchParams.set("page", String(page));
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(12000),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success || !Array.isArray(data.result)) {
+      throw new Error("Cloudflare domain inventory unavailable; refusing deploy that could detach customer domains");
+    }
+    domains.push(...data.result);
+    const pageCount = Number(data.result_info?.total_pages || page);
+    if (page >= pageCount) break;
+    if (page === 20) throw new Error("Cloudflare custom domain inventory pagination exceeded");
+  }
+  const existing = new Set((config.routes || []).map((route) => route.pattern));
+  const customRoutes = domains
+    .filter((domain) => domain.service === "rekixo-client-sites" && domain.enabled && domain.hostname)
+    .map((domain) => ({ pattern: String(domain.hostname).toLowerCase(), custom_domain: true }))
+    .filter((route) => !existing.has(route.pattern));
+  config.routes = [...(config.routes || []), ...customRoutes];
+  console.log(`Preserved ${customRoutes.length} existing customer Custom Domains`);
+}
+
 config.d1_databases = [
   {
     binding: "DB",

@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { env } from "cloudflare:workers";
 import { redirect } from "next/navigation";
 import { panelMode,validAdminSession } from "@/modules/auth";
 import LoginForm from "./login-form";
@@ -17,11 +18,20 @@ export default async function LoginPage({searchParams}:{searchParams:Promise<{lo
   if(await validAdminSession())redirect("/admin");
   const mode=panelMode();
   let loginType:"email"|"mobile"|"mixed"=mode==="super"?"email":"mixed";
+  let domainProjectId="";
+  let domainProjectName="";
   if(mode==="client"){
     const host=(await headers()).get("host")||"";
     const hostRole=await projectHostRole(host);
-    if(hostRole?.projectId)loginType=await clientLoginModeForProject(hostRole.projectId);
+    if(hostRole?.projectId && (hostRole.role==="public"||hostRole.role==="admin")){
+      loginType=await clientLoginModeForProject(hostRole.projectId);
+      domainProjectId=hostRole.projectId;
+      const row=await env.DB.prepare(
+        "SELECT name FROM projects WHERE id=? AND status='active' LIMIT 1",
+      ).bind(domainProjectId).first<{name:string}>();
+      domainProjectName=row?.name||"";
+    }
   }
   const query=await searchParams;
-  return <LoginForm mode={mode} loginType={loginType} initialError={loginError(query.loginError)}/>;
+  return <LoginForm mode={mode} loginType={loginType} projectId={domainProjectId} projectName={domainProjectName} initialError={loginError(query.loginError)}/>;
 }

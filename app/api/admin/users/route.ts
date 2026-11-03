@@ -1,7 +1,9 @@
 import { env } from "cloudflare:workers";
 import { hashAdminPassword,requireSuperAdmin,sameOrigin } from "@/modules/auth";
 import { writeAudit } from "@/modules/audit";
-import { upsertPrimaryProjectDomain } from "@/modules/domains";
+import { upsertPrimaryProjectDomain,upsertUnifiedProjectDomain,assertDomainAvailable,cleanHostInput,validHostname } from "@/modules/domains";
+import { attachCustomerWorkerDomain } from "@/app/cloudflare-domain-provisioning";
+import { FUTURE_INVEST_REALTY_ID } from "@/app/customer-direction-policy";
 import { provisionClientAccess } from "@/modules/projects";
 import { clientFallbackHost,clientLoginModeForProject } from "@/modules/projects";
 import { currentProjectLinks } from "@/modules/projects";
@@ -19,7 +21,10 @@ type ProjectRow={id:string;name:string;slug:string;kind:string;publicHost:string
 const cleanHost=(value:unknown)=>{const host=String(value||"").trim().toLowerCase().replace(/^https?:\/\//,"").replace(/\/.*/,"").replace(/\.$/,"");return host||null};
 const validHost=(host:string|null)=>!host||hostPattern.test(host);
 const slugify=(value:string)=>value.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,48)||"project";
-const clientAdminUrl=(slug="",adminHost?:string|null)=>slug?currentProjectLinks(slug,null,adminHost).adminUrl:`https://${clientFallbackHost()}/admin/login`;
+const clientAdminUrl=(slug="",adminHost?:string|null,publicHost?:string|null,projectId?:string)=>
+  projectId===FUTURE_INVEST_REALTY_ID && adminHost && adminHost===publicHost
+    ? `https://${adminHost}/admin`
+    : slug?currentProjectLinks(slug,null,adminHost).adminUrl:`https://${clientFallbackHost()}/admin/login`;
 const isGeoLab=async(projectId:string)=>Boolean(await env.DB.prepare("SELECT 1 FROM projects WHERE id=? AND kind='geo_lab' AND status!='deleted' LIMIT 1").bind(projectId).first());
 
 export async function GET(request:Request){
@@ -115,7 +120,7 @@ export async function GET(request:Request){
         loginType:user.loginType==="mobile"?"mobile":"email",
         loginId:user.loginId||user.email,
         email:user.loginType==="mobile"?null:user.email,
-        adminUrl:clientAdminUrl(user.projectSlug,user.adminHost),
+        adminUrl:clientAdminUrl(user.projectSlug,user.adminHost,user.publicHost,user.projectId),
       })),
       total:Number(total?.total||0),
       nextOffset:offset+result.results.length,
@@ -150,7 +155,7 @@ export async function GET(request:Request){
       loginType:user.loginType==="mobile"?"mobile":"email",
       loginId:user.loginId||user.email,
       email:user.loginType==="mobile"?null:user.email,
-      adminUrl:clientAdminUrl(user.projectSlug,user.adminHost),
+      adminUrl:clientAdminUrl(user.projectSlug,user.adminHost,user.publicHost,user.projectId),
     })),
     projects:projects.results.map(project=>({...project,loginMode:project.loginMode==="mobile"?"mobile":"email"})),
     archivedProjects:archived.results,
@@ -161,7 +166,38 @@ export async function GET(request:Request){
 
 export async function POST(request:Request){
   const actor=await requireSuperAdmin();if(!actor)return unauthorized();if(!sameOrigin(request))return Response.json({error:"Invalid request origin"},{status:403});
-  const body=await request.json().catch(()=>({})) as {loginId?:string;email?:string;name?:string;password?:string;projectId?:string;projectName?:string;publicHost?:string;adminHost?:string};
+  const body=await request.json().catch(()=>({})) as {action?:string;loginId?:string;email?:string;name?:string;password?:string;projectId?:string;projectName?:string;publicHost?:string;adminHost?:string};
+  if(body.action==="connect_existing_domain"){
+    const projectId=String(body.projectId||"").trim();
+    if(projectId!==FUTURE_INVEST_REALTY_ID)
+      return Response.json({error:"This unified domain setup is scoped to Future Invest Realty only"},{status:403});
+    const host=cleanHostInput(body.publicHost);
+    if(!host||!validHostname(host)||String(body.publicHost||"").trim().includes("/"))
+      return Response.json({error:"Enter a hostname only, e.g. www.customer.com (no path or https://)"},{status:400});
+    const project=await env.DB.prepare(
+      "SELECT id,name,slug,public_status AS publicStatus FROM projects WHERE id=? AND status='active' LIMIT 1",
+    ).bind(projectId).first<{id:string;name:string;slug:string;publicStatus:string}>();
+    if(!project)return Response.json({error:"Existing active project not found"},{status:404});
+    if(project.publicStatus!=="published")
+      return Response.json({error:"Publish the project before connecting a customer domain"},{status:409});
+    const admin=await env.DB.prepare(
+      "SELECT id FROM admin_users WHERE project_id=? AND role='client_admin' AND status='active' LIMIT 1",
+    ).bind(projectId).first();
+    if(!admin)return Response.json({error:"Existing active client admin missing; restore client access first"},{status:409});
+    try {
+      await assertDomainAvailable(host,projectId);
+      const cloudflare=await attachCustomerWorkerDomain(host);
+      await upsertUnifiedProjectDomain(projectId,host);
+      await writeAudit(actor,"project.unified_domain_connected",projectId,null,{host,cloudflare:cloudflare.state,reusedExistingAdmin:true});
+      return Response.json({
+        ok:true,projectId,projectName:project.name,host,
+        publicUrl:`https://${host}/`,adminUrl:`https://${host}/admin`,
+        existingAdminReused:true,cloudflareStatus:cloudflare.state,message:cloudflare.message,
+      });
+    } catch(error) {
+      return Response.json({error:error instanceof Error?error.message:"Domain connection failed"},{status:409});
+    }
+  }
   const name=String(body.name||"").trim(),password=String(body.password||""),projectName=String(body.projectName||"").trim(),publicHost=cleanHost(body.publicHost),adminHost=cleanHost(body.adminHost);
   if(name.length<2||name.length>80||!validClientPassword(password)||!validHost(publicHost)||!validHost(adminHost))return Response.json({error:"Valid details aur 8+ character password with letter + number required"},{status:400});
 
