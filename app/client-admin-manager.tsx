@@ -712,7 +712,7 @@ export default function ClientAdminManager({
               onChange={(event) => setName(event.target.value)}
               placeholder="Client or staff name"
             />
-          </label>
+          </label>}
           {!unifiedDomainMode && <label>
             <span>
               {loginMode === "mobile" ? "Client mobile number" : "Client email"}
@@ -733,7 +733,7 @@ export default function ClientAdminManager({
                 ? "New projects use mobile number as Login ID. +91 optional for Indian 10-digit numbers."
                 : "Existing project ka email login unchanged rahega."}
             </small>
-          </label>
+          </label>}
           <label>
             <span>{unifiedDomainMode ? "Customer website domain" : "Website domain (optional)"}</span>
             <input
