@@ -21,12 +21,12 @@ test("subtitle is clipped and cannot widen the page", () => {
 test("mobile subtitle right edge is capped at the visual viewport midpoint", () => {
   assert.match(page, /function syncBrandSubtitleLaneWidth\(\)/);
   assert.match(page, /const viewportWidth=Math\.max\(1,Number\(vv\?\.width\|\|document\.documentElement\.clientWidth\|\|window\.innerWidth\|\|1\)\)/);
-  assert.match(page, /if\(viewportWidth>700\)\{/);
+  assert.match(page, /if\(viewportWidth>700&&!dungarCompact\)\{/);
   assert.match(page, /const viewportLeft=Number\(vv\?\.offsetLeft\|\|0\)/);
   assert.match(page, /const laneLeft=subtitleLane\.getBoundingClientRect\(\)\.left/);
   assert.match(page, /const halfScreenRight=viewportLeft\+\(viewportWidth\*\.5\)/);
   assert.match(page, /const leftHalfSpace=Math\.max\(0,Math\.floor\(halfScreenRight-laneLeft\)\)/);
-  assert.match(page, /const laneWidth=Math\.max\(0,Math\.min\(parentWidth,leftHalfSpace\)\)/);
+  assert.match(page, /const laneWidth=Math\.max\(0,Math\.min\(parentWidth,leftHalfSpace,actionSafeSpace\)\)/);
   assert.match(page, /subtitleLane\.style\.setProperty\('--rekixo-subtitle-lane-width',laneWidth\+'px'\)/);
 });
 
