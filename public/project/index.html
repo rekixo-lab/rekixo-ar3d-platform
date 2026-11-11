@@ -177,6 +177,14 @@ html.rekixo-project-error .rekixo-boot-error{display:grid}
 .amenity-icon svg{width:27px;height:27px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .amenity-card b{display:block;color:#f7f9fe;font-size:17px;line-height:1.25}
 .amenity-card span{display:block;margin-top:6px;color:#7f90aa;font-size:12px;line-height:1.4}
+.amenities-grid[hidden],.amenities-note[hidden],.amenities-image-grid[hidden]{display:none}
+.amenities-image-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:20px}
+.amenities-image-grid article{min-width:0;overflow:hidden;border:1px solid #294563;border-radius:15px;background:#0c1b2e}
+.amenities-image-grid button{display:block;width:100%;padding:0;background:none;border:0;cursor:zoom-in}
+.amenities-image-grid img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}
+.amenities-image-grid b{display:block;padding:12px 14px;color:#eff5ff;font-size:13px;overflow-wrap:anywhere}
+.amenities-image-grid .gallery-state{grid-column:1/-1;color:#a8b9d0;padding:24px 12px;text-align:center}
+@media(max-width:560px){.amenities-image-grid{grid-template-columns:1fr;gap:10px}}
 .amenities-note{margin-top:16px;padding:12px 14px;border:1px solid #263a58;border-radius:13px;background:#091527;color:#7f90aa;font-size:11px;line-height:1.5;text-align:center}
 @media(max-width:560px){
   .amenities-modal{padding:12px}
@@ -1317,7 +1325,7 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
       </div>
       <button type="button" class="amenities-close" id="amenitiesClose" aria-label="Close amenities">×</button>
     </div>
-    <div class="amenities-grid">
+    <div class="amenities-grid" id="amenitiesDefault">
       <article class="amenity-card">
         <div class="amenity-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M13 2 5 14h6l-1 8 9-13h-6l0-7Z"/></svg>
@@ -1343,7 +1351,8 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
         <div><b>Compound Wall</b><span>Project boundary compound wall provision.</span></div>
       </article>
     </div>
-    <div class="amenities-note">Amenities shown here are configured specifically for Mangal Raj Park.</div>
+    <div class="amenities-note" id="amenitiesNote">Amenities shown here are configured specifically for Mangal Raj Park.</div>
+    <div class="amenities-image-grid" id="amenitiesImageGrid" hidden aria-live="polite"></div>
   </div>
 </section>
 <section class="gallery-modal" id="galleryModal" aria-hidden="true" aria-labelledby="galleryTitle">
@@ -2344,10 +2353,47 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     const name=String(PROJECT_NAME||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,' ');
     return name==='mangal raj park'||name.startsWith('mangal raj park ');
   }
-  function openAmenities(){
-    if(!isMangalRajPark()){toast('Amenities details not configured');return}
+  async function openAmenities(){
     amenitiesModal.classList.add('open');
     amenitiesModal.setAttribute('aria-hidden','false');
+    const images=q('#amenitiesImageGrid'),defaults=q('#amenitiesDefault'),note=q('#amenitiesNote');
+    const fallback=isMangalRajPark();
+    images.replaceChildren(Object.assign(document.createElement('div'),{className:'gallery-state',textContent:'Loading amenities…'}));
+    images.hidden=!fallback;
+    defaults.hidden=!fallback;
+    note.hidden=!fallback;
+    try{
+      const projectQuery=window.REKIXO_PROJECT_QUERY||'';
+      const response=await fetch('/api/public-gallery'+projectQuery+(projectQuery?'&':'?')+'category=amenity',{cache:'no-store'});
+      if(!response.ok)throw new Error('Amenities request failed');
+      const data=await response.json(),items=Array.isArray(data.gallery)?data.gallery:[];
+      images.replaceChildren();
+      if(!items.length){
+        images.hidden=fallback;
+        defaults.hidden=!fallback;
+        note.hidden=!fallback;
+        if(!fallback)images.append(Object.assign(document.createElement('div'),{className:'gallery-state',textContent:'Amenities images abhi upload nahi hui hain.'}));
+        return;
+      }
+      defaults.hidden=true;
+      note.hidden=true;
+      images.hidden=false;
+      items.forEach(item=>{
+        const caption=futureInvestSafeText(item.caption)||futureInvestSafeText(item.filename)||'Project amenity';
+        const query=window.REKIXO_PROJECT_QUERY||'',joiner=query?'&':'?';
+        const source='/api/gallery/'+encodeURIComponent(item.id)+query+joiner+'public=1';
+        const card=document.createElement('article'),button=document.createElement('button'),img=document.createElement('img'),label=document.createElement('b');
+        button.type='button';
+        button.setAttribute('aria-label','View full size: '+caption);
+        img.src=source;img.alt=caption;img.loading='lazy';img.decoding='async';
+        label.textContent=caption;
+        button.onclick=()=>openFullImage(source,caption);
+        button.append(img);card.append(button,label);images.append(card);
+      });
+    }catch(_){
+      images.hidden=fallback;defaults.hidden=!fallback;note.hidden=!fallback;
+      if(!fallback)images.replaceChildren(Object.assign(document.createElement('div'),{className:'gallery-state',textContent:'Amenities load nahi hui. Dobara try karein.'}));
+    }
   }
   function closeAmenities(){
     amenitiesModal.classList.remove('open');
@@ -3313,9 +3359,10 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     PROJECT_NAME=resolvedName;PROJECT_LOCATION=resolvedLocation;ADMIN_URL=data.adminUrl||ADMIN_URL;
     const amenitiesButton=document.getElementById('amenitiesBtn');
     if(amenitiesButton){
-      const mangalAmenities=resolvedName.trim().toLowerCase()==='mangal raj park';
-      amenitiesButton.dataset.configured=mangalAmenities?'true':'false';
-      amenitiesButton.setAttribute('aria-label',mangalAmenities?'Open Mangal Raj Park amenities':'Amenities not configured');
+      amenitiesButton.dataset.configured='true';
+      amenitiesButton.setAttribute('aria-label','Open '+resolvedName+' amenities');
+      const title=document.querySelector('.amenities-kicker');
+      if(title)title.textContent=resolvedName;
     }
     document.title=PROJECT_NAME;
     const brand=document.querySelector('.brand b');if(brand)brand.textContent=PROJECT_NAME.toUpperCase();
