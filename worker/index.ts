@@ -178,6 +178,12 @@ function canonicalRuntimePath(pathname: string) {
     : pathname;
 }
 
+// The dynamic Next.js wrapper contains the current publish/data revision.
+// Do not let a browser or edge persist the old iframe URL after metadata edits.
+function isPublicProjectEntry(pathname: string) {
+  return /^\\/projects\\/[^/]+\\/?$/.test(pathname);
+}
+
 function isPublicProjectRuntimeAsset(pathname: string) {
   const canonical = canonicalRuntimePath(pathname);
   return (
@@ -338,6 +344,8 @@ const worker = {
       externalUrl.pathname.startsWith("/admin") ||
       isSensitiveClientPath(externalUrl.pathname)
     ) {
+      secured.headers.set("cache-control", "no-store");
+    } else if (isPublicProjectEntry(externalUrl.pathname)) {
       secured.headers.set("cache-control", "no-store");
     } else if (isPublicProjectRuntimeAsset(externalUrl.pathname)) {
       // Runtime shell/scripts are tiny but behavior-critical. Revalidate them so
