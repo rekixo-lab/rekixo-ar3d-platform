@@ -57,20 +57,20 @@ test("both the header and delegated WhatsApp actions use the same project resolv
 
 test("GEETAI mobile header has breathing room around all three actions at small widths", () => {
   assert.match(html, /GEETAI_GROUP_MOBILE_ICON_SPACING_V2/);
-  assert.match(html, /body\\.geetai-mobile-whatsapp \\.head-actions\\{\\s*gap:8px;\\s*padding:2px;\\s*margin-right:2px/);
-  assert.match(html, /body\\.geetai-mobile-whatsapp \\.head-actions \\.icon\\{[\\s\\S]*?padding:6px/);
-  assert.match(html, /body\\.geetai-mobile-whatsapp #waTop\\{[\\s\\S]*?padding:6px/);
-  assert.match(html, /@media\\(max-width:360px\\)\\{[\\s\\S]*?body\\.geetai-mobile-whatsapp \\.head-actions\\{gap:6px\\}/);
+  assert.match(html, /body\.geetai-mobile-whatsapp \.head-actions\{\s*gap:8px;\s*padding:2px;\s*margin-right:2px/);
+  assert.match(html, /body\.geetai-mobile-whatsapp \.head-actions \.icon\{[\s\S]*?padding:6px/);
+  assert.match(html, /body\.geetai-mobile-whatsapp #waTop\{[\s\S]*?padding:6px/);
+  assert.match(html, /@media\(max-width:360px\)\{[\s\S]*?body\.geetai-mobile-whatsapp \.head-actions\{gap:6px\}/);
 });
 
 test("GEETAI alone uses the stroke-based WhatsApp SVG; other tenants and desktop keep the previous icon", () => {
   const header = html.slice(html.indexOf('<header class="header">'), html.indexOf('</header>'));
-  const waButton = header.match(/<button class="header-whatsapp" id="waTop"[\\s\\S]*?<\\/button>/)?.[0];
+  const waButton = header.match(/<button class="header-whatsapp" id="waTop"[\s\S]*?<\/button>/)?.[0];
   assert.ok(waButton);
   assert.equal((waButton.match(/<svg /g) || []).length, 2);
-  assert.match(waButton, /<svg class="geetai-wa-outline"[^>]*fill="none"[^>]*stroke="currentColor"[^>]*stroke-width="1\\.8"/);
-  assert.match(html, /#waTop \\.geetai-wa-outline\\{display:none\\}/);
-  assert.match(html, /body\\.geetai-mobile-whatsapp #waTop svg:not\\(\\.geetai-wa-outline\\)\\{display:none\\}/);
-  assert.match(html, /body\\.geetai-mobile-whatsapp #waTop svg\\.geetai-wa-outline\\{[\\s\\S]*?fill:none;stroke:currentColor;stroke-width:1\\.8/);
-  assert.match(html, /body\\.geetai-mobile-whatsapp #waTop span\\{display:none\\}/);
+  assert.match(waButton, /<svg class="geetai-wa-outline"[^>]*fill="none"[^>]*stroke="currentColor"[^>]*stroke-width="1\.8"/);
+  assert.match(html, /#waTop \.geetai-wa-outline\{display:none\}/);
+  assert.match(html, /body\.geetai-mobile-whatsapp #waTop svg:not\(\.geetai-wa-outline\)\{display:none\}/);
+  assert.match(html, /body\.geetai-mobile-whatsapp #waTop svg\.geetai-wa-outline\{[\s\S]*?fill:none;stroke:currentColor;stroke-width:1\.8/);
+  assert.match(html, /body\.geetai-mobile-whatsapp #waTop span\{display:none\}/);
 });
