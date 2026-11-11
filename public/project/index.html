@@ -1022,21 +1022,46 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
 .diagram-side-swatch{width:24px;height:4px;flex:0 0 24px}
 .diagram-side-value{display:block;margin-top:5px;color:#f1f5fb;font-size:13px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
 
-/* GEETAI_GROUP_MOBILE_WHATSAPP_V1: opt-in only after public tenant data resolves. */
+/* GEETAI_GROUP_MOBILE_WHATSAPP_V1: opt-in only after public tenant data resolves.
+   GEETAI_GROUP_MOBILE_ICON_SPACING_V2: independent 2px action padding,
+   8px clear spacing, and a matched 1.8px WhatsApp outline on mobile. */
+#waTop .geetai-wa-outline{display:none}
 @media(max-width:700px){
   body.geetai-mobile-whatsapp .brandrow{gap:7px}
   body.geetai-mobile-whatsapp .brand{min-width:0;flex:1}
-  body.geetai-mobile-whatsapp .head-actions{gap:5px}
-  body.geetai-mobile-whatsapp .head-actions .icon{width:36px;height:36px;border-radius:11px}
+  body.geetai-mobile-whatsapp .head-actions{
+    gap:8px;
+    padding:2px;
+    margin-right:2px;
+    box-sizing:border-box;
+    flex:0 0 auto
+  }
+  body.geetai-mobile-whatsapp .head-actions .icon{
+    width:36px;height:36px;min-width:36px;
+    padding:6px;box-sizing:border-box;border-radius:11px
+  }
   body.geetai-mobile-whatsapp #callTop{order:1}
   body.geetai-mobile-whatsapp #waTop{
     order:2;display:inline-flex;align-items:center;justify-content:center;
-    width:36px;height:36px;min-width:36px;padding:0;border-radius:11px;
+    width:36px;height:36px;min-width:36px;padding:6px;box-sizing:border-box;
+    border-radius:11px;border:1px solid #12b95e;
     background:#13c968;color:#fff;box-shadow:0 6px 14px #0004
   }
-  body.geetai-mobile-whatsapp #waTop svg{width:20px;height:20px;fill:currentColor}
+  body.geetai-mobile-whatsapp #waTop svg:not(.geetai-wa-outline){display:none}
+  body.geetai-mobile-whatsapp #waTop svg.geetai-wa-outline{
+    display:block;width:20px;height:20px;flex:none;
+    fill:none;stroke:currentColor;stroke-width:1.8;
+    stroke-linecap:round;stroke-linejoin:round
+  }
   body.geetai-mobile-whatsapp #waTop span{display:none}
   body.geetai-mobile-whatsapp #outlineTop{order:3}
+}
+@media(max-width:360px){
+  body.geetai-mobile-whatsapp .head-actions{gap:6px}
+  body.geetai-mobile-whatsapp .head-actions .icon,
+  body.geetai-mobile-whatsapp #waTop{
+    width:34px;height:34px;min-width:34px
+  }
 }
 
 /* DUNGAR_COMPACT_HEADER_SUBTITLE_V1
@@ -1222,6 +1247,10 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
       </button>
       <button class="header-whatsapp" id="waTop" type="button" aria-label="Chat on WhatsApp">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.25a9.3 9.3 0 0 0-7.96 14.12L2.7 21.25l5-1.31A9.3 9.3 0 1 0 12 2.25Zm0 16.9a7.53 7.53 0 0 1-3.84-1.05l-.28-.16-2.97.78.79-2.89-.18-.3A7.55 7.55 0 1 1 12 19.15Zm4.16-5.64c-.23-.11-1.35-.66-1.56-.74-.21-.08-.36-.11-.51.11-.15.23-.59.74-.72.89-.13.15-.27.17-.49.06-.23-.11-.96-.35-1.82-1.12-.67-.6-1.13-1.35-1.26-1.58-.13-.23-.01-.35.1-.46.1-.1.23-.27.34-.4.11-.13.15-.23.23-.38.08-.15.04-.28-.02-.4-.06-.11-.51-1.23-.7-1.69-.18-.44-.37-.38-.51-.39h-.43c-.15 0-.4.06-.61.28-.21.23-.8.78-.8 1.9s.82 2.21.93 2.36c.11.15 1.6 2.45 3.89 3.44.54.23.97.37 1.3.48.55.17 1.04.15 1.43.09.44-.07 1.35-.55 1.54-1.08.19-.53.19-.98.13-1.08-.06-.09-.21-.15-.44-.26Z"/></svg>
+        <svg class="geetai-wa-outline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20.2 11.8a8.2 8.2 0 0 1-12.1 7.25L3 20.5l1.45-4.95A8.2 8.2 0 1 1 20.2 11.8Z"/>
+          <path d="M8.3 8.3c-.4.4-.46.9-.18 1.56.88 2.05 2.03 3.2 4.08 4.08.66.28 1.16.22 1.56-.18l.66-.67-1.66-1.3-.83.75a7.2 7.2 0 0 1-2.5-2.5l.75-.83-1.3-1.66-.58.72Z"/>
+        </svg>
         <span>WhatsApp</span>
       </button>
     </div>
