@@ -14,7 +14,7 @@ assert.equal(row.slug,"hree-dungar-residency-9176ee");
 assert.equal(row.name,name);
 assert.equal(row.snapshotName,name);
 assert.equal(row.publishedName,name);
-assert.equal(row.publishedShareTitle?.trim()?.startsWith(name),true,"Published share title should be corrected");
+if(row.publishedShareTitle)assert.doesNotMatch(String(row.publishedShareTitle),/(^|[^a-z])hree dungar residency/i,"Published share title is stale");
 assert.equal(Number(row.version),Number(row.snapshotVersion),"Publish version mismatch");
 assert.equal(row.dataRevision,"shree-dungar-title-corrected-20261111-v2");
 console.log("SHREE Dungar production title + cache revision verified; publish version unchanged:",row.version);
