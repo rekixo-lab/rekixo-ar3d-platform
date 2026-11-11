@@ -18,8 +18,9 @@ test("client mutations are tenant scoped and audited",async()=>{
   assert.match(data,/session\.role === "super_admin"\s*\? requestedProjectId\s*:\s*session\.projectId/);
   assert.match(data,/project\.plot_updated/);
   assert.match(data,/project\.settings_updated/);
-  assert.match(gallery,/projects\/\$\{projectId\}\/gallery/);
-  assert.match(gallery,/project\.gallery_uploaded/);
+  assert.match(gallery,/projects\/\$\{projectId\}\/\$\{category===/);
+  assert.match(gallery,/category===\"amenity\"\?\"amenities\":\"gallery\"/);
+  assert.match(gallery,/project\.\$\{category\}_uploaded/);
   assert.match(gallery,/project\.gallery_deleted/);
 });
 

@@ -332,7 +332,7 @@ export async function GET(request: Request) {
         : db
             .select({ id: gallery.id, caption: gallery.caption, filename: gallery.filename })
             .from(gallery)
-            .where(eq(gallery.projectId, projectId))
+            .where(and(eq(gallery.projectId, projectId), eq(gallery.category, "gallery")))
             .orderBy(desc(gallery.sortOrder)),
       activeProjectDomain(projectId, "admin"),
     ]);

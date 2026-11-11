@@ -144,7 +144,7 @@ export const plotPricing = sqliteTable("plot_pricing", {
   pk:primaryKey({columns:[table.projectId,table.plotId]}),
   projectIndex:index("idx_plot_pricing_project").on(table.projectId)
 }));
-export const gallery = sqliteTable("gallery", { projectId:text("project_id").notNull().references(()=>projects.id), id:text("id").notNull(), objectKey:text("object_key").notNull().unique(), filename:text("filename").notNull(), contentType:text("content_type").notNull(), caption:text("caption").notNull().default(""), sortOrder:integer("sort_order").notNull().default(0), createdAt:text("created_at").notNull() },table=>({pk:primaryKey({columns:[table.projectId,table.id]})}));
+export const gallery = sqliteTable("gallery", { projectId:text("project_id").notNull().references(()=>projects.id), id:text("id").notNull(), objectKey:text("object_key").notNull().unique(), filename:text("filename").notNull(), contentType:text("content_type").notNull(), caption:text("caption").notNull().default(""), category:text("category").notNull().default("gallery"), sortOrder:integer("sort_order").notNull().default(0), createdAt:text("created_at").notNull() },table=>({pk:primaryKey({columns:[table.projectId,table.id]})}));
 export const loginAttempts = sqliteTable("login_attempts", { key:text("key").primaryKey(), attempts:integer("attempts").notNull().default(0), windowStart:integer("window_start").notNull() });
 export const adminUsers = sqliteTable("admin_users", {
   id:text("id").primaryKey(), email:text("email").notNull().unique(), name:text("name").notNull(),
