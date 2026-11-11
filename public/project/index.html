@@ -1039,6 +1039,23 @@ html:not(.rekixo-project-loading):not(.rekixo-project-error) .controls{animation
   body.geetai-mobile-whatsapp #outlineTop{order:3}
 }
 
+/* DUNGAR_COMPACT_HEADER_SUBTITLE_V1
+   Only the existing SHREE DUNGAR RESIDENCY customer site opts in.
+   The long location scrolls inside a measured, clipped <=half-screen lane;
+   Call/menu/WhatsApp buttons never become part of the scrolling content. */
+body.dungar-compact-header .brandrow{min-width:0;max-width:100%;overflow:visible}
+body.dungar-compact-header .brandmark{flex:0 0 auto}
+body.dungar-compact-header .brand{min-width:0;flex:1 1 0;max-width:100%;overflow:hidden}
+body.dungar-compact-header .brand-subtitle{
+  display:block;width:var(--rekixo-subtitle-lane-width,50vw);max-width:100%;
+  min-width:0;white-space:nowrap;overflow:hidden;contain:paint
+}
+body.dungar-compact-header .head-actions{flex:0 0 auto;flex-shrink:0;z-index:3}
+@media(max-width:700px){
+  body.dungar-compact-header .brandrow{gap:7px}
+  body.dungar-compact-header .brand{min-width:0;overflow:hidden}
+  body.dungar-compact-header .head-actions{gap:6px}
+}
 </style>
 
 <style id="metro-agreement-public-style">
@@ -1501,6 +1518,8 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
 const REKIXO_PARAMS=new URLSearchParams(location.search);
 const REKIXO_PROJECT_PARAM=REKIXO_PARAMS.get('projectId')||'';
 const REKIXO_PROJECT_SLUG=REKIXO_PARAMS.get('projectSlug')||'';
+// The shared HTML is used by every tenant; opt in only for the exact Dungar slug.
+if(REKIXO_PROJECT_SLUG==='hree-dungar-residency-9176ee')document.body.classList.add('dungar-compact-header');
 const REKIXO_GENERIC_BOOT=true;
 window.REKIXO_GENERIC_BOOT=REKIXO_GENERIC_BOOT;
 const REKIXO_FORWARD=new URLSearchParams();
@@ -1762,7 +1781,8 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     if(!subtitleLane)return;
     const vv=window.visualViewport;
     const viewportWidth=Math.max(1,Number(vv?.width||document.documentElement.clientWidth||window.innerWidth||1));
-    if(viewportWidth>700){
+    const dungarCompact=document.body.classList.contains('dungar-compact-header');
+    if(viewportWidth>700&&!dungarCompact){
       subtitleLane.style.removeProperty('--rekixo-subtitle-lane-width');
       return;
     }
@@ -1771,7 +1791,10 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     const parentWidth=Math.max(0,Number(subtitleLane.parentElement?.clientWidth||0));
     const halfScreenRight=viewportLeft+(viewportWidth*.5);
     const leftHalfSpace=Math.max(0,Math.floor(halfScreenRight-laneLeft));
-    const laneWidth=Math.max(0,Math.min(parentWidth,leftHalfSpace));
+    // Protect the right-hand actions too, including zoomed/narrow desktop windows.
+    const actionsLeft=dungarCompact?document.querySelector('.head-actions')?.getBoundingClientRect().left:null;
+    const actionSafeSpace=typeof actionsLeft==='number'?Math.max(0,Math.floor(actionsLeft-laneLeft-10)):leftHalfSpace;
+    const laneWidth=Math.max(0,Math.min(parentWidth,leftHalfSpace,actionSafeSpace));
     subtitleLane.style.setProperty('--rekixo-subtitle-lane-width',laneWidth+'px');
   }
   function stopDesktopSubtitleAnimation(){
@@ -3369,6 +3392,9 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     plots.forEach(p=>{const row=live.get(p.id);if(row){const shape={points:p.points,center:p.center,path:p.path};Object.assign(p,row,shape)}const el=svg.querySelector(`[data-plot-id="${p.id}"]`);if(el)el.dataset.status=plotStatus(p)});
     applyContactChannels(s);
     MAP_URL=s.mapUrl||'';
+    // Recheck from canonical tenant data as well as the iframe URL (custom-domain safe).
+    document.body.classList.toggle('dungar-compact-header',
+      String(data.slug||REKIXO_PROJECT_SLUG||'').trim()==='hree-dungar-residency-9176ee');
     const resolvedName=String(s.projectName||data.projectName||'Project').trim()||'Project';
     // GEETAI_GROUP_MOBILE_WHATSAPP_V1: no change to any other public project.
     const geetaiGroup=resolvedName.replace(/\s+/g,' ').toUpperCase()==='GEETAI GROUP';
