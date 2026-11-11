@@ -153,7 +153,8 @@ export async function GET(request: Request) {
         adminHost: project?.adminHost || null,
         plots: plotRows.map((row) => ({ ...row.plot, adminDetails: canonicalPlotAdminDetails(row.adminDetails) })),
         settings: session.role === "client_admin" ? pickClientVisibleSettings(allSettings) : allSettings,
-        gallery: galleryRows,
+        gallery: galleryRows.filter((row) => row.category === "gallery"),
+        amenities: galleryRows.filter((row) => row.category === "amenity"),
       },
       { headers: { "cache-control": "private, no-store" } },
     );
