@@ -1612,7 +1612,10 @@ async function rekixoFetchPublicData(){
           headers:{accept:'application/json'},
         }).catch(()=>null);
     const response=await fetch('/api/public-data'+structuralQuery,{
-      cache:preview?'no-store':'default',
+      // A title correction must not read a year-old immutable structural payload.
+      // Limit bypass to revisioned sites and the legacy Dungar URL that was
+      // distributed before the title revision existed.
+      cache:preview||Boolean(REKIXO_PARAMS.get('dataRevision'))||REKIXO_PROJECT_SLUG==='hree-dungar-residency-9176ee'?'no-store':'default',
       signal:controller.signal,
       headers:{accept:'application/json'},
     });

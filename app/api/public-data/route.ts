@@ -63,6 +63,7 @@ const PUBLIC_SETTING_KEYS = new Set([
   "shareTitle",
   "shareDescription",
   "shareImage",
+  "publicDataRevision",
 ]);
 
 const LEGACY_PROJECT = "tiyansh-prime-square";
@@ -583,7 +584,10 @@ export async function GET(request: Request) {
           "cache-control":
             structuralOnly &&
             snapshotReady &&
-            Number(requestUrl.searchParams.get("pv")) === Number(project.publishVersion || 0)
+            Number(requestUrl.searchParams.get("pv")) === Number(project.publishVersion || 0) &&
+            // Text revisions must not reuse the immutable geometry-era response.
+            // Unchanged, non-revisioned tenants retain their fast structural cache.
+            !publicSettings.publicDataRevision
               ? "public,max-age=31536000,immutable"
               : "no-store",
           "x-rekixo-project": projectId,
