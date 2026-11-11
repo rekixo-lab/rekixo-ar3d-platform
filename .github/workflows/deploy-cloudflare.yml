@@ -102,6 +102,34 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      - name: Verify SHREE DUNGAR RESIDENCY title on production D1
+        # The one-time correction is verified immediately after migration, before Workers deploy.
+        # Only the named fix merge triggers this project-specific guard.
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, 'SHREE DUNGAR RESIDENCY')
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute tiyansh-production --remote --json --command "
+            SELECT p.slug,p.name,p.publish_version AS publishVersion,
+                   s.project_name AS snapshotName,s.publish_version AS snapshotVersion,
+                   (SELECT value FROM settings WHERE project_id=p.id AND key='projectName') AS draftName,
+                   (SELECT value FROM published_settings WHERE project_id=p.id AND key='projectName') AS publishedName,
+                   (SELECT value FROM settings WHERE project_id=p.id AND key='shareTitle') AS draftShareTitle,
+                   (SELECT value FROM published_settings WHERE project_id=p.id AND key='shareTitle') AS publishedShareTitle,
+                   (SELECT value FROM settings WHERE project_id=p.id AND key='shareDescription') AS draftShareDescription,
+                   (SELECT value FROM published_settings WHERE project_id=p.id AND key='shareDescription') AS publishedShareDescription,
+                   (SELECT value FROM settings WHERE project_id=p.id AND key='brandName') AS draftBrandName,
+                   (SELECT value FROM published_settings WHERE project_id=p.id AND key='brandName') AS publishedBrandName
+            FROM projects p
+            LEFT JOIN project_public_snapshots s ON s.project_id=p.id
+            WHERE p.slug='hree-dungar-residency-9176ee'
+            LIMIT 1;
+          " > /tmp/shree-dungar-title.json
+          node scripts/verify-shree-dungar-title.mjs /tmp/shree-dungar-title.json
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       # This SQL has an exact project/37-row/image guard and durable backups.
       # It changes draft only; the previous 37-plot public snapshot stays live
       # until the 36 new masterplan polygons are mapped and Publish Update runs.
