@@ -21,6 +21,18 @@ export const soldPdfIds=[
   "C-1",...range(6,9,"C-"),...range(23,29,"C-"),"C-36","C-86"
 ];
 
+// Production D1 read-only inventory (2026-11-11) confirmed these exact legacy ID forms.
+// The PDF's B-block composite labels refer to the existing paired plots below.
+// Preserve the real IDs; do not invent separate B-21 or B-22 database plots.
+export const pdfIdToProductionId=Object.freeze({
+  "01":"1","02":"2","03":"3","04":"4","05":"5",
+  "06":"6","07":"7","08":"8","09":"9",
+  "B-19 & B-20 B-21":"B-19,B-20",
+  "B-22 & B-23-24":"B-23,B-24"
+});
+export const productionIdOf=(pdfId)=>pdfIdToProductionId[pdfId]||pdfId;
+export const allProductionIds=allPdfIds.map(productionIdOf);
+export const soldProductionIds=soldPdfIds.map(productionIdOf);
 export const pdfPageSoldCounts=[39,43,37,31,12,1];
 export const villaSoldIds=["125","126"];
 export const expectedTotal=257,expectedSold=163,expectedUnmarked=94;
@@ -31,5 +43,9 @@ export function validatePdfReference(){
     soldPdfIds.length!==expectedSold)throw Error("PDF reference counts changed");
   if(soldPdfIds.some(id=>!all.has(id)))throw Error("SOLD list contains missing plot ID");
   if(villaSoldIds.some(id=>!sold.has(id)))throw Error("VILA SOLD not included");
-  return {all,sold};
+  const dbAll=new Set(allProductionIds),dbSold=new Set(soldProductionIds);
+  if(dbAll.size!==expectedTotal||dbSold.size!==expectedSold)
+    throw Error("PDF -> production ID mapping collides or drops a plot");
+  if(soldProductionIds.some(id=>!dbAll.has(id)))throw Error("Mapped SOLD ID not in inventory");
+  return {all,sold,dbAll,dbSold};
 }
