@@ -63,6 +63,10 @@ jobs:
         run: npm install --prefix /tmp/rekixo-browser --no-package-lock playwright@1.55.0
       - name: Install Chromium
         run: /tmp/rekixo-browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: SHREE Dungar subtitle left-half and header action protection
+        run: node scripts/verify-dungar-header-layout.mjs
+        env:
+          PLOT_PLAYWRIGHT_MODULE: /tmp/rekixo-browser/node_modules/playwright/index.mjs
       - name: Public runtime desktop/mobile E2E
         run: node scripts/verify-public-runtime-e2e.mjs
         env:
