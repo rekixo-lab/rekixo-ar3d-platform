@@ -63,14 +63,26 @@ test("GEETAI mobile header has breathing room around all three actions at small 
   assert.match(html, /@media\(max-width:360px\)\{[\s\S]*?body\.geetai-mobile-whatsapp \.head-actions\{gap:6px\}/);
 });
 
-test("GEETAI alone uses the stroke-based WhatsApp SVG; other tenants and desktop keep the previous icon", () => {
+test("GEETAI header reuses the exact WhatsApp SVG from the plot sidebar", () => {
   const header = html.slice(html.indexOf('<header class="header">'), html.indexOf('</header>'));
-  const waButton = header.match(/<button class="header-whatsapp" id="waTop"[\s\S]*?<\/button>/)?.[0];
-  assert.ok(waButton);
-  assert.equal((waButton.match(/<svg /g) || []).length, 2);
-  assert.match(waButton, /<svg class="geetai-wa-outline"[^>]*fill="none"[^>]*stroke="currentColor"[^>]*stroke-width="1\.8"/);
-  assert.match(html, /#waTop \.geetai-wa-outline\{display:none\}/);
-  assert.match(html, /body\.geetai-mobile-whatsapp #waTop svg:not\(\.geetai-wa-outline\)\{display:none\}/);
-  assert.match(html, /body\.geetai-mobile-whatsapp #waTop svg\.geetai-wa-outline\{[\s\S]*?fill:none;stroke:currentColor;stroke-width:1\.8/);
+  const headerButton = header.match(/<button class="header-whatsapp" id="waTop"[\s\S]*?<\/button>/)?.[0];
+  const sidebarButton = html.match(/<button class="action wa" id="waBtn"[\s\S]*?<\/button>/)?.[0];
+  assert.ok(headerButton);
+  assert.ok(sidebarButton);
+
+  const svgPath = (source) => source.match(/<svg[^>]*><path d="([^"]+)"/)?.[1];
+  assert.equal(svgPath(headerButton), svgPath(sidebarButton));
+  assert.equal((headerButton.match(/<svg /g) || []).length, 1);
+  assert.doesNotMatch(html, /geetai-wa-outline/);
+  assert.match(html, /body\.geetai-mobile-whatsapp #waTop svg\{\s*display:block;width:20px;height:20px;flex:none;fill:currentColor/);
+});
+
+test("GEETAI Call -> WhatsApp -> Client Admin order and WhatsApp button style remain unchanged", () => {
+  assert.match(html, /body\.geetai-mobile-whatsapp #callTop\{order:1\}/);
+  assert.match(html, /body\.geetai-mobile-whatsapp #waTop\{\s*order:2;display:inline-flex/);
+  assert.match(html, /body\.geetai-mobile-whatsapp #outlineTop\{order:3\}/);
+  assert.match(html, /width:36px;height:36px;min-width:36px;padding:6px;box-sizing:border-box;/);
+  assert.match(html, /border-radius:11px;border:1px solid #12b95e;/);
+  assert.match(html, /background:#13c968;color:#fff;box-shadow:0 6px 14px #0004/);
   assert.match(html, /body\.geetai-mobile-whatsapp #waTop span\{display:none\}/);
 });
