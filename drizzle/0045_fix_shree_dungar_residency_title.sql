@@ -17,7 +17,12 @@ WHERE project_id IN (
     AND name='SHREE DUNGAR RESIDENCY'
 )
 AND key IN ('projectName','brandName','shareTitle','shareDescription')
-AND instr(lower(value),'hree dungar residency')>0;
+AND instr(lower(value),'hree dungar residency')>0
+-- Prevent an already-correct SHREE from matching its interior "HREE" substring.
+AND (
+  instr(lower(value),'hree dungar residency')=1
+  OR lower(substr(value,instr(lower(value),'hree dungar residency')-1,1)) NOT GLOB '[a-z0-9]'
+);
 
 -- Only the original auto-generated short brand is corrected; custom brands are unchanged.
 UPDATE settings
@@ -47,7 +52,12 @@ WHERE project_id IN (
     AND name='SHREE DUNGAR RESIDENCY'
 )
 AND key IN ('projectName','brandName','shareTitle','shareDescription')
-AND instr(lower(value),'hree dungar residency')>0;
+AND instr(lower(value),'hree dungar residency')>0
+-- Prevent an already-correct SHREE from matching its interior "HREE" substring.
+AND (
+  instr(lower(value),'hree dungar residency')=1
+  OR lower(substr(value,instr(lower(value),'hree dungar residency')-1,1)) NOT GLOB '[a-z0-9]'
+);
 
 UPDATE published_settings
 SET value='SDR'
