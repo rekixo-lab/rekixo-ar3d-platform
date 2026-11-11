@@ -1,0 +1,202 @@
+-- SHREE DUNGAR RESIDENCY: one-time status-only update from Dungar_Residency_Block.pdf.
+-- Source: six pages, 257 rows, 161 SOLD + 2 VILA SOLD = 163; 94 unmarked.
+-- Confirmed against the 257 existing production D1 plot IDs via read-only PR preflight.
+-- Preserve plot IDs, sizes, polygons, geo mapping, title, published snapshot, and all other projects.
+-- Existing canonical plots status is live-overlaid on the published customer website.
+-- Every guard is intentionally scoped to the exact original slug and corrected project name.
+WITH
+  target(project_id) AS (
+    SELECT id FROM projects
+    WHERE slug='hree-dungar-residency-9176ee'
+      AND name='SHREE DUNGAR RESIDENCY'
+      AND status='active' AND public_status='published'
+      AND EXISTS (
+        SELECT 1 FROM project_public_snapshots s
+        WHERE s.project_id=projects.id AND s.publish_version=projects.publish_version
+      )
+  ),
+  pdf_sold(id) AS (VALUES
+    ('2'),
+    ('3'),
+    ('4'),
+    ('5'),
+    ('6'),
+    ('7'),
+    ('8'),
+    ('10'),
+    ('11'),
+    ('12'),
+    ('13'),
+    ('14'),
+    ('15'),
+    ('16'),
+    ('17'),
+    ('18'),
+    ('19'),
+    ('20'),
+    ('21'),
+    ('22'),
+    ('24'),
+    ('25'),
+    ('26'),
+    ('27'),
+    ('28'),
+    ('29'),
+    ('30'),
+    ('31'),
+    ('32'),
+    ('33'),
+    ('34'),
+    ('35'),
+    ('36'),
+    ('37'),
+    ('38'),
+    ('39'),
+    ('40'),
+    ('41'),
+    ('42'),
+    ('43'),
+    ('44'),
+    ('45'),
+    ('46'),
+    ('47'),
+    ('48'),
+    ('49'),
+    ('50'),
+    ('51'),
+    ('52'),
+    ('53'),
+    ('54'),
+    ('55'),
+    ('56'),
+    ('57'),
+    ('58'),
+    ('59'),
+    ('60'),
+    ('61'),
+    ('62'),
+    ('64'),
+    ('65'),
+    ('66'),
+    ('67'),
+    ('68'),
+    ('69'),
+    ('70'),
+    ('71'),
+    ('72'),
+    ('73'),
+    ('74'),
+    ('75'),
+    ('76'),
+    ('77'),
+    ('78'),
+    ('79'),
+    ('80'),
+    ('81'),
+    ('82'),
+    ('83'),
+    ('84'),
+    ('85'),
+    ('86'),
+    ('88'),
+    ('89'),
+    ('90'),
+    ('91'),
+    ('92'),
+    ('93'),
+    ('94'),
+    ('95'),
+    ('96'),
+    ('97'),
+    ('98'),
+    ('99'),
+    ('100'),
+    ('101'),
+    ('102'),
+    ('103'),
+    ('104'),
+    ('105'),
+    ('106'),
+    ('107'),
+    ('108'),
+    ('109'),
+    ('110'),
+    ('111'),
+    ('112'),
+    ('115'),
+    ('116'),
+    ('117'),
+    ('118'),
+    ('124'),
+    ('125'),
+    ('126'),
+    ('22A'),
+    ('22B'),
+    ('43A'),
+    ('43B'),
+    ('62A'),
+    ('62B'),
+    ('86A'),
+    ('86B'),
+    ('B-1'),
+    ('B-2'),
+    ('B-3'),
+    ('B-4'),
+    ('B-5'),
+    ('B-6'),
+    ('B-9'),
+    ('B-10'),
+    ('B-11'),
+    ('B-12'),
+    ('B-13'),
+    ('B-14'),
+    ('B-15'),
+    ('B-16'),
+    ('B-17'),
+    ('B-18'),
+    ('B-19,B-20'),
+    ('B-23,B-24'),
+    ('B-26'),
+    ('B-28'),
+    ('B-29'),
+    ('B-30'),
+    ('B-31'),
+    ('B-32'),
+    ('B-33'),
+    ('B-34'),
+    ('B-35'),
+    ('C-1'),
+    ('C-6'),
+    ('C-7'),
+    ('C-8'),
+    ('C-9'),
+    ('C-23'),
+    ('C-24'),
+    ('C-25'),
+    ('C-26'),
+    ('C-27'),
+    ('C-28'),
+    ('C-29'),
+    ('C-36'),
+    ('C-86')
+  )
+UPDATE plots
+SET status='sold', updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+WHERE project_id=(SELECT project_id FROM target)
+  AND inventory_active=1
+  AND status='available'
+  AND id IN (SELECT id FROM pdf_sold)
+  AND (SELECT COUNT(*) FROM plots
+       WHERE project_id=(SELECT project_id FROM target)
+         AND inventory_active=1)=257
+  AND (SELECT COUNT(*) FROM plots
+       WHERE project_id=(SELECT project_id FROM target)
+         AND inventory_active=1
+         AND id IN (SELECT id FROM pdf_sold))=163
+  AND NOT EXISTS (
+    SELECT 1 FROM plots
+    WHERE project_id=(SELECT project_id FROM target)
+      AND inventory_active=1
+      AND id IN (SELECT id FROM pdf_sold)
+      AND status NOT IN ('available','sold')
+  );

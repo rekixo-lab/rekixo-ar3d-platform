@@ -94,6 +94,31 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      # Status-only production update: fail closed before D1 migration if even one
+      # of the 257 existing mapped plot IDs differs from the uploaded PDF.
+      - name: Preflight Dungar PDF SOLD inventory (read-only production D1)
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, 'Dungar PDF SOLD status')
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute tiyansh-production --remote --config wrangler.jsonc --json --command "
+            SELECT
+              p.slug,p.name AS projectName,p.public_status AS publicStatus,
+              p.publish_version AS publishVersion,s.publish_version AS snapshotVersion,
+              x.id AS plotId,x.status,x.inventory_active AS inventoryActive,
+              x.sqft,x.sqm,x.sqyd,x.dimensions,x.road,x.polygon,x.featured,
+              x.updated_at AS updatedAt
+            FROM projects p
+            JOIN plots x ON x.project_id=p.id AND x.inventory_active=1
+            LEFT JOIN project_public_snapshots s ON s.project_id=p.id
+            WHERE p.slug='hree-dungar-residency-9176ee'
+            ORDER BY x.id;
+          " > /tmp/dungar-sold-before.json
+          node scripts/verify-dungar-pdf-sold.mjs preflight /tmp/dungar-sold-before.json
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       # Additive migrations run before the new V5 Workers. Existing legacy Worker
       # remains compatible while the columns/table are being added.
       - name: Apply D1 migrations
@@ -126,6 +151,29 @@ jobs:
             LIMIT 1;
           " > /tmp/shree-dungar-title.json
           node scripts/verify-shree-dungar-title.mjs /tmp/shree-dungar-title.json
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Verify Dungar PDF SOLD statuses against production D1
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, 'Dungar PDF SOLD status')
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute tiyansh-production --remote --config wrangler.jsonc --json --command "
+            SELECT
+              p.slug,p.name AS projectName,p.public_status AS publicStatus,
+              p.publish_version AS publishVersion,s.publish_version AS snapshotVersion,
+              x.id AS plotId,x.status,x.inventory_active AS inventoryActive,
+              x.sqft,x.sqm,x.sqyd,x.dimensions,x.road,x.polygon,x.featured,
+              x.updated_at AS updatedAt
+            FROM projects p
+            JOIN plots x ON x.project_id=p.id AND x.inventory_active=1
+            LEFT JOIN project_public_snapshots s ON s.project_id=p.id
+            WHERE p.slug='hree-dungar-residency-9176ee'
+            ORDER BY x.id;
+          " > /tmp/dungar-sold-after.json
+          node scripts/verify-dungar-pdf-sold.mjs verify /tmp/dungar-sold-before.json /tmp/dungar-sold-after.json
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
