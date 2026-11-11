@@ -20,7 +20,7 @@ test("additive gallery category migration retains legacy Gallery images",()=>{
 test("20-image independent limits exist in UI and atomic server upload",()=>{
   const admin=read("app/admin-dashboard.tsx"),api=read("app/api/gallery/route.ts");
   assert.match(admin,/slots=20-mediaItems\.length/);
-  assert.match(admin,/mediaItems\.length\/20 uploaded/);
+  assert.match(admin,/mediaItems\.length\}\/20 uploaded/);
   assert.match(admin,/\["amenities",Building2,"Amenities"\]/);
   assert.match(admin,/data\.append\("category",mediaCategory\)/);
   assert.match(api,/MAX_IMAGES_PER_CATEGORY=20/);
