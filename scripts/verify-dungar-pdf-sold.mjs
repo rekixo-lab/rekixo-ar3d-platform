@@ -14,7 +14,8 @@ function readWrangler(path){
   return rows;
 }
 function compareIds(rows){
-  const {all,sold}=validatePdfReference();
+  const {dbAll,dbSold}=validatePdfReference();
+  const all=dbAll,sold=dbSold;
   const actual=new Set(rows.map(x=>String(x.plotId)));
   const missing=[...all].filter(x=>!actual.has(x));
   const extra=[...actual].filter(x=>!all.has(x));
@@ -47,7 +48,7 @@ function preflight(path){
   console.log("Read-only PDF/production preflight PASSED",JSON.stringify({
     slug:projectSlug,PDFRows:expectedTotal,PDFSold:expectedSold,
     currently:counts,willChangeToSold:changes.length,unchanged:expectedTotal-changes.length,
-    combinedIds:["B-19 & B-20 B-21","B-22 & B-23-24"]
+    combinedIds:["B-19,B-20","B-23,B-24"]
   }));
 }
 function verify(beforeFile,afterFile){
