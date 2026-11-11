@@ -33,7 +33,7 @@ test("Dungar revision update targets only the correctly published SHREE project"
     const before=db.prepare("SELECT * FROM plots ORDER BY project_id").all();
     db.exec(migration);
     const rows=db.prepare("SELECT project_id,key,value FROM published_settings WHERE key='publicDataRevision'").all();
-    assert.deepEqual(rows,[{project_id:"target",key:"publicDataRevision",value:revision}]);
+    assert.deepEqual(rows.map(row=>({...row})),[{project_id:"target",key:"publicDataRevision",value:revision}]);
     const after=db.prepare("SELECT * FROM plots ORDER BY project_id").all();
     assert.deepEqual(after,before,"plot geometry or statuses must not change");
     assert.equal(db.prepare("SELECT publish_version FROM projects WHERE id='target'").get().publish_version,13);
