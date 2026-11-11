@@ -181,7 +181,8 @@ function canonicalRuntimePath(pathname: string) {
 // The dynamic Next.js wrapper contains the current publish/data revision.
 // Do not let a browser or edge persist the old iframe URL after metadata edits.
 function isPublicProjectEntry(pathname: string) {
-  return /^\\/projects\\/[^/]+\\/?$/.test(pathname);
+  const segments = pathname.split("/").filter(Boolean);
+  return segments.length === 2 && segments[0] === "projects";
 }
 
 function isPublicProjectRuntimeAsset(pathname: string) {
