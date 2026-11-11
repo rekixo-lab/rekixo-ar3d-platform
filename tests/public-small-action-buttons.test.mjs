@@ -45,7 +45,8 @@ test("button heights, ids, order and icons remain stable", () => {
   assert.match(page, /height:40px/);
   assert.match(page, /height:49px/);
   assert.match(page, /q\('#amenitiesBtn'\)\.onclick=openAmenities/);
-  assert.match(page, /if\(!isMangalRajPark\(\)\)\{toast\('Amenities details not configured'\);return\}/);
+  assert.match(page, /const fallback=isMangalRajPark\(\)/);
+  assert.match(page, /category=amenity/);
   assert.match(page, /document\.getElementById\('amenitiesBtn'\)[\s\S]*document\.getElementById\('galleryBtn'\)[\s\S]*document\.getElementById\('locationBtn'\)/);
 });
 
