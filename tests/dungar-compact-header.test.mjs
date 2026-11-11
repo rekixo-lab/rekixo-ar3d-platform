@@ -7,6 +7,8 @@ test("Dungar header geometry is gated by exact existing published project slug",
   assert.match(html,/DUNGAR_COMPACT_HEADER_SUBTITLE_V1/);
   assert.match(html,/if\(REKIXO_PROJECT_SLUG==='hree-dungar-residency-9176ee'\)document\.body\.classList\.add\('dungar-compact-header'\)/);
   assert.match(html,/document\.body\.classList\.toggle\('dungar-compact-header',[\s\S]*?String\(data\.slug\|\|REKIXO_PROJECT_SLUG\|\|''\)\.trim\(\)==='hree-dungar-residency-9176ee'/);
+  assert.match(html,/body\.dungar-compact-header \.app\{grid-template-columns:minmax\(0,1fr\)\}/);
+  assert.match(html,/body\.dungar-compact-header \.header\{box-sizing:border-box;min-width:0;max-width:100%;width:100%\}/);
   assert.match(html,/body\.dungar-compact-header \.brandrow\{min-width:0;max-width:100%;overflow:visible\}/);
   assert.match(html,/body\.dungar-compact-header \.brand\{min-width:0;flex:1 1 0;max-width:100%;overflow:hidden\}/);
   assert.match(html,/body\.dungar-compact-header \.head-actions\{flex:0 0 auto;flex-shrink:0;z-index:3\}/);
