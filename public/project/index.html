@@ -3368,7 +3368,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     MAP_URL=s.mapUrl||'';
     const resolvedName=String(s.projectName||data.projectName||'Project').trim()||'Project';
     // GEETAI_GROUP_MOBILE_WHATSAPP_V1: no change to any other public project.
-    const geetaiGroup=resolvedName.replace(/\\s+/g,' ').toUpperCase()==='GEETAI GROUP';
+    const geetaiGroup=resolvedName.replace(/\s+/g,' ').toUpperCase()==='GEETAI GROUP';
     document.body.classList.toggle('geetai-mobile-whatsapp',geetaiGroup);
     if(geetaiGroup)WHATSAPP_PHONE='917875137172';
     const resolvedLocation=String(s.location||'').trim();
@@ -3663,7 +3663,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   function projectWhatsappDigits(project){
     const live=window.REKIXO_PUBLIC_DATA;
     const name=safeText(live?.settings?.projectName||live?.projectName||project.projectName)
-      .replace(/\\s+/g,' ').toUpperCase();
+      .replace(/\s+/g,' ').toUpperCase();
     return name==='GEETAI GROUP'
       ? '917875137172'
       : normalizeDigits(project.whatsapp || project.phone1 || FALLBACK.whatsapp);
