@@ -178,7 +178,7 @@ export async function POST(request:Request) {
       return json({error:"This plot is already mapped. Export a backup and remove its polygon individually before changing blocks."},409);
     if(body.action==="move") {
       await env.DB.batch([
-        env.DB.prepare("UPDATE metro_block_plot_maps SET block_key=?,polygon='',side_bindings='',updated_at=? WHERE project_id=? AND plot_id=?").bind(block,now,PROJECT,plotId),
+        env.DB.prepare("UPDATE metro_block_plot_maps SET block_key=?,polygon='',side_bindings='',updated_at=? WHERE project_id=? AND plot_id=? AND polygon=''").bind(block,now,PROJECT,plotId),
         env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
       ]);
     }
