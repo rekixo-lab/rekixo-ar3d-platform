@@ -32,7 +32,7 @@ async function rows(block:MetroBlockKey) {
 }
 function toEditorPlot(row:MapperPlot){
   const {sideBindings,...source}=row;
-  return {...source,...readBlockSides(sideBindings),featured:Boolean(source.featured)};
+  return {...source,...readBlockSides(sideBindings),blockSideRevision:sideBindings,featured:Boolean(source.featured)};
 }
 async function respond(block:MetroBlockKey) {
   const [result,asset,factor]=await Promise.all([
@@ -71,7 +71,7 @@ export async function POST(request:Request) {
   if(!(request.headers.get("content-type")||"").includes("application/json"))return fail("JSON required",415);
   const body=await request.json().catch(()=>null) as null|{
     projectId?:string;block?:string;action?:string;
-    plot?:Record<string,unknown>;expectedPolygon?:string;
+    plot?:Record<string,unknown>;expectedPolygon?:string;expectedBindings?:string;
   };
   if(!body||body.projectId!==PROJECT||!await projectReady())return fail("Wrong project",404);
   const block=metroBlockKey(body.block);
@@ -79,12 +79,12 @@ export async function POST(request:Request) {
   if(body.action!=="save"&&body.action!=="clear")return fail("Only block-scoped plot save/clear is allowed",403);
   const id=typeof body.plot?.id==="string"?body.plot.id.trim():"";
   if(!id||id.length>80||!/^[-\w\s]+$/.test(id))return fail("Valid existing plot ID required",400);
-  if(typeof body.expectedPolygon!=="string")return fail("Expected previous polygon required; reload editor",409);
+  if(typeof body.expectedPolygon!=="string"||typeof body.expectedBindings!=="string")return fail("Expected previous polygon/side revision required; reload editor",409);
   const current=await env.DB.prepare(
     "SELECT m.polygon,m.side_bindings AS sideBindings FROM metro_block_plot_maps m JOIN plots p ON p.project_id=m.project_id AND p.id=m.plot_id AND p.inventory_active=1 WHERE m.project_id=? AND m.block_key=? AND m.plot_id=? LIMIT 1"
   ).bind(PROJECT,block,id).first<{polygon:string;sideBindings:string}>();
   if(!current)return fail("Plot does not belong to this block",404);
-  if(current.polygon!==body.expectedPolygon)return fail("This block plot changed in another tab. Reload before overwriting.",409);
+  if(current.polygon!==body.expectedPolygon||current.sideBindings!==body.expectedBindings)return fail("This block plot or side assignment changed in another tab. Reload before overwriting.",409);
   let polygon="",sides="";
   if(body.action==="save"){
     const original=body.plot?.polygon;
@@ -98,8 +98,8 @@ export async function POST(request:Request) {
   // An optimistic polygon compare prevents stale tabs from overwriting newer draft geometry.
   // The canonical plots/status/sales tables are NEVER modified.
   const change=await env.DB.prepare(
-    "UPDATE metro_block_plot_maps SET polygon=?,side_bindings=?,updated_at=? WHERE project_id=? AND block_key=? AND plot_id=? AND polygon=?"
-  ).bind(polygon,sides,now,PROJECT,block,id,body.expectedPolygon).run();
+    "UPDATE metro_block_plot_maps SET polygon=?,side_bindings=?,updated_at=? WHERE project_id=? AND block_key=? AND plot_id=? AND polygon=? AND side_bindings=?"
+  ).bind(polygon,sides,now,PROJECT,block,id,body.expectedPolygon,body.expectedBindings).run();
   if(!change.meta.changes)return fail("Draft plot changed. Reload and retry.",409);
   await env.DB.prepare(
     "INSERT INTO metro_block_state(project_id,public_enabled,version,draft_revision,updated_at) VALUES (?,0,0,1,?) ON CONFLICT(project_id) DO UPDATE SET draft_revision=draft_revision+1,updated_at=excluded.updated_at"
