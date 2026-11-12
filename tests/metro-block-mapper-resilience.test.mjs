@@ -87,3 +87,21 @@ test("destructive image replacement requires a verified backup, exact typed conf
  assert.match(ui,/sideBindings:m\.sideBindings/);
  assert.match(ui,/disabled=\{busy\|\|Boolean\(map\.polygon\)\}/);
 });
+
+test("publish refuses incomplete/duplicated sides and supports multi-segment irregular plot sides",()=>{
+ const geometry=moduleWith(compile("app/metro-block-safe-geometry.ts"),{});
+ const quad=JSON.stringify([[.1,.1],[.4,.1],[.4,.4],[.1,.4]]);
+ const bindings=sem=>JSON.stringify({frontEdgeIndex:0,backEdgeIndex:2,depthEdgeIndex:1,depth2EdgeIndex:3,
+   edgeSemantics:JSON.stringify(sem)});
+ const valid={version:1,pointCount:4,layout:"four",roles:{front:[0],depthA:[1],back:[2],depthB:[3]}};
+ assert.equal(geometry.blockPublishSideCoverage(quad,bindings(valid)),true);
+ assert.equal(geometry.blockPublishSideCoverage(quad,""),false);
+ assert.equal(geometry.blockPublishSideCoverage(quad,bindings({...valid,roles:{front:[0],depthA:[1],back:[1],depthB:[3]}})),false);
+ const irregular=JSON.stringify([[.1,.1],[.4,.1],[.4,.3],[.3,.45],[.1,.3]]);
+ const three={version:1,pointCount:5,layout:"three",roles:{front:[0],depthA:[1,2],back:[3,4]}};
+ assert.equal(geometry.blockPublishSideCoverage(irregular,bindings(three)),true);
+ const api=read("app/api/admin/metro-blocks/route.ts");
+ const ui=read("app/admin/metro-blocks/metro-block-mapper.tsx");
+ assert.match(api,/invalidSides=d\.maps\.find\(m=>!blockPublishSideCoverage/);
+ assert.match(ui,/mappedSideReviewCount===0/);
+});
