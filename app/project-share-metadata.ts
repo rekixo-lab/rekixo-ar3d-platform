@@ -4,6 +4,7 @@ import { publicSafeText } from "@/app/customer-direction-policy";
 import { headers } from "next/headers";
 import { isPlatformAccessHost, projectBySlug } from "@/modules/public-project";
 import { publicSiteEnabled } from "@/modules/public-site-access";
+import { METRO_BLOCK_PROJECT_ID, METRO_BLOCK_SLUG, publishedMetroBlock } from "@/app/metro-blocks";
 
 // Shared public metadata for /projects/[slug] and standalone custom-domain /.
 const LEGACY_PROJECT = "tiyansh-prime-square";
@@ -114,7 +115,18 @@ async function readProjectMeta(slug: string) {
   const shareImagePath = settings.shareImage
     ? `/api/project-asset/shareCard?projectId=${encodeURIComponent(project.id)}&v=${encodeURIComponent(settings.shareVersion || "1")}&public=1`
     : "";
-  const imagePath = shareImagePath || logoPath;
+  // METRO selector: use Share Builder's existing branded image first. When
+  // no branded poster was published, provide a real published Block A preview
+  // (rather than a text-only WhatsApp link). Never expose editable drafts.
+  let metroFallbackImagePath = "";
+  if (project.id === METRO_BLOCK_PROJECT_ID && !shareImagePath) {
+    try {
+      const liveBlock = await publishedMetroBlock(project.id, "a");
+      if (liveBlock) metroFallbackImagePath =
+        `/api/project-asset/masterplan?projectSlug=${encodeURIComponent(METRO_BLOCK_SLUG)}&block=a&variant=public&bv=${liveBlock.state.version}`;
+    } catch (error) { console.error("METRO OG block fallback unavailable", error); }
+  }
+  const imagePath = shareImagePath || metroFallbackImagePath || logoPath;
   const imageUrl =
     imagePath && origin ? new URL(imagePath, origin).toString() : imagePath || "";
   const logoUrl =
@@ -127,7 +139,7 @@ async function readProjectMeta(slug: string) {
     description,
     imageUrl,
     logoUrl,
-    hasShareImage: Boolean(settings.shareImage),
+    hasShareImage: Boolean(settings.shareImage || metroFallbackImagePath),
     brandName: brandName || "AR 3D Vision",
     origin,
     canonicalShareUrl,
