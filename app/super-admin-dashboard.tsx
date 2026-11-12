@@ -111,6 +111,11 @@ export default function SuperAdminDashboard({
           </option>
         ))}
       </select>
+      {projectId==="c024a562-634d-4e49-b647-43209f6e450b" ? (
+        <a className="mapper-preview-link" href="/admin/metro-blocks" style={{color:"#69d9b2",fontWeight:700}}>
+          <MapPinned /> METRO CITY · Block A/B/C Mapper
+        </a>
+      ) : null}
       {projectId ? (
         <a
           className="mapper-preview-link"
