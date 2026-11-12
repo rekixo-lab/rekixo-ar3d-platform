@@ -75,6 +75,13 @@ function harness() {
     "@/modules/auth": { getAdminSession: async () => state.session },
     "@/modules/projects": { publicProjectId: async () => state.published ? "a" : null },
     "@/modules/public-publish-snapshot": snapshot,
+    // Legacy test fixture is deliberately a non-Metro project. The new block
+    // resolver cannot intercept its historical original-image provenance.
+    "@/app/metro-blocks": {
+      METRO_BLOCK_PROJECT_ID: "c024a562-634d-4e49-b647-43209f6e450b",
+      metroBlockKey: () => null,
+      metroBlockImageResponse: () => { throw Error("Legacy masterplan may not enter Metro block image path"); },
+    },
     "@/modules/public-site-access": {
       publicSiteEnabled: async () => state.enabled,
       publicSiteUnavailableResponse: () => new Response("Unavailable", { status: 503 }),

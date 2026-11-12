@@ -9,6 +9,7 @@ import {
 import { and, desc, eq } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import {metroAgreementEnabled,metroAgreementValues} from "@/app/metro-agreement";
+import {METRO_BLOCK_PROJECT_ID,metroBlockKey,publishedMetroBlockMap} from "@/app/metro-blocks";
 import { getAdminSession } from "@/modules/auth";
 import { plotFacingText, plotFacingTextForNorthAngle } from "@/modules/plots";
 import { FUTURE_INVEST_REALTY_ID,publicSafeFacing, publicSafeText, publicSafeSideSemantics } from "@/app/customer-direction-policy";
@@ -367,6 +368,25 @@ export async function GET(request: Request) {
         key, customerTextSettings.has(key) ? publicSafeText(projectId, value) : value,
       ]),
     );
+    // New block data never modifies the canonical inventory or existing published plot map.
+    const rawBlock = projectId === METRO_BLOCK_PROJECT_ID ? requestUrl.searchParams.get("block") : null;
+    const blockKey = rawBlock !== null ? metroBlockKey(rawBlock) : null;
+    if (rawBlock !== null && (!blockKey || previewId)) return Response.json({error:"Block unavailable"},{status:404,headers:{"cache-control":"no-store"}});
+    const blockPlan = blockKey ? await publishedMetroBlockMap(projectId,blockKey) : null;
+    if (blockKey && !blockPlan) return Response.json({error:"Block not published"},{status:404,headers:{"cache-control":"no-store"}});
+    if(blockPlan && requestUrl.searchParams.get("bv") && requestUrl.searchParams.get("bv")!==String(blockPlan.state.version))return Response.json({error:"Block version changed"},{status:409,headers:{"cache-control":"no-store"}});
+    const blockGeometryByPlot = new Map((blockPlan?.maps||[]).map(m=>[m.plotId,m.polygon]));
+    if(blockPlan) {
+      safePublicSettings.mapWidth=String(blockPlan.asset.width);
+      safePublicSettings.mapHeight=String(blockPlan.asset.height);
+      safePublicSettings.masterplanName=`METRO CITY BLOCK ${blockKey?.toUpperCase()}`;
+      safePublicSettings.publicRotation="0";
+      safePublicSettings.masterplanNorthAngle=String(blockPlan.asset.northAngle);
+      safePublicSettings.plotFacingEnabled="0";
+      safePublicSettings.publicInitialViewMode="plots";
+      safePublicSettings.publicInitialFocusX="0.5";
+      safePublicSettings.publicInitialFocusY="0.5";
+    }
     const pricingEnabled = publicSettings.pricingEnabled === "1";
     const plotFacingEnabled = publicSettings.plotFacingEnabled === "1";
     const plotNorthDirection = publicSettings.plotNorthDirection || "top";
@@ -450,7 +470,7 @@ export async function GET(request: Request) {
         adminUrl: customerAdminUrl,
         platformUrl: links.platformUrl,
         engine3d,
-        plots: plotRows.map((plot) => {
+        plots: plotRows.filter(plot=>!blockPlan||blockGeometryByPlot.has(plot.id)).map((plot) => {
           const calculatedArea = areaPlotById.get(plot.id);
           const plotWithArea = calculatedArea
             ? {
@@ -465,13 +485,22 @@ export async function GET(request: Request) {
             : plot;
           const { notes, ...publicPlot } = plotWithArea;
           void notes;
+          if(blockPlan){
+            publicPlot.polygon=blockGeometryByPlot.get(plot.id)||"";
+            // Saved edge indices refer to the legacy combined-map polygon order.
+            publicPlot.frontEdgeIndex=null;
+            publicPlot.backEdgeIndex=null;
+            publicPlot.depthEdgeIndex=null;
+            publicPlot.depth2EdgeIndex=null;
+            publicPlot.edgeSemantics=null;
+          }
           delete (publicPlot as { inventoryActive?: unknown }).inventoryActive;
           const edgeMeasurements = (edgeMeasurementsByPlot.get(plot.id) || []).map(
             (item) => ({
               role: item.role,
               segmentIndex: item.segmentIndex,
-              edgeIndex: item.edgeIndex,
-              pointCount: item.pointCount,
+              edgeIndex: blockPlan ? null : item.edgeIndex,
+              pointCount: blockPlan ? null : item.pointCount,
               length: item.length,
               unit: item.unit,
               rawLabel: item.rawLabel == null ? item.rawLabel : publicSafeText(projectId, item.rawLabel),
@@ -481,7 +510,7 @@ export async function GET(request: Request) {
           );
           const price = pricingEnabled ? pricingByPlot.get(plot.id) : null;
           let facing = "";
-          if (plotFacingEnabled) {
+          if (plotFacingEnabled && !blockPlan) {
             try {
               const polygon = JSON.parse(String(publicPlot.polygon || "[]")) as unknown;
               if (
