@@ -13,10 +13,16 @@ export function metroBlockKey(raw: unknown): MetroBlockKey | null {
 
 export async function metroBlockState(projectId: string) {
   if (projectId !== METRO_BLOCK_PROJECT_ID) return null;
-  const row = await env.DB.prepare(
-    "SELECT s.public_enabled AS enabled,s.version,p.slug FROM metro_block_state s JOIN projects p ON p.id=s.project_id WHERE s.project_id=? AND p.slug=? AND p.status='active' AND p.public_status='published' LIMIT 1",
-  ).bind(projectId, METRO_BLOCK_SLUG).first<{enabled: number;version: number;slug: string}>();
-  return row && row.enabled === 1 && row.version > 0 ? row : null;
+  try {
+    const row = await env.DB.prepare(
+      "SELECT s.public_enabled AS enabled,s.version,p.slug FROM metro_block_state s JOIN projects p ON p.id=s.project_id WHERE s.project_id=? AND p.slug=? AND p.status='active' AND p.public_status='published' LIMIT 1",
+    ).bind(projectId, METRO_BLOCK_SLUG).first<{enabled: number;version: number;slug: string}>();
+    return row && row.enabled === 1 && row.version > 0 ? row : null;
+  } catch (error) {
+    // A migration that has not been applied must never take the legacy public site down.
+    console.error("METRO block state unavailable; keeping legacy customer site", error);
+    return null;
+  }
 }
 
 export type MetroPublishedMap = {plotId: string; polygon: string; blockKey: MetroBlockKey};
