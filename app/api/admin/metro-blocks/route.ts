@@ -42,9 +42,9 @@ async function load() {
     env.DB.prepare("SELECT id,sqft,dimensions,status FROM plots WHERE project_id=? AND inventory_active=1 ORDER BY id").bind(PROJECT).all<PlotRow>(),
     env.DB.prepare("SELECT block_key AS blockKey,draft_object_key AS draftObjectKey,draft_width AS draftWidth,draft_height AS draftHeight,draft_filename AS draftFilename,draft_north_angle AS northAngle,published_object_key AS publishedObjectKey,published_version AS publishedVersion FROM metro_block_assets WHERE project_id=? ORDER BY block_key").bind(PROJECT).all<BlockAsset>(),
     env.DB.prepare("SELECT plot_id AS plotId,block_key AS blockKey,polygon FROM metro_block_plot_maps WHERE project_id=? ORDER BY plot_id").bind(PROJECT).all<BlockMap>(),
-    env.DB.prepare("SELECT public_enabled AS enabled,version FROM metro_block_state WHERE project_id=?").bind(PROJECT).first<{enabled:number;version:number}>(),
+    env.DB.prepare("SELECT public_enabled AS enabled,version,draft_revision AS draftRevision FROM metro_block_state WHERE project_id=?").bind(PROJECT).first<{enabled:number;version:number;draftRevision:number}>(),
   ]);
-  return {plots:plots.results,assets:assets.results,maps:maps.results,state:state||{enabled:0,version:0}};
+  return {plots:plots.results,assets:assets.results,maps:maps.results,state:state||{enabled:0,version:0,draftRevision:0}};
 }
 export async function GET() {
   const actor=await requireSuperAdmin();
@@ -78,11 +78,13 @@ export async function POST(request:Request) {
     await env.DB.batch([
       env.DB.prepare("INSERT INTO metro_block_assets (project_id,block_key,draft_object_key,draft_width,draft_height,draft_filename,draft_north_angle,updated_at) VALUES (?,?,?,?,?,?,0,?) ON CONFLICT(project_id,block_key) DO UPDATE SET draft_object_key=excluded.draft_object_key,draft_width=excluded.draft_width,draft_height=excluded.draft_height,draft_filename=excluded.draft_filename,draft_north_angle=0,updated_at=excluded.updated_at").bind(PROJECT,block,key,width,height,file.name.slice(0,200),now),
       env.DB.prepare("UPDATE metro_block_plot_maps SET polygon='',updated_at=? WHERE project_id=? AND block_key=?").bind(now,PROJECT,block),
+      env.DB.prepare("INSERT OR IGNORE INTO metro_block_state(project_id,public_enabled,version,draft_revision,updated_at) VALUES (?,0,0,0,?)").bind(PROJECT,now),
+      env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
     ]);
     await writeAudit(actor,"metro.block_image_draft_uploaded",PROJECT,block,{width,height,size:file.size,draftPolygonsReset:true});
     return json({ok:true,block,width,height});
   }
-  const body=await request.json().catch(()=>null) as null|{action?:string;block?:string;plotId?:string;polygon?:unknown;expectedVersion?:number;confirmation?:string};
+  const body=await request.json().catch(()=>null) as null|{action?:string;block?:string;plotId?:string;polygon?:unknown;expectedVersion?:number;expectedDraftRevision?:number;confirmation?:string};
   if(!body||!body.action)return json({error:"Action required"},400);
   const now=new Date().toISOString();
   if(body.action==="initialize") {
@@ -96,6 +98,7 @@ export async function POST(request:Request) {
     await env.DB.batch([
       env.DB.prepare("INSERT OR IGNORE INTO metro_block_state (project_id,public_enabled,version,updated_at) VALUES (?,0,0,?)").bind(PROJECT,now),
       env.DB.prepare("INSERT INTO metro_block_plot_maps (project_id,plot_id,block_key,polygon,updated_at) SELECT project_id,id,CASE WHEN UPPER(id) LIKE 'B-%' OR UPPER(id) GLOB 'B[0-9]*' THEN 'b' WHEN UPPER(id) LIKE 'C-%' OR UPPER(id) GLOB 'C[0-9]*' THEN 'c' ELSE 'a' END,'',? FROM plots WHERE project_id=? AND inventory_active=1").bind(now,PROJECT),
+      env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
     ]);
     await writeAudit(actor,"metro.block_draft_initialized",PROJECT,null,{plots:d.plots.length,geometryPreserved:true});
     return json({ok:true,plots:d.plots.length});
@@ -104,7 +107,10 @@ export async function POST(request:Request) {
     const block=metroBlockKey(body.block);
     const angle=Number((body as {angle?:number}).angle);
     if(!block||!Number.isFinite(angle)||angle<0||angle>=360)return json({error:"North angle must be between 0 and 359.999 degrees"},400);
-    await env.DB.prepare("UPDATE metro_block_assets SET draft_north_angle=?,updated_at=? WHERE project_id=? AND block_key=?").bind(angle,now,PROJECT,block).run();
+    await env.DB.batch([
+      env.DB.prepare("UPDATE metro_block_assets SET draft_north_angle=?,updated_at=? WHERE project_id=? AND block_key=?").bind(angle,now,PROJECT,block),
+      env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
+    ]);
     await writeAudit(actor,"metro.block_north_calibrated",PROJECT,block,{angle});
     return json({ok:true,block,angle});
   }
@@ -115,11 +121,17 @@ export async function POST(request:Request) {
     const existing=await env.DB.prepare("SELECT 1 FROM metro_block_plot_maps WHERE project_id=? AND plot_id=?").bind(PROJECT,plotId).first();
     if(!existing)return json({error:"Initialize and select an active plot first"},409);
     if(body.action==="move") {
-      await env.DB.prepare("UPDATE metro_block_plot_maps SET block_key=?,polygon='',updated_at=? WHERE project_id=? AND plot_id=?").bind(block,now,PROJECT,plotId).run();
+      await env.DB.batch([
+        env.DB.prepare("UPDATE metro_block_plot_maps SET block_key=?,polygon='',updated_at=? WHERE project_id=? AND plot_id=?").bind(block,now,PROJECT,plotId),
+        env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
+      ]);
     } else {
       const polygon=normalizePolygon(body.polygon);
       if(!polygon)return json({error:"Polygon invalid: minimum 3 distinct non-intersecting normalized points required"},400);
-      await env.DB.prepare("UPDATE metro_block_plot_maps SET polygon=?,updated_at=? WHERE project_id=? AND plot_id=? AND block_key=?").bind(polygon,now,PROJECT,plotId,block).run();
+      await env.DB.batch([
+        env.DB.prepare("UPDATE metro_block_plot_maps SET polygon=?,updated_at=? WHERE project_id=? AND plot_id=? AND block_key=?").bind(polygon,now,PROJECT,plotId,block),
+        env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
+      ]);
     }
     await writeAudit(actor,body.action==="move"?"metro.block_plot_moved":"metro.block_polygon_saved",PROJECT,plotId,{block});
     return json({ok:true,plotId,block});
@@ -127,7 +139,7 @@ export async function POST(request:Request) {
   if(body.action==="publish") {
     if(body.confirmation!=="PUBLISH METRO BLOCKS")return json({error:"Explicit publish confirmation required"},400);
     const d=await load();
-    if(Number(body.expectedVersion)!==d.state.version)return json({error:"Draft publish version changed. Refresh first."},409);
+    if(Number(body.expectedVersion)!==d.state.version||Number(body.expectedDraftRevision)!==d.state.draftRevision)return json({error:"Draft changed in another session. Refresh before publishing."},409);
     if(d.maps.length!==d.plots.length)return json({error:"All active inventory plots must belong to exactly one block",total:d.plots.length,mapped:d.maps.length},409);
     const active=new Set(d.plots.map(p=>p.id));
     if(d.maps.some(m=>!active.has(m.plotId)||!normalizePolygon(JSON.parse(m.polygon||"null"))))return json({error:"One or more block boundaries missing/invalid"},409);
@@ -149,7 +161,9 @@ export async function POST(request:Request) {
         env.DB.prepare("DELETE FROM metro_block_published_maps WHERE project_id=?").bind(PROJECT),
         env.DB.prepare("INSERT INTO metro_block_published_maps(project_id,plot_id,block_key,polygon) SELECT project_id,plot_id,block_key,polygon FROM metro_block_plot_maps WHERE project_id=?").bind(PROJECT),
         ...copies.map(c=>env.DB.prepare("UPDATE metro_block_assets SET published_object_key=?,published_width=?,published_height=?,published_north_angle=?,published_version=? WHERE project_id=? AND block_key=?").bind(c.key,c.asset.draftWidth,c.asset.draftHeight,c.asset.northAngle,version,PROJECT,c.block)),
-        env.DB.prepare("UPDATE metro_block_state SET version=?,public_enabled=1,updated_at=? WHERE project_id=? AND version=?").bind(version,now,PROJECT,d.state.version),
+        // An out-of-date revision produces CHECK(public_enabled IN (0,1)) failure.
+        // D1 batch rolls back every published-map and asset pointer change.
+        env.DB.prepare("UPDATE metro_block_state SET public_enabled=CASE WHEN draft_revision=? AND version=? THEN 1 ELSE -1 END,version=?,updated_at=? WHERE project_id=?").bind(d.state.draftRevision,d.state.version,version,now,PROJECT),
       ];
       await env.DB.batch(stmts);
     } catch(error) {
