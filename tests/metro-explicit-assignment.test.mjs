@@ -61,7 +61,8 @@ test("702 active inventory assignments are complete, bound, unique and do not to
     const result=completeMetroAssignments(plots,[{plotId:"Commercial-Gate",block:"b"}]);
     assert.equal(result.ok,true);
     db.exec("BEGIN TRANSACTION");
-    for(const x of result.assignments)db.prepare("INSERT INTO metro_block_plot_maps(project_id,plot_id,block_key,polygon,side_bindings,updated_at) VALUES ('metro',?,?, '','','now')").run(x.plotId,x.block);
+    db.prepare("INSERT INTO metro_block_plot_maps(project_id,plot_id,block_key,polygon,side_bindings,updated_at) SELECT ?,json_extract(item.value,'$.plotId'),json_extract(item.value,'$.block'),'','',? FROM json_each(?) AS item")
+      .run("metro","now",JSON.stringify(result.assignments));
     db.exec("COMMIT");
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM metro_block_plot_maps").get().n,702);
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM plots WHERE polygon='legacy'").get().n,702);
@@ -79,5 +80,7 @@ test("UI prevents initialization until unusual plot IDs are explicitly reviewed"
  assert.match(api,/completeMetroAssignments\(d\.plots,body\.assignments\|\|\[\]\)/);
  assert.match(api,/await env\.DB\.batch\(statements\)/);
  assert.match(api,/INSERT INTO metro_block_plot_maps/);
+ assert.match(api,/FROM json_each\\(\\?\\) AS item/);
+ assert.match(api,/THEN draft_revision\\+1 ELSE -1 END/);
  assert.doesNotMatch(api,/(?:UPDATE|DELETE FROM|INSERT INTO)\s+(?:plots|published_plots|property_sales|plot_admin_details)\b/i);
 });
