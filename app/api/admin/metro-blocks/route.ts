@@ -11,7 +11,7 @@ const json = (value: unknown, status=200) => Response.json(value, {status,header
 
 type PlotRow = {id:string;sqft:number;dimensions:string;status:string};
 type BlockAsset = {blockKey:string;draftObjectKey:string;draftWidth:number;draftHeight:number;draftFilename:string;northAngle:number;publishedObjectKey:string;publishedVersion:number};
-type BlockMap = {plotId:string;blockKey:string;polygon:string};
+type BlockMap = {plotId:string;blockKey:string;polygon:string;sideBindings:string};
 // Unusual plot labels are allowed only if they exactly match an existing active plot.
 const VALID_ID = /^[^\u0000-\u001f\u007f]{1,80}$/;
 function safelyNormalizeSavedPolygon(raw:string) {try{return normalizePolygon(JSON.parse(raw||"null"));}catch{return null}}
@@ -41,7 +41,7 @@ async function load() {
   const [plots,assets,maps,state] = await Promise.all([
     env.DB.prepare("SELECT id,sqft,dimensions,status FROM plots WHERE project_id=? AND inventory_active=1 ORDER BY id").bind(PROJECT).all<PlotRow>(),
     env.DB.prepare("SELECT block_key AS blockKey,draft_object_key AS draftObjectKey,draft_width AS draftWidth,draft_height AS draftHeight,draft_filename AS draftFilename,draft_north_angle AS northAngle,published_object_key AS publishedObjectKey,published_version AS publishedVersion FROM metro_block_assets WHERE project_id=? ORDER BY block_key").bind(PROJECT).all<BlockAsset>(),
-    env.DB.prepare("SELECT plot_id AS plotId,block_key AS blockKey,polygon FROM metro_block_plot_maps WHERE project_id=? ORDER BY plot_id").bind(PROJECT).all<BlockMap>(),
+    env.DB.prepare("SELECT plot_id AS plotId,block_key AS blockKey,polygon,side_bindings AS sideBindings FROM metro_block_plot_maps WHERE project_id=? ORDER BY plot_id").bind(PROJECT).all<BlockMap>(),
     env.DB.prepare("SELECT public_enabled AS enabled,version,draft_revision AS draftRevision FROM metro_block_state WHERE project_id=?").bind(PROJECT).first<{enabled:number;version:number;draftRevision:number}>(),
   ]);
   return {plots:plots.results,assets:assets.results,maps:maps.results,
@@ -138,23 +138,19 @@ export async function POST(request:Request) {
     await writeAudit(actor,"metro.block_north_calibrated",PROJECT,block,{angle});
     return json({ok:true,block,angle});
   }
-  if(body.action==="map"||body.action==="move") {
+  if(body.action==="map")return json({error:"Use the Advanced Block Mapper to save verified geometry and sides"},403);
+  if(body.action==="move") {
     const block=metroBlockKey(body.block);
     const plotId=String(body.plotId||"").trim();
     if(!block||!VALID_ID.test(plotId))return json({error:"Block and Plot ID required"},400);
     const existing=await env.DB.prepare("SELECT block_key AS blockKey FROM metro_block_plot_maps WHERE project_id=? AND plot_id=?").bind(PROJECT,plotId).first<{blockKey:string}>();
     if(!existing)return json({error:"Initialize and select an active plot first"},409);
-    if(body.action==="map"&&existing.blockKey!==block)return json({error:"Plot belongs to a different block; reload mapping"},409);
+    if(existing.blockKey===block)return json({ok:true,block,plotId,unchanged:true});
+    if((await env.DB.prepare("SELECT polygon FROM metro_block_plot_maps WHERE project_id=? AND plot_id=?").bind(PROJECT,plotId).first<{polygon:string}>())?.polygon)
+      return json({error:"This plot is already mapped. Export a backup and remove its polygon individually before changing blocks."},409);
     if(body.action==="move") {
       await env.DB.batch([
         env.DB.prepare("UPDATE metro_block_plot_maps SET block_key=?,polygon='',side_bindings='',updated_at=? WHERE project_id=? AND plot_id=?").bind(block,now,PROJECT,plotId),
-        env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
-      ]);
-    } else {
-      const polygon=normalizePolygon(body.polygon);
-      if(!polygon)return json({error:"Polygon invalid: minimum 3 distinct non-intersecting normalized points required"},400);
-      await env.DB.batch([
-        env.DB.prepare("UPDATE metro_block_plot_maps SET polygon=?,side_bindings='',updated_at=? WHERE project_id=? AND plot_id=? AND block_key=?").bind(polygon,now,PROJECT,plotId,block),
         env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
       ]);
     }
