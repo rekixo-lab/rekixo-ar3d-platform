@@ -2432,6 +2432,7 @@ export default function PlotMapper({
     kind: PlotSideRole,
     direction: EdgeDirection,
   ) {
+    if(blockMode)return notify("Block Mode: Bulk sides disabled; verify each plot separately");
     const selected = mappedPlots.filter((plot) => bulkSemanticIds.has(plot.id));
     if (!selected.length) return notify("Bulk side ke liye pehle plots select karein");
     const eligible =
@@ -2833,6 +2834,7 @@ export default function PlotMapper({
     kind: "masterplan" | "sourcePdf" | "sourceCad" | "plotSheet" | "measurementSheet" | "roadAccessSheet" | "sideMappingSheet" | "logo",
     options: { inventoryConfirmation?: string } = {},
   ) {
+    if(blockMode)return notify("Block Mode: use dedicated draft image uploader above");
     if (completedProject && !["sourcePdf", "logo", "measurementSheet", "roadAccessSheet", "sideMappingSheet"].includes(kind)) {
       notify("Tiyansh completed project locked है");
       return;
@@ -4109,6 +4111,7 @@ export default function PlotMapper({
   }
 
   async function saveCalibration() {
+    if(blockMode)return notify("Block Mode: CAD calibration disabled");
     if (calibrationPairs.length < 4 || !liveMatrix)
       return notify("पहले 4 दूर-दूर calibration pairs बनाएं");
     const error = calibrationPairs.length >= 4 ? calibrationError(liveMatrix, calibrationPairs) : 0;
@@ -4147,6 +4150,7 @@ export default function PlotMapper({
   }
 
   async function publishAutoMatches() {
+    if(blockMode)return notify("Block Mode: CAD Auto Publish disabled");
     const pending = acceptedAutoMatches.filter((match) => !match.plot.polygon);
     if (!pending.length) return notify("Auto-matched new plots बाकी नहीं हैं");
     if (!confirm(`${pending.length} matched plots को clickable 2D + 3D publish करें?`)) return;
@@ -4414,7 +4418,7 @@ export default function PlotMapper({
       className={`mapper-shell auto-cad-mapper${controlsWorkspace ? " mapping-controls-workspace" : ""}`}
       onContextMenu={(event) => event.preventDefault()}
     >
-      {!controlsWorkspace && (
+      {!controlsWorkspace && !blockMode && (
       <div className="card mapper-tools mapper-v2-head">
         <div className="section-title">
           <MousePointer2 />
@@ -4759,7 +4763,7 @@ export default function PlotMapper({
       </div>
       )}
 
-      {cadGeometry && !completedProject && !controlsWorkspace && (
+      {cadGeometry && !completedProject && !controlsWorkspace && !blockMode && (
         <details className="card cad-assistant-card">
           <summary>
             <span><b>Advanced CAD Assistant</b><small>Optional auto-suggestions; normal plot mapping main image par hoti hai.</small></span>
@@ -4928,7 +4932,7 @@ export default function PlotMapper({
             <button
               className="mapper-clear-all"
               type="button"
-              disabled={busy || completedProject || mappedPlots.length === 0}
+              disabled={blockMode || busy || completedProject || mappedPlots.length === 0}
               onClick={requestClearAllSelections}
               aria-label="Clear all saved plot selections"
               title="Remove every saved clickable boundary; plot details and status stay safe"
@@ -5672,7 +5676,7 @@ export default function PlotMapper({
               </div>
             </div>
           )}
-          {!completedProject && bulkSemanticMode && (
+          {!completedProject && !blockMode && bulkSemanticMode && (
             <div className="mapper-actions compact">
               <span>{bulkSemanticIds.size} plots selected · visible mapper direction</span>
               {([
@@ -5735,7 +5739,7 @@ export default function PlotMapper({
         </aside>
       </div>
 
-      {!controlsWorkspace && !completedProject && liveMatrix && acceptedAutoMatches.length > 0 && (
+      {!controlsWorkspace && !completedProject && !blockMode && liveMatrix && acceptedAutoMatches.length > 0 && (
         <div className="card auto-publish-card cad-only-card">
           <div>
             <small>AUTO MATCH REVIEW</small>
