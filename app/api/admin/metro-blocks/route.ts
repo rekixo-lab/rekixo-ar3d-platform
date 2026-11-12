@@ -3,6 +3,7 @@ import { requireSuperAdmin, sameOrigin } from "@/modules/auth";
 import { writeAudit } from "@/modules/audit";
 import { METRO_BLOCK_KEYS, METRO_BLOCK_PROJECT_ID, metroBlockKey } from "@/app/metro-blocks";
 import {previewMetroAssignments,completeMetroAssignments} from "@/app/metro-block-assignment";
+import {createMetroBlockCheckpoint} from "@/app/metro-block-draft-backup";
 
 export const dynamic = "force-dynamic";
 const PROJECT = METRO_BLOCK_PROJECT_ID;
@@ -89,6 +90,16 @@ export async function POST(request:Request) {
   const body=await request.json().catch(()=>null) as null|{action?:string;block?:string;plotId?:string;polygon?:unknown;expectedVersion?:number;expectedDraftRevision?:number;confirmation?:string;assignments?:unknown};
   if(!body||!body.action)return json({error:"Action required"},400);
   const now=new Date().toISOString();
+  if(body.action==="backup") {
+    const block=metroBlockKey(body.block);
+    if(!block)return json({error:"Valid block required"},400);
+    try{
+      const checkpoint=await createMetroBlockCheckpoint(block,"manual");
+      if(!checkpoint.ok)return json({error:checkpoint.error},409);
+      try{await writeAudit(actor,"metro.block_private_checkpoint",PROJECT,block,{checkpoint:checkpoint.id,mapped:checkpoint.mapped})}catch{}
+      return json({ok:true,backupId:checkpoint.id,mapped:checkpoint.mapped,revision:checkpoint.draftRevision});
+    }catch(error){console.error("METRO checkpoint failed",error);return json({error:"Private R2 checkpoint failed; mapping untouched"},503)}
+  }
   if(body.action==="initialize") {
     // A rejected assignment never changes the live plots or draft tables.
     const d=await load();
