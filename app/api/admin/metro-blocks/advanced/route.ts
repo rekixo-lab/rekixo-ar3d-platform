@@ -12,7 +12,7 @@ type MapperPlot={
   dimensionUnit:string|null;frontLabel:string|null;backLabel:string|null;depthLabel:string|null;depth2Label:string|null;
   sideDimensions:string|null;status:string;notes:string;featured:number;
 };
-type DraftAsset={objectKey:string;width:number;height:number;filename:string;northAngle:number};
+type DraftAsset={objectKey:string;width:number;height:number;filename:string;northAngle:number;viewRotation:number};
 const fail=(error:string,status=400)=>Response.json({error},{status,headers:{"cache-control":"no-store"}});
 
 async function projectReady(){
@@ -22,7 +22,7 @@ async function projectReady(){
 }
 async function draftAsset(block:MetroBlockKey) {
   return env.DB.prepare(
-    "SELECT draft_object_key AS objectKey,draft_width AS width,draft_height AS height,draft_filename AS filename,draft_north_angle AS northAngle FROM metro_block_assets WHERE project_id=? AND block_key=?"
+    "SELECT draft_object_key AS objectKey,draft_width AS width,draft_height AS height,draft_filename AS filename,draft_north_angle AS northAngle,draft_view_rotation AS viewRotation FROM metro_block_assets WHERE project_id=? AND block_key=?"
   ).bind(PROJECT,block).first<DraftAsset>();
 }
 async function rows(block:MetroBlockKey) {
@@ -50,7 +50,7 @@ async function respond(block:MetroBlockKey) {
       masterplanOriginalWidth:String(hasImage?asset!.width:1200),
       masterplanOriginalHeight:String(hasImage?asset!.height:1000),
       masterplanNorthAngle:String(hasImage?asset!.northAngle:0),
-      publicRotation:"0",plotFacingEnabled:"1",plotNorthDirection:"top",
+      publicRotation:"0",blockViewRotation:String(asset?.viewRotation??0),plotFacingEnabled:"1",plotNorthDirection:"top",
       sqmToSqftFactor:factor?.value||"10.7639",
     },
     cadGeometry:null,
@@ -71,12 +71,22 @@ export async function POST(request:Request) {
   if(!(request.headers.get("content-type")||"").includes("application/json"))return fail("JSON required",415);
   const body=await request.json().catch(()=>null) as null|{
     projectId?:string;block?:string;action?:string;
-    plot?:Record<string,unknown>;expectedPolygon?:string;expectedBindings?:string;
+    plot?:Record<string,unknown>;expectedPolygon?:string;expectedBindings?:string;rotation?:unknown;
   };
   if(!body||body.projectId!==PROJECT||!await projectReady())return fail("Wrong project",404);
   const block=metroBlockKey(body.block);
   if(!block)return fail("Invalid block",400);
-  if(body.action!=="save"&&body.action!=="clear")return fail("Only block-scoped plot save/clear is allowed",403);
+  if(body.action==="rotation"){
+    const next=body.rotation;
+    if(!Number.isInteger(next)||Number(next)<0||Number(next)>3)return fail("Rotation must be 0, 1, 2 or 3",400);
+    const result=await env.DB.prepare(
+      "UPDATE metro_block_assets SET draft_view_rotation=?,updated_at=? WHERE project_id=? AND block_key=? AND draft_object_key<>''"
+    ).bind(Number(next),new Date().toISOString(),PROJECT,block).run();
+    if(!result.meta.changes)return fail("Block draft image unavailable",409);
+    // Pure admin view orientation: no plot geometry, public snapshot or draft revision changes.
+    return Response.json({ok:true,block,rotation:Number(next)},{headers:{"cache-control":"no-store"}});
+  }
+  if(body.action!=="save"&&body.action!=="clear")return fail("Only block-scoped plot save/clear/rotation is allowed",403);
   const id=typeof body.plot?.id==="string"?body.plot.id.trim():"";
   // Verified against the exact assigned active ID below; combined labels are allowed.
   // Only actual C0/DEL control characters are forbidden, not digits 0 or 1.
