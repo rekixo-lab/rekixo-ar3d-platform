@@ -10,6 +10,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import {metroAgreementEnabled,metroAgreementValues} from "@/app/metro-agreement";
 import {METRO_BLOCK_PROJECT_ID,metroBlockKey,publishedMetroBlockMap} from "@/app/metro-blocks";
+import {readBlockSides} from "@/app/metro-block-safe-geometry";
 import { getAdminSession } from "@/modules/auth";
 import { plotFacingText, plotFacingTextForNorthAngle } from "@/modules/plots";
 import { FUTURE_INVEST_REALTY_ID,publicSafeFacing, publicSafeText, publicSafeSideSemantics } from "@/app/customer-direction-policy";
@@ -376,6 +377,7 @@ export async function GET(request: Request) {
     if (blockKey && !blockPlan) return Response.json({error:"Block not published"},{status:404,headers:{"cache-control":"no-store"}});
     if(blockPlan && requestUrl.searchParams.get("bv") && requestUrl.searchParams.get("bv")!==String(blockPlan.state.version))return Response.json({error:"Block version changed"},{status:409,headers:{"cache-control":"no-store"}});
     const blockGeometryByPlot = new Map((blockPlan?.maps||[]).map(m=>[m.plotId,m.polygon]));
+    const blockSidesByPlot = new Map((blockPlan?.maps||[]).map(m=>[m.plotId,readBlockSides(m.sideBindings)]));
     if(blockPlan) {
       safePublicSettings.mapWidth=String(blockPlan.asset.width);
       safePublicSettings.mapHeight=String(blockPlan.asset.height);
@@ -492,7 +494,12 @@ export async function GET(request: Request) {
             publicPlot.backEdgeIndex=null;
             publicPlot.depthEdgeIndex=null;
             publicPlot.depth2EdgeIndex=null;
-            publicPlot.edgeSemantics=null;
+            const blockSides=blockSidesByPlot.get(plot.id);
+            publicPlot.frontEdgeIndex=blockSides?.frontEdgeIndex??null;
+            publicPlot.backEdgeIndex=blockSides?.backEdgeIndex??null;
+            publicPlot.depthEdgeIndex=blockSides?.depthEdgeIndex??null;
+            publicPlot.depth2EdgeIndex=blockSides?.depth2EdgeIndex??null;
+            publicPlot.edgeSemantics=blockSides?.edgeSemantics||null;
           }
           delete (publicPlot as { inventoryActive?: unknown }).inventoryActive;
           const edgeMeasurements = (edgeMeasurementsByPlot.get(plot.id) || []).map(
