@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 
-const [mode,file] = process.argv.slice(2);
+const [mode,file,beforeFile] = process.argv.slice(2);
 if (!["preflight","fingerprint","postflight"].includes(mode)||!file) {
   console.error("Usage: metro-block-production-guard.mjs preflight|fingerprint|postflight <file>");
   process.exit(2);
@@ -43,12 +43,42 @@ if(mode==="preflight"){
   process.exit(0);
 }
 if(mode==="postflight"){
-  const row=rows.find(r=>r.id==="c024a562-634d-4e49-b647-43209f6e450b");
-  if(!row||Number(row.activePlots)!==702||Number(row.publishedPlots)!==702)fail("postmigration plot count changed");
-  // No state row is the expected pre-initialization condition (-1 from COALESCE).
-  // A row with explicit 0 is also safe. Reject any enabled value or published mapping.
-  if(![-1,0].includes(Number(row.blockEnabled))||Number(row.blockPublishedMaps)!==0)fail("block feature unexpectedly active");
-  if(Number(row.tableCount)!==4)fail("expected four new block tables");
-  if(Number(row.publishVersion)!==Number(row.snapshotVersion))fail("published snapshot changed");
-  console.log("METRO CITY postmigration verified: block feature disabled, canonical and public inventory untouched.");
+  if(!beforeFile)fail("pre-migration block state reference missing");
+  const beforePayload=JSON.parse(fs.readFileSync(beforeFile,"utf8"));
+  const beforeRows=[];
+  function collect(v){
+    if(Array.isArray(v)){for(const x of v)collect(x);return;}
+    if(!v||typeof v!=="object")return;
+    if(Array.isArray(v.results))beforeRows.push(...v.results);
+    for(const [k,x] of Object.entries(v))if(k!=="results"&&typeof x==="object")collect(x);
+  }
+  collect(beforePayload);
+  const id="c024a562-634d-4e49-b647-43209f6e450b";
+  const row=rows.find(r=>r.id===id),old=beforeRows.find(r=>r.id===id);
+  if(!row||!old||Number(row.activePlots)!==702||Number(row.publishedPlots)!==702)
+    fail("postmigration canonical plot count changed");
+  if(Number(row.publishVersion)!==Number(row.snapshotVersion)||
+     Number(row.publishVersion)!==Number(old.publishVersion)||
+     Number(row.snapshotVersion)!==Number(old.snapshotVersion))
+    fail("published canonical snapshot changed");
+  if(Number(row.tableCount)!==4)fail("expected four original block tables");
+
+  // A/B/C can legitimately already be LIVE. Preserve the observed state
+  // instead of incorrectly assuming public_enabled must remain zero.
+  for(const field of ["blockEnabled","blockVersion","blockPublishedMaps","blockDraftMaps","blockPublishedAssets"]){
+    if(!Number.isFinite(Number(old[field]))||
+       Number(row[field])!==Number(old[field]))
+      fail(`${field} changed during additive migration`);
+  }
+  const enabled=Number(row.blockEnabled);
+  if(![-1,0,1].includes(enabled))fail("invalid block feature state");
+  if(enabled===1){
+    if(Number(row.blockVersion)<=0||Number(row.blockPublishedMaps)!==702||
+       Number(row.blockDraftMaps)!==702||Number(row.blockPublishedAssets)!==3)
+       fail("LIVE A/B/C assets, mapped IDs, or published revision incomplete");
+  }else if(Number(row.blockPublishedMaps)>0&&Number(row.blockPublishedAssets)!==3){
+    fail("disabled but previously-published Block snapshots are inconsistent");
+  }
+  if(Number(row.invalidRotations)!==0)fail("invalid published block rotation");
+  console.log("METRO CITY postmigration verified: 702 canonical plots and A/B/C state preserved, published block geometry fingerprint unchanged.");
 }
