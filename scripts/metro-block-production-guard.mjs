@@ -45,7 +45,7 @@ if(mode==="preflight"){
 if(mode==="postflight"){
   const row=rows.find(r=>r.id==="c024a562-634d-4e49-b647-43209f6e450b");
   if(!row||Number(row.activePlots)!==702||Number(row.publishedPlots)!==702)fail("postmigration plot count changed");
-  if(Number(row.blockEnabled)!==0||Number(row.blockPublishedMaps)!==0)fail("block feature unexpectedly active");
+  // No state row is the expected pre-initialization condition (-1 from COALESCE).\n  // A row with explicit 0 is also safe. Reject any enabled value or published mapping.\n  if(![-1,0].includes(Number(row.blockEnabled))||Number(row.blockPublishedMaps)!==0)fail("block feature unexpectedly active");
   if(Number(row.tableCount)!==4)fail("expected four new block tables");
   if(Number(row.publishVersion)!==Number(row.snapshotVersion))fail("published snapshot changed");
   console.log("METRO CITY postmigration verified: block feature disabled, canonical and public inventory untouched.");
