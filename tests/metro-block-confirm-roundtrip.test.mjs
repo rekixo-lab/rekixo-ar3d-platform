@@ -36,7 +36,7 @@ function fixture(){
     );
     CREATE TABLE metro_block_assets(project_id TEXT,block_key TEXT,draft_object_key TEXT,
       draft_width INTEGER,draft_height INTEGER,draft_filename TEXT,draft_north_angle REAL,
-      draft_view_rotation INTEGER NOT NULL DEFAULT 0 CHECK(draft_view_rotation IN(0,1,2,3)),
+      draft_view_rotation INTEGER NOT NULL DEFAULT 0 CHECK(draft_view_rotation IN(0,1,2,3)),updated_at TEXT,
       PRIMARY KEY(project_id,block_key));
     CREATE TABLE metro_block_state(project_id TEXT PRIMARY KEY,public_enabled INTEGER NOT NULL DEFAULT 0,
       version INTEGER NOT NULL DEFAULT 0,draft_revision INTEGER NOT NULL DEFAULT 0,updated_at TEXT);
