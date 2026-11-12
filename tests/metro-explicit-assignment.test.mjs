@@ -80,6 +80,11 @@ test("UI prevents initialization until unusual plot IDs are explicitly reviewed"
  assert.match(api,/completeMetroAssignments\(d\.plots,body\.assignments\|\|\[\]\)/);
  assert.match(api,/await env\.DB\.batch\(statements\)/);
  assert.match(api,/INSERT INTO metro_block_plot_maps/);
+ const advanced=read("app/api/admin/metro-blocks/advanced/route.ts");
+ const editor=read("app/plot-mapper.tsx");
+ assert.ok(editor.includes("plots.find(p=>p.id===plotId)?.id"));
+ assert.ok(advanced.includes("id.length>80"));
+ assert.ok(advanced.includes("Combined labels"));
  assert.ok(api.includes("FROM json_each(?) AS item"));
  assert.ok(api.includes("THEN draft_revision+1 ELSE -1 END"));
  assert.doesNotMatch(api,/(?:UPDATE|DELETE FROM|INSERT INTO)\s+(?:plots|published_plots|property_sales|plot_admin_details)\b/i);
