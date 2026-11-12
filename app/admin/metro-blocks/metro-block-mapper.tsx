@@ -1,6 +1,7 @@
 "use client";
 import {useCallback,useEffect,useMemo,useState,type ChangeEvent} from "react";
 import PlotMapper from "@/app/plot-mapper";
+import {blockPublishSideCoverage} from "@/app/metro-block-safe-geometry";
 type Block="a"|"b"|"c";
 type DraftMap={plotId:string;blockKey:Block;polygon:string;sideBindings:string};
 type Asset={blockKey:Block;draftObjectKey:string;draftWidth:number;draftHeight:number;draftFilename:string;northAngle:number};
@@ -56,7 +57,8 @@ export default function MetroBlockMapper(){
   const currentMaps=useMemo(()=>draft?.maps.filter(x=>x.blockKey===block)||[],[block,draft]);
   const mapped=useMemo(()=>currentMaps.filter(x=>{try{const p=JSON.parse(x.polygon);return Array.isArray(p)&&p.length>=3}catch{return false}}).length,[currentMaps]);
   const incomplete=useMemo(()=>draft?.maps.length?draft.maps.filter(x=>!x.polygon).length:0,[draft]);
-  const ready=Boolean(draft&&draft.maps.length===draft.plots.length&&draft.plots.length>0&&incomplete===0&&blocks.every(b=>draft.assets.some(a=>a.blockKey===b&&a.draftObjectKey)));
+  const mappedSideReviewCount=useMemo(()=>draft?.maps.filter(m=>Boolean(m.polygon)&&!blockPublishSideCoverage(m.polygon,m.sideBindings)).length||0,[draft]);
+  const ready=Boolean(draft&&draft.maps.length===draft.plots.length&&draft.plots.length>0&&incomplete===0&&mappedSideReviewCount===0&&blocks.every(b=>draft.assets.some(a=>a.blockKey===b&&a.draftObjectKey)));
   const asset=draft?.assets.find(x=>x.blockKey===block);
   const allCount=useMemo(()=>Object.fromEntries(blocks.map(b=>[b,{total:draft?.maps.filter(x=>x.blockKey===b).length||0,mapped:draft?.maps.filter(x=>x.blockKey===b&&Boolean(x.polygon)).length||0}])),[draft]);
   const available=useMemo(()=>draft?.maps.filter(x=>x.plotId.toLowerCase().includes(search.trim().toLowerCase())).slice(0,150)||[],[draft,search]);
@@ -140,7 +142,7 @@ export default function MetroBlockMapper(){
     <section style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",margin:"15px 0"}}>
       {blocks.map(b=><button key={b} type="button" disabled={busy} aria-pressed={b===block} style={{...baseButton,background:b===block?"#086f9c":"#192b43",fontWeight:b===block?800:500}}
         onClick={()=>{setBlock(b);setSearch("");setMessage("")}}>Block {b.toUpperCase()} · {allCount[b]?.mapped||0}/{allCount[b]?.total||0}</button>)}
-      <span style={{fontSize:12,color:"#bdd0e2",marginLeft:6}}>Assigned {draft?.maps.length||0}/{draft?.plots.length||0} · {draft?.maps.length?`Pending ${incomplete}`:"Not initialized"} · Public {draft?.state.enabled?"BLOCKS LIVE":"Legacy unchanged"}</span>
+      <span style={{fontSize:12,color:"#bdd0e2",marginLeft:6}}>Assigned {draft?.maps.length||0}/{draft?.plots.length||0} · {draft?.maps.length?`Pending ${incomplete}`:"Not initialized"} · Side review {mappedSideReviewCount} · Public {draft?.state.enabled?"BLOCKS LIVE":"Legacy unchanged"}</span>
     </section>
     {message&&<div role="status" style={{background:"#183149",border:"1px solid #2c526f",borderRadius:10,padding:12,marginBottom:10,fontSize:13}}>{message}</div>}
     {draft&&!draft.maps.length&&<section style={{background:"#18304a",padding:15,borderRadius:12,marginBottom:12}}>
@@ -205,7 +207,7 @@ export default function MetroBlockMapper(){
     <footer style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",padding:"14px 4px"}}>
       <button style={{...baseButton,background:"#047857"}} disabled={busy||!ready} onClick={publish}>Verify & Publish all 3 blocks</button>
       <button style={{...baseButton,background:"#84273e"}} disabled={busy||!draft?.state.enabled} onClick={restore}>Restore legacy site</button>
-      {!ready&&<span style={{fontSize:12,color:"#f5c67b"}}>Publish locked until all 3 images and all active plot boundaries are complete and verified.</span>}
+      {!ready&&<span style={{fontSize:12,color:"#f5c67b"}}>Publish locked until all 3 images, plot boundaries and Front/Back/Depth side assignments are complete and verified.</span>}
     </footer>
   </main>;
 }
