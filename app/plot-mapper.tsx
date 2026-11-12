@@ -1146,6 +1146,11 @@ export default function PlotMapper({
   // metadata/CSS mismatch from ever stretching the masterplan.
   const [naturalImageSize, setNaturalImageSize] = useState<{ width: number; height: number } | null>(null);
   const [busy, setBusy] = useState(false);
+  // METRO block only. Save errors must be visible inside the zoomed/fullscreen
+  // mapper, not solely in the parent page banner far above the operator.
+  const [blockSaveFeedback, setBlockSaveFeedback] = useState<{
+    kind: "saving" | "verified" | "error"; plotId: string; message: string;
+  } | null>(null);
   const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false);
   const [headerAddress, setHeaderAddress] = useState("");
   const [areaFactorText, setAreaFactorText] = useState("10.7639");
@@ -3958,6 +3963,7 @@ export default function PlotMapper({
       const immutable=["sqft","sqm","sqyd","dimensions","road","front","back","depth","depth2","dimensionUnit","frontLabel","backLabel","depthLabel","depth2Label","sideDimensions","status","notes","featured"] as const;
       for(const field of immutable)(plot as unknown as Record<string,unknown>)[field]=existing[field];
     }
+    if (blockMode) setBlockSaveFeedback({ kind: "saving", plotId: id, message: `Plot ${id}: Saving block draft to server…` });
     setBusy(true);
     try {
       const response = await fetch(blockMode?"/api/admin/metro-blocks/advanced":"/api/super-mapper", {
@@ -3973,7 +3979,10 @@ export default function PlotMapper({
       const verified = await verifyPlotPersistence(saved);
       setPlots(verified.plots);
       setLastVerifiedId(verified.plot.id);
-      if(blockMode)onDraftChanged?.();
+      if(blockMode){
+        setBlockSaveFeedback({kind:"verified",plotId:id,message:`Plot ${id} · SERVER VERIFIED ✓ — Block ${blockKey?.toUpperCase()} draft saved`});
+        onDraftChanged?.();
+      }
       announceMapperDataUpdated();
       try {
         window.localStorage.removeItem(mappingDraftKey(projectId, verified.plot.id));
@@ -3996,7 +4005,9 @@ export default function PlotMapper({
         );
       }
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Plot save नहीं हुआ");
+      const reason = error instanceof Error ? error.message : "Plot save नहीं हुआ";
+      if(blockMode) setBlockSaveFeedback({kind:"error",plotId:id,message:`Plot ${id} NOT SAVED — ${reason}`});
+      notify(reason);
     } finally {
       setBusy(false);
     }
@@ -4853,6 +4864,22 @@ export default function PlotMapper({
             <span><b>{mappedPlots.length}</b>/{plots.length || "—"}</span>
             <button type="button" onClick={() => selectSiblingPlot(1)} disabled={!inventoryPlots.length} aria-label="Next plot"><ChevronRight /></button>
           </div>
+          {blockMode && blockSaveFeedback && (
+            <div
+              role={blockSaveFeedback.kind === "error" ? "alert" : "status"}
+              aria-live={blockSaveFeedback.kind === "error" ? "assertive" : "polite"}
+              data-testid="metro-block-save-feedback"
+              style={{
+                position:"sticky",top:0,zIndex:80,padding:"9px 12px",
+                background:blockSaveFeedback.kind==="error"?"#5c1822":blockSaveFeedback.kind==="verified"?"#075940":"#163653",
+                color:"#ffffff",border:"1px solid #ffffff55",borderRadius:7,
+                fontWeight:700,fontSize:13,overflowWrap:"anywhere",
+              }}
+            >
+              {blockSaveFeedback.message}
+              {blockSaveFeedback.kind==="error" && <span style={{marginLeft:8,fontWeight:400}}>Your drawn corners are kept. Do not continue to the next plot until server verification succeeds.</span>}
+            </div>
+          )}
           <div className="mapper-zoombar mapper-v4-toolbar">
             <button className={toolMode === "pan" ? "active" : ""} type="button" onClick={() => { setToolMode("pan"); setCalibrationMode(false); }}><Hand />Pan</button>
             <button className={toolMode === "select" ? "active" : ""} type="button" onClick={enableSelectMode}><Target />Select</button>
