@@ -180,7 +180,7 @@ export async function POST(request:Request) {
     if(body.action==="move") {
       await env.DB.batch([
         env.DB.prepare("UPDATE metro_block_plot_maps SET block_key=?,polygon='',side_bindings='',updated_at=? WHERE project_id=? AND plot_id=? AND polygon=''").bind(block,now,PROJECT,plotId),
-        env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
+        env.DB.prepare("UPDATE metro_block_state SET draft_revision=CASE WHEN (SELECT block_key FROM metro_block_plot_maps WHERE project_id=? AND plot_id=? AND polygon='')=? THEN draft_revision+1 ELSE -1 END,updated_at=? WHERE project_id=?").bind(PROJECT,plotId,block,now,PROJECT),
       ]);
     }
     await writeAudit(actor,body.action==="move"?"metro.block_plot_moved":"metro.block_polygon_saved",PROJECT,plotId,{block});
