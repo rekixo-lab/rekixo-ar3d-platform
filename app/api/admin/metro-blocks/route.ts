@@ -15,6 +15,7 @@ const VALID_ID = /^[a-zA-Z0-9][a-zA-Z0-9 -]{0,79}$/;
 function suggestedBlock(id: string) {
   return /^B[-\s]?\d+$/i.test(id) ? "b" : /^C[-\s]?\d+$/i.test(id) ? "c" : /^(?:A[-\s]?)?\d+$/i.test(id) ? "a" : null;
 }
+function safelyNormalizeSavedPolygon(raw:string) {try{return normalizePolygon(JSON.parse(raw||"null"));}catch{return null}}
 function normalizePolygon(raw: unknown) {
   if (!Array.isArray(raw) || raw.length < 3 || raw.length > 80) return null;
   const pts = raw.map(p => Array.isArray(p) && p.length===2 ? [Number(p[0]),Number(p[1])] : null);
@@ -107,6 +108,7 @@ export async function POST(request:Request) {
     const block=metroBlockKey(body.block);
     const angle=Number((body as {angle?:number}).angle);
     if(!block||!Number.isFinite(angle)||angle<0||angle>=360)return json({error:"North angle must be between 0 and 359.999 degrees"},400);
+    if(!await env.DB.prepare("SELECT 1 FROM metro_block_assets WHERE project_id=? AND block_key=? AND draft_object_key<>''").bind(PROJECT,block).first())return json({error:"Upload the block masterplan before setting North"},409);
     await env.DB.batch([
       env.DB.prepare("UPDATE metro_block_assets SET draft_north_angle=?,updated_at=? WHERE project_id=? AND block_key=?").bind(angle,now,PROJECT,block),
       env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
@@ -118,8 +120,9 @@ export async function POST(request:Request) {
     const block=metroBlockKey(body.block);
     const plotId=String(body.plotId||"").trim();
     if(!block||!VALID_ID.test(plotId))return json({error:"Block and Plot ID required"},400);
-    const existing=await env.DB.prepare("SELECT 1 FROM metro_block_plot_maps WHERE project_id=? AND plot_id=?").bind(PROJECT,plotId).first();
+    const existing=await env.DB.prepare("SELECT block_key AS blockKey FROM metro_block_plot_maps WHERE project_id=? AND plot_id=?").bind(PROJECT,plotId).first<{blockKey:string}>();
     if(!existing)return json({error:"Initialize and select an active plot first"},409);
+    if(body.action==="map"&&existing.blockKey!==block)return json({error:"Plot belongs to a different block; reload mapping"},409);
     if(body.action==="move") {
       await env.DB.batch([
         env.DB.prepare("UPDATE metro_block_plot_maps SET block_key=?,polygon='',updated_at=? WHERE project_id=? AND plot_id=?").bind(block,now,PROJECT,plotId),
@@ -142,7 +145,7 @@ export async function POST(request:Request) {
     if(Number(body.expectedVersion)!==d.state.version||Number(body.expectedDraftRevision)!==d.state.draftRevision)return json({error:"Draft changed in another session. Refresh before publishing."},409);
     if(d.maps.length!==d.plots.length)return json({error:"All active inventory plots must belong to exactly one block",total:d.plots.length,mapped:d.maps.length},409);
     const active=new Set(d.plots.map(p=>p.id));
-    if(d.maps.some(m=>!active.has(m.plotId)||!normalizePolygon(JSON.parse(m.polygon||"null"))))return json({error:"One or more block boundaries missing/invalid"},409);
+    if(d.maps.some(m=>!active.has(m.plotId)||!safelyNormalizeSavedPolygon(m.polygon)))return json({error:"One or more block boundaries missing/invalid"},409);
     if(METRO_BLOCK_KEYS.some(b=>!d.maps.some(m=>m.blockKey===b)))return json({error:"Every block must contain plots"},409);
     if(METRO_BLOCK_KEYS.some(b=>!d.assets.some(a=>a.blockKey===b&&a.draftObjectKey&&a.draftWidth>=100&&a.draftHeight>=100)))return json({error:"Upload all three block masterplans first"},409);
     const version=d.state.version+1;
@@ -170,13 +173,15 @@ export async function POST(request:Request) {
       console.error("Metro block publish transaction failed",error);
       return json({error:"Block publish failed; original live site is unchanged"},409);
     }
-    await writeAudit(actor,"metro.blocks_published",PROJECT,null,{version,plotCount:d.maps.length,blocks:3});
+    try{await writeAudit(actor,"metro.blocks_published",PROJECT,null,{version,plotCount:d.maps.length,blocks:3})}
+    catch(e){console.error("Metro block publish succeeded, optional audit write failed",e)}
     return json({ok:true,version,plots:d.maps.length});
   }
   if(body.action==="disable") {
     if(body.confirmation!=="RESTORE METRO LEGACY")return json({error:"Explicit rollback confirmation required"},400);
     await env.DB.prepare("UPDATE metro_block_state SET public_enabled=0,updated_at=? WHERE project_id=?").bind(now,PROJECT).run();
-    await writeAudit(actor,"metro.blocks_legacy_restored",PROJECT,null,{});
+    try{await writeAudit(actor,"metro.blocks_legacy_restored",PROJECT,null,{})}
+    catch(e){console.error("Metro legacy view restored; audit write failed",e)}
     return json({ok:true,legacy:true});
   }
   return json({error:"Unknown action"},400);
