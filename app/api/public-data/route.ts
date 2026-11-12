@@ -382,7 +382,9 @@ export async function GET(request: Request) {
       safePublicSettings.mapWidth=String(blockPlan.asset.width);
       safePublicSettings.mapHeight=String(blockPlan.asset.height);
       safePublicSettings.masterplanName=`METRO CITY BLOCK ${blockKey?.toUpperCase()}`;
-      safePublicSettings.publicRotation="0";
+      // The published block masterplan and all its SVG polygons rotate as one
+      // visual world. Draft rotation is never read by the customer site.
+      safePublicSettings.publicRotation=String(blockPlan.asset.viewRotation);
       safePublicSettings.masterplanNorthAngle=String(blockPlan.asset.northAngle);
       safePublicSettings.plotFacingEnabled="0";
       safePublicSettings.publicInitialViewMode="plots";
@@ -623,6 +625,7 @@ export async function GET(request: Request) {
             Number(requestUrl.searchParams.get("pv")) === Number(project.publishVersion || 0) &&
             // Text revisions must not reuse the immutable geometry-era response.
             // Unchanged, non-revisioned tenants retain their fast structural cache.
+            !blockPlan &&
             !publicSettings.publicDataRevision
               ? "public,max-age=31536000,immutable"
               : "no-store",
