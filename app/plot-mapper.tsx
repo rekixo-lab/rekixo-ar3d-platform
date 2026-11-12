@@ -131,6 +131,7 @@ type Plot = {
   notes?: string;
   featured?: boolean;
   polygon?: string;
+  blockSideRevision?: string;
 };
 
 type MapperSettings = {
@@ -3958,7 +3959,7 @@ export default function PlotMapper({
       const response = await fetch(blockMode?"/api/admin/metro-blocks/advanced":"/api/super-mapper", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(blockKey?{projectId,block:blockKey,action:"save",plot,expectedPolygon:existing?.polygon||""}:{projectId,plot}),
+        body: JSON.stringify(blockKey?{projectId,block:blockKey,action:"save",plot,expectedPolygon:existing?.polygon||"",expectedBindings:existing?.blockSideRevision||""}:{projectId,plot}),
       });
       const result = await apiResult(response);
       const saved = result.plot as Plot;
@@ -4004,7 +4005,7 @@ export default function PlotMapper({
       const response = await fetch(blockMode?"/api/admin/metro-blocks/advanced":"/api/super-mapper", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(blockKey?{projectId,block:blockKey,action:"clear",plot:{id:plot.id},expectedPolygon:plot.polygon||""}:{
+        body: JSON.stringify(blockKey?{projectId,block:blockKey,action:"clear",plot:{id:plot.id},expectedPolygon:plot.polygon||"",expectedBindings:plot.blockSideRevision||""}:{
           projectId,
           action: "clear_plot_boundary",
           plot: { id: plot.id },
