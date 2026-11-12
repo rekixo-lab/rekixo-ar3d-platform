@@ -3967,7 +3967,6 @@ export default function PlotMapper({
       setPlots(verified.plots);
       setLastVerifiedId(verified.plot.id);
       if(blockMode)onDraftChanged?.();
-      if(blockMode)onDraftChanged?.();
       announceMapperDataUpdated();
       try {
         window.localStorage.removeItem(mappingDraftKey(mappingProjectKey, verified.plot.id));
@@ -4017,6 +4016,7 @@ export default function PlotMapper({
       const verified = await verifyPlotPersistence(saved);
       setPlots(verified.plots);
       setLastVerifiedId(verified.plot.id);
+      if(blockMode)onDraftChanged?.();
       announceMapperDataUpdated();
       setPoints([]);
       setEditingId("");
