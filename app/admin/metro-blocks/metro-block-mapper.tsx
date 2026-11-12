@@ -4,7 +4,8 @@ import PlotMapper from "@/app/plot-mapper";
 type Block="a"|"b"|"c";
 type DraftMap={plotId:string;blockKey:Block;polygon:string};
 type Asset={blockKey:Block;draftObjectKey:string;draftWidth:number;draftHeight:number;draftFilename:string;northAngle:number};
-type Draft={plots:Array<{id:string;sqft:number;dimensions:string;status:string}>;maps:DraftMap[];assets:Asset[];state:{enabled:number;version:number;draftRevision:number}};
+type AssignmentPreview={total:number;autoAssigned:number;unknown:string[];counts:Record<Block,number>};
+type Draft={plots:Array<{id:string;sqft:number;dimensions:string;status:string}>;maps:DraftMap[];assets:Asset[];assignmentPreview:AssignmentPreview;state:{enabled:number;version:number;draftRevision:number}};
 const projectId="c024a562-634d-4e49-b647-43209f6e450b";
 const blocks:Block[]=["a","b","c"];
 const baseButton:React.CSSProperties={border:"1px solid #3b5570",borderRadius:9,padding:"10px 13px",color:"#e9f4ff",background:"#1a314d",cursor:"pointer",fontSize:13};
@@ -14,6 +15,8 @@ export default function MetroBlockMapper(){
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState("");
   const [search,setSearch]=useState("");
+  const [assignmentSearch,setAssignmentSearch]=useState("");
+  const [explicitBlocks,setExplicitBlocks]=useState<Record<string,Block>>({});
   const [refresh,setRefresh]=useState(0);
   const load=useCallback(async()=>{
     const response=await fetch("/api/admin/metro-blocks",{cache:"no-store"});
@@ -32,13 +35,27 @@ export default function MetroBlockMapper(){
     }catch(e){setMessage(String(e));return false}
     finally{setBusy(false)}
   }
+  const unknown=draft?.assignmentPreview.unknown||[];
+  const unresolved=unknown.filter(id=>!explicitBlocks[id]);
+  const previewCounts=blocks.reduce((counts,b)=>{
+    counts[b]=(draft?.assignmentPreview.counts[b]||0)+unknown.filter(id=>explicitBlocks[id]===b).length;
+    return counts;
+  },{a:0,b:0,c:0} as Record<Block,number>);
   async function initialize(){
-    if(!window.confirm("Initialize the METRO CITY A/B/C draft from existing 702 plot IDs? No live inventory, status or published polygon will change."))return;
-    if(await action({action:"initialize"}))setRefresh(n=>n+1);
+    if(!draft||draft.maps.length||unresolved.length)return;
+    if(!window.confirm(
+      `Initialize ${draft.plots.length} existing plots? Block A: ${previewCounts.a}, B: ${previewCounts.b}, C: ${previewCounts.c}.\n`+
+      `${unknown.length} unusual plot IDs were manually reviewed. This will NOT change live geometry, booking/status or measurements.`
+    ))return;
+    const assignments=unknown.map(plotId=>({plotId,block:explicitBlocks[plotId]}));
+    if(await action({action:"initialize",assignments})){
+      setExplicitBlocks({});
+      setRefresh(n=>n+1);
+    }
   }
   const currentMaps=useMemo(()=>draft?.maps.filter(x=>x.blockKey===block)||[],[block,draft]);
   const mapped=useMemo(()=>currentMaps.filter(x=>{try{const p=JSON.parse(x.polygon);return Array.isArray(p)&&p.length>=3}catch{return false}}).length,[currentMaps]);
-  const incomplete=useMemo(()=>draft?.maps.filter(x=>!x.polygon).length??0,[draft]);
+  const incomplete=useMemo(()=>draft?.maps.length?draft.maps.filter(x=>!x.polygon).length:0,[draft]);
   const ready=Boolean(draft&&draft.maps.length===draft.plots.length&&draft.plots.length>0&&incomplete===0&&blocks.every(b=>draft.assets.some(a=>a.blockKey===b&&a.draftObjectKey)));
   const asset=draft?.assets.find(x=>x.blockKey===block);
   const allCount=useMemo(()=>Object.fromEntries(blocks.map(b=>[b,{total:draft?.maps.filter(x=>x.blockKey===b).length||0,mapped:draft?.maps.filter(x=>x.blockKey===b&&Boolean(x.polygon)).length||0}])),[draft]);
@@ -89,13 +106,40 @@ export default function MetroBlockMapper(){
     <section style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",margin:"15px 0"}}>
       {blocks.map(b=><button key={b} type="button" disabled={busy} aria-pressed={b===block} style={{...baseButton,background:b===block?"#086f9c":"#192b43",fontWeight:b===block?800:500}}
         onClick={()=>{setBlock(b);setSearch("");setMessage("")}}>Block {b.toUpperCase()} · {allCount[b]?.mapped||0}/{allCount[b]?.total||0}</button>)}
-      <span style={{fontSize:12,color:"#bdd0e2",marginLeft:6}}>Assigned {draft?.maps.length||0}/{draft?.plots.length||0} · Pending {incomplete} · Public {draft?.state.enabled?"BLOCKS LIVE":"Legacy unchanged"}</span>
+      <span style={{fontSize:12,color:"#bdd0e2",marginLeft:6}}>Assigned {draft?.maps.length||0}/{draft?.plots.length||0} · {draft?.maps.length?`Pending ${incomplete}`:"Not initialized"} · Public {draft?.state.enabled?"BLOCKS LIVE":"Legacy unchanged"}</span>
     </section>
     {message&&<div role="status" style={{background:"#183149",border:"1px solid #2c526f",borderRadius:10,padding:12,marginBottom:10,fontSize:13}}>{message}</div>}
     {draft&&!draft.maps.length&&<section style={{background:"#18304a",padding:15,borderRadius:12,marginBottom:12}}>
       <strong>Step 1 — Assign existing plots to blocks</strong>
-      <p style={{fontSize:13,color:"#bcd0e5"}}>Uses existing inventory IDs; does not change 702 plot records, area measurements or customer website.</p>
-      <button disabled={busy} style={{...baseButton,background:"#057b65"}} onClick={initialize}>Initialize plot assignments</button>
+      <p style={{fontSize:13,color:"#bcd0e5"}}>Uses the original ${draft.plots.length} active plot records. This creates separate Block drafts; no live map, status, measurements or customer data will change.</p>
+      <p style={{fontSize:13,color:"#aee0ff",margin:"8px 0"}}>
+        Automatically recognized: <b>{draft.assignmentPreview.autoAssigned}</b> · Need review: <b>{unknown.length}</b>
+        {" · "}Proposed A <b>{previewCounts.a}</b> / B <b>{previewCounts.b}</b> / C <b>{previewCounts.c}</b>
+      </p>
+      {unknown.length>0&&<div style={{background:"#0e2236",border:"1px solid #536a84",borderRadius:10,padding:12,margin:"10px 0"}}>
+        <b style={{fontSize:14}}>Review {unknown.length} unrecognized Plot IDs before initialization</b>
+        <p style={{color:"#c3d4e8",fontSize:12,margin:"7px 0"}}>
+          These plot labels do not clearly indicate A/B/C. Choose the correct block using the approved layout. We won't guess or change any existing plot record.
+        </p>
+        <p style={{fontSize:12,color:unresolved.length?"#ffcc80":"#6ee4ae",margin:"7px 0"}}>
+          {unresolved.length? `${unresolved.length} need a block selection`:"Every unusual plot ID has a reviewed block"}
+        </p>
+        <input value={assignmentSearch} onChange={e=>setAssignmentSearch(e.target.value)} placeholder="Find unusual Plot ID" aria-label="Find unrecognized plot" style={{background:"#162e48",color:"white",border:"1px solid #425b77",borderRadius:7,padding:9,width:"min(100%,300px)",boxSizing:"border-box",marginBottom:8}}/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8,maxHeight:285,overflow:"auto"}}>
+          {unknown.filter(id=>id.toLowerCase().includes(assignmentSearch.trim().toLowerCase())).map(id=><label key={id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"7px 9px",border:"1px solid #2c4e6a",borderRadius:8,fontSize:13}}>
+            <span style={{overflowWrap:"anywhere",flex:1}}>{id}</span>
+            <select aria-label={`Block for plot ${id}`} value={explicitBlocks[id]||""} disabled={busy}
+              onChange={e=>setExplicitBlocks(current=>({...current,[id]:e.target.value as Block}))}
+              style={{background:"#203c5a",color:"#f5f9ff",borderRadius:6,padding:7,border:"1px solid #526982"}}>
+              <option value="">Choose block</option>
+              {blocks.map(b=><option key={b} value={b}>Block {b.toUpperCase()}</option>)}
+            </select>
+          </label>)}
+        </div>
+      </div>}
+      <button disabled={busy||unresolved.length>0} style={{...baseButton,background:"#057b65",opacity:unresolved.length?.5:1}} onClick={initialize}>
+        {unresolved.length? `Review ${unresolved.length} plots to initialize`:`Initialize ${draft.plots.length} plot assignments`}
+      </button>
     </section>}
     <section style={{border:"1px solid #243d59",borderRadius:12,padding:12,marginBottom:10,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
       <label style={{...baseButton,display:"inline-block",background:"#123c60"}}>Upload Block {block.toUpperCase()} masterplan
