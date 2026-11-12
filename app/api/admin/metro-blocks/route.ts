@@ -4,6 +4,7 @@ import { writeAudit } from "@/modules/audit";
 import { METRO_BLOCK_KEYS, METRO_BLOCK_PROJECT_ID, metroBlockKey } from "@/app/metro-blocks";
 import {previewMetroAssignments,completeMetroAssignments} from "@/app/metro-block-assignment";
 import {createMetroBlockCheckpoint} from "@/app/metro-block-draft-backup";
+import {blockPublishSideCoverage} from "@/app/metro-block-safe-geometry";
 
 export const dynamic = "force-dynamic";
 const PROJECT = METRO_BLOCK_PROJECT_ID;
@@ -192,6 +193,8 @@ export async function POST(request:Request) {
     if(d.maps.length!==d.plots.length)return json({error:"All active inventory plots must belong to exactly one block",total:d.plots.length,mapped:d.maps.length},409);
     const active=new Set(d.plots.map(p=>p.id));
     if(d.maps.some(m=>!active.has(m.plotId)||!safelyNormalizeSavedPolygon(m.polygon)))return json({error:"One or more block boundaries missing/invalid"},409);
+    const invalidSides=d.maps.find(m=>!blockPublishSideCoverage(m.polygon,m.sideBindings));
+    if(invalidSides)return json({error:`Plot ${invalidSides.plotId} in Block ${invalidSides.blockKey.toUpperCase()} lacks complete, non-overlapping Front/Back/Depth side assignments. Review before publish.`},409);
     if(METRO_BLOCK_KEYS.some(b=>!d.maps.some(m=>m.blockKey===b)))return json({error:"Every block must contain plots"},409);
     if(METRO_BLOCK_KEYS.some(b=>!d.assets.some(a=>a.blockKey===b&&a.draftObjectKey&&a.draftWidth>=100&&a.draftHeight>=100)))return json({error:"Upload all three block masterplans first"},409);
     const version=d.state.version+1;
