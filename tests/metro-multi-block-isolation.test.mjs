@@ -20,7 +20,8 @@ test("block API isolates draft uploads/polygon editing from canonical plot inven
  assert.match(source,/PUBLISH METRO BLOCKS/);
  assert.match(source,/RESTORE METRO LEGACY/);
  assert.match(source,/INSERT INTO metro_block_published_maps/);
- assert.match(source,/FROM plots WHERE project_id=\? AND inventory_active=1/);
+ assert.match(source,/SELECT id,sqft,dimensions,status FROM plots WHERE project_id=\? AND inventory_active=1/);
+ assert.match(source,/completeMetroAssignments/);
  assert.doesNotMatch(source,/(?:UPDATE|DELETE FROM|INSERT INTO)\s+(?:plots|published_plots|property_sales|plot_admin_details)\b/i);
 });
 test("customer root remains existing until Metro-only block publish; client admin unchanged",()=>{
