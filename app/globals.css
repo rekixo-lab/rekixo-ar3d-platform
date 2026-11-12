@@ -3427,3 +3427,54 @@ body {
  .client-sales .sales-finance-grid{grid-template-columns:1fr 1fr}
  .client-sales .sales-finance-grid .sales-metric:last-child{grid-column:1/-1}
 }
+
+/* METRO CITY A/B/C precision mapping: never allow the old fixed top:61px
+ * zoom bar to cover the read-only canonical sizes, save status or rotation
+ * status. Keep the entire header sticky as a single unit during 2800% pan.
+ * The ordinary mapper's DOM wrapper has display:contents, so its existing
+ * independent sticky selector and toolbar remain completely unchanged. */
+.mapper-default-header-group { display: contents; }
+.mapper-v4-canvas .metro-block-sticky-header {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  background: #071322;
+  border-bottom: 1px solid #345370;
+  isolation: isolate;
+}
+.mapper-v4-canvas .metro-block-sticky-header > .mapper-v4-current,
+.mapper-v4-canvas .metro-block-sticky-header > .mapper-v4-toolbar {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+}
+.mapper-v4-canvas .metro-block-sticky-header > .mapper-v4-toolbar {
+  box-sizing: border-box;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin-bottom: 0;
+  scrollbar-width: thin;
+}
+.mapper-v4-canvas .metro-block-sticky-header > [data-testid="metro-block-legacy-measurements"] {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  max-height: min(24vh, 140px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.mapper-v4-canvas:fullscreen .metro-block-sticky-header {
+  top: 0;
+  z-index: 21;
+}
