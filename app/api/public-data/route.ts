@@ -381,7 +381,7 @@ export async function GET(request: Request) {
       safePublicSettings.mapHeight=String(blockPlan.asset.height);
       safePublicSettings.masterplanName=`METRO CITY BLOCK ${blockKey?.toUpperCase()}`;
       safePublicSettings.publicRotation="0";
-      safePublicSettings.masterplanNorthAngle="0";
+      safePublicSettings.masterplanNorthAngle=String(blockPlan.asset.northAngle);
       safePublicSettings.plotFacingEnabled="0";
       safePublicSettings.publicInitialViewMode="plots";
       safePublicSettings.publicInitialFocusX="0.5";
