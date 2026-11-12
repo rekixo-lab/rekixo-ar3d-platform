@@ -135,6 +135,7 @@ type Plot = {
 };
 
 type MapperSettings = {
+  blockViewRotation?: string; // METRO A/B/C only; never changes shared publicRotation
   masterplanName?: string;
   sourcePdfName?: string;
   sourceCadName?: string;
@@ -3397,6 +3398,7 @@ export default function PlotMapper({
     }catch(error){
       const message=error instanceof Error?error.message:"Block orientation could not be saved";
       setRotation(previous);
+      try{window.localStorage.setItem(rotationStorageKey,String(previous))}catch{}
       setBlockRotationError(message);
       notify(`Block ${blockKey.toUpperCase()} rotation NOT saved — ${message}. Retry before mapping.`);
     }finally{
@@ -4922,6 +4924,10 @@ export default function PlotMapper({
               {blockSaveFeedback.kind==="error" && <span style={{marginLeft:8,fontWeight:400}}>Your drawn corners are kept. Do not continue to the next plot until server verification succeeds.</span>}
             </div>
           )}
+          {blockMode && <div role={blockRotationError?"alert":"status"} data-testid="metro-block-rotation-status"
+            style={{padding:"6px 10px",fontSize:12,fontWeight:700,color:blockRotationError?"#ffd0d0":"#b3e5ff"}}>
+            {blockRotationSaving?"Saving block view angle…":blockRotationError?`Block rotation NOT SAVED: ${blockRotationError} — retry rotate/reset`:`Block ${blockKey?.toUpperCase()} view ${rotation*90}° · saved separately; plotted coordinates remain original-image based`}
+          </div>}
           <div className="mapper-zoombar mapper-v4-toolbar">
             <button className={toolMode === "pan" ? "active" : ""} type="button" onClick={() => { setToolMode("pan"); setCalibrationMode(false); }}><Hand />Pan</button>
             <button className={toolMode === "select" ? "active" : ""} type="button" onClick={enableSelectMode}><Target />Select</button>
