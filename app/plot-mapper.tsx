@@ -1089,12 +1089,14 @@ export default function PlotMapper({
   projectId,
   workspaceMode = "full",
   blockKey,
+  onDraftChanged,
 }: {
   notify: (message: string) => void;
   projectId: string;
   workspaceMode?: "full" | "controls";
   /** Optional METRO CITY only — never writes canonical plot geometry. */
   blockKey?: "a" | "b" | "c";
+  onDraftChanged?: () => void;
 }) {
   const controlsWorkspace = workspaceMode === "controls";
   const blockMode = Boolean(blockKey);
@@ -3964,6 +3966,8 @@ export default function PlotMapper({
       const verified = await verifyPlotPersistence(saved);
       setPlots(verified.plots);
       setLastVerifiedId(verified.plot.id);
+      if(blockMode)onDraftChanged?.();
+      if(blockMode)onDraftChanged?.();
       announceMapperDataUpdated();
       try {
         window.localStorage.removeItem(mappingDraftKey(mappingProjectKey, verified.plot.id));
