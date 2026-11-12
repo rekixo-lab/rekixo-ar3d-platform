@@ -5,7 +5,7 @@ import type {ChangeEvent,MouseEvent} from "react";
 type BlockKey="a"|"b"|"c";
 type Plot={id:string;sqft:number;status:string;dimensions:string};
 type BlockMap={plotId:string;blockKey:BlockKey;polygon:string};
-type Asset={blockKey:string;draftObjectKey:string;draftWidth:number;draftHeight:number;draftFilename:string;publishedVersion:number};
+type Asset={blockKey:string;draftObjectKey:string;draftWidth:number;draftHeight:number;draftFilename:string;northAngle:number;publishedVersion:number};
 type Draft={plots:Plot[];maps:BlockMap[];assets:Asset[];state:{enabled:number;version:number}};
 type Point=[number,number];
 const BLOCKS:BlockKey[]=["a","b","c"];
@@ -48,6 +48,7 @@ export default function MetroBlockMapper(){
     if(x<0||x>1||y<0||y>1)return;
     setVerts(v=>v.length>=80?v:[...v,[Number(x.toFixed(7)),Number(y.toFixed(7))]]);
   }
+  async function calibrateNorth(angle:number){await send({action:"calibrate",block,angle})}
   async function savePolygon(){if(!selected||verts.length<3){setMessage("Select a plot and mark 3 or more vertices.");return}
     const ok=await send({action:"map",block,plotId:selected,polygon:verts});if(ok)setVerts([]); // load the saved geometry from snapshot on next selection
   }
@@ -73,6 +74,7 @@ export default function MetroBlockMapper(){
       <label style={buttonStyle}>Upload Block {block.toUpperCase()} Masterplan <input type="file" accept="image/jpeg,image/png,image/webp" onChange={upload} disabled={busy} style={{display:"block",marginTop:5,maxWidth:230}}/></label>
       <span style={{fontSize:12,color:"#9db1cb"}}>{asset?.draftFilename||"No image uploaded"} {asset?.draftWidth?(`${asset.draftWidth}×${asset.draftHeight}`):""}</span>
       <label>Zoom <input type="range" min="70" max="450" step="10" value={zoom} onChange={e=>setZoom(Number(e.target.value))}/>{zoom}%</label>
+      <label style={{fontSize:13,color:"#b9cce2"}}>North angle (°) <input key={block+String(asset?.northAngle||0)} type="number" min="0" max="359.999" step="0.1" defaultValue={asset?.northAngle??0} onBlur={e=>{const value=Number(e.currentTarget.value);if(Number.isFinite(value)&&value>=0&&value<360&&value!==asset?.northAngle)calibrateNorth(value)}} style={{width:76,padding:8,background:"#203651",color:"white",border:"1px solid #345473",borderRadius:7}}/></label>
     </section>
     <div style={{display:"grid",gridTemplateColumns:"minmax(220px,280px) minmax(0,1fr)",gap:12,alignItems:"start"}}>
       <aside style={{background:"#101d30",borderRadius:12,padding:12,maxHeight:"72vh",overflow:"auto"}}>
