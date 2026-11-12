@@ -46,7 +46,7 @@ test("customer image and clickable plot SVG share one rotated world, compass fol
  assert.ok(source>=0&&image>source&&svg>image);
  assert.match(ui,/world\.style\.transform = `translate3d\([\s\S]*?rotate\(\$\{publicRotation\*90\}deg\)`/);
  assert.match(ui,/setCompassRoseAngle\(publicNorthSourceAngle\+publicRotation\*90\)/);
- assert.match(ui,/const u=rotateOffset\(dx,dy,\(4-publicRotation\)%4\)/);
+ assert.ok(ui.includes("u=rotateOffset(dx,dy,(4-publicRotation)%4)"));
 });
 
 test("All Blocks is located beside compass inside map viewport; never covers 3D, and other tenants do not see it",()=>{
