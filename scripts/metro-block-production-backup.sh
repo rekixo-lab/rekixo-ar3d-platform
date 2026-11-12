@@ -54,5 +54,29 @@ for variant in masterplan masterplanPublic logo; do
   fi
 done
 echo "$copied" > "$TMP/r2-object-count"
+
+# Once three blocks are LIVE, the 3 published full-size masterplans are
+# just as important as their 702 mapped polygons. Back them up privately.
+read -r block_enabled block_version < <(node -e '
+ const fs=require("node:fs");
+ const data=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+ const rows=data.flatMap(x=>x.results||[]);
+ const row=rows.find(x=>x.id==="c024a562-634d-4e49-b647-43209f6e450b");
+ if(!row)process.exit(1);
+ process.stdout.write(String(row.blockEnabled)+" "+String(row.blockVersion)+"\\n");
+' "$TMP/before-summary.json")
+if [[ "$block_enabled" == "1" ]]; then
+  [[ "$block_version" =~ ^[1-9][0-9]*$ ]] || { echo 'STOP: invalid published METRO block version'; exit 1; }
+  for block in a b c; do
+    source="$BUCKET/projects/$PROJECT/metro-blocks/published/$block_version/$block"
+    localfile="$TMP/metro-published-$block.bin"
+    npx wrangler r2 object get "$source" --remote --config wrangler.jsonc --file "$localfile" > /dev/null
+    test -s "$localfile"
+    npx wrangler r2 object put "$BUCKET/$PREFIX/published-block-$block.bin" --remote --config wrangler.jsonc --file "$localfile" --content-type 'application/octet-stream' > /dev/null
+    npx wrangler r2 object get "$BUCKET/$PREFIX/published-block-$block.bin" --remote --config wrangler.jsonc --file "$TMP/published-block-$block-readback.bin" > /dev/null
+    cmp -s "$localfile" "$TMP/published-block-$block-readback.bin" || { echo "STOP: published Block $block R2 backup readback mismatch"; exit 1; }
+  done
+fi
+
 echo 'METRO CITY: production D1 SQL backup and R2 masterplan backups saved privately and verified by read-back.'
 echo 'No original production plot, masterplan, client admin, or status data was modified.'
