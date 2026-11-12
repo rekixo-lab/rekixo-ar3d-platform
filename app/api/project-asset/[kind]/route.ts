@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { getAdminSession } from "@/modules/auth";
 import { publicProjectId } from "@/modules/projects";
+import {METRO_BLOCK_PROJECT_ID,metroBlockKey,metroBlockImageResponse} from "@/app/metro-blocks";
 import {
   compatiblePublishedMasterplanOriginalKey,
   currentMasterplanOriginalKey,
@@ -136,6 +137,12 @@ export async function GET(
     return new Response("Not found", { status: 404 });
 
   const requestUrl = new URL(request.url);
+  // METRO CITY: published block bytes are isolated from the canonical masterplan.
+  if (kind === "masterplan" && projectId === METRO_BLOCK_PROJECT_ID && requestUrl.searchParams.has("block")) {
+    const block = metroBlockKey(requestUrl.searchParams.get("block"));
+    if (!block || mode !== "public") return new Response("Not found", {status:404});
+    return metroBlockImageResponse(projectId, block, request);
+  }
   const previewRequest = requestUrl.searchParams.get("preview") === "1";
   const authorizedPreview = previewRequest && mode === "admin";
   const variant = requestUrl.searchParams.get("variant") || "";
