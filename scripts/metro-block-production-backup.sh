@@ -63,7 +63,7 @@ read -r block_enabled block_version < <(node -e '
  const rows=data.flatMap(x=>x.results||[]);
  const row=rows.find(x=>x.id==="c024a562-634d-4e49-b647-43209f6e450b");
  if(!row)process.exit(1);
- process.stdout.write(String(row.blockEnabled)+" "+String(row.blockVersion)+"\\n");
+ process.stdout.write(String(row.blockEnabled)+" "+String(row.blockVersion)+String.fromCharCode(10));
 ' "$TMP/before-summary.json")
 if [[ "$block_enabled" == "1" ]]; then
   [[ "$block_version" =~ ^[1-9][0-9]*$ ]] || { echo 'STOP: invalid published METRO block version'; exit 1; }
