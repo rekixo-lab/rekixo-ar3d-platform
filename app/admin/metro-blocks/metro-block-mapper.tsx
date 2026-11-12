@@ -29,8 +29,9 @@ export default function MetroBlockMapper(){
     try{const r=await fetch("/api/admin/metro-blocks",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||"Save failed");if(refresh)await load();setMessage("Saved successfully");return true}catch(e){setMessage(String(e));return false}finally{setBusy(false)}
   }
   async function upload(event:ChangeEvent<HTMLInputElement>){
-    const file=event.currentTarget.files?.[0];if(!file)return;
-    if(mapped>0&&!confirm(`Replacing Block ${block.toUpperCase()} draft masterplan will clear its ${mapped} draft polygons. Published customer site stays unchanged. Continue?`)){event.currentTarget.value="";return;}
+    const input=event.currentTarget;
+    const file=input.files?.[0];if(!file)return;
+    if(mapped>0&&!confirm(`Replacing Block ${block.toUpperCase()} draft masterplan will clear its ${mapped} draft polygons. Published customer site stays unchanged. Continue?`)){input.value="";return;}
     const url=URL.createObjectURL(file),img=new Image();img.src=url;
     try{
       await new Promise<void>((resolve,reject)=>{img.onload=()=>resolve();img.onerror=()=>reject(Error("Image cannot be opened"))});
@@ -39,7 +40,7 @@ export default function MetroBlockMapper(){
       const r=await fetch("/api/admin/metro-blocks",{method:"POST",body:form});
       const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||"Image upload failed");
       await load();setMessage("Draft image uploaded (customer site unchanged)");
-    }catch(e){setMessage(String(e))}finally{URL.revokeObjectURL(url);event.currentTarget.value="";setBusy(false)}
+    }catch(e){setMessage(String(e))}finally{URL.revokeObjectURL(url);input.value="";setBusy(false)}
   }
   function choose(id:string){setSelected(id);setVerts(parse(maps.find(m=>m.plotId===id)?.polygon||""));setMessage("")}
   function clickMap(e:MouseEvent<SVGSVGElement>){
