@@ -4256,6 +4256,18 @@ export default function PlotMapper({
   }
 
   const currentPlot = plots.find((plot) => plot.id === plotId);
+  // METRO Block Mapper displays the canonical inventory measurements as read-only
+  // reference next to the actual polygon editor. No per-block size copy or
+  // re-import is needed: only polygon and semantic edge bindings are editable.
+  const blockReferenceUnit = currentPlot?.dimensionUnit === "m" ? "m" : "ft";
+  const blockReferenceArea = (value: number | null | undefined, unit: string) =>
+    value != null && Number.isFinite(Number(value)) && Number(value) > 0
+      ? `${Number(value).toLocaleString("en-IN", {maximumFractionDigits: 2})} ${unit}`
+      : "Not recorded";
+  const blockReferenceSide = (role: PlotSideRole) => {
+    const text = savedPlotRoleMeasurementText(currentPlot,role,effectiveSideLayout());
+    return text ? text.slice(text.indexOf(" · ") + 3) : "Not recorded";
+  };
   const currentHasSavedBoundary = Boolean(
     currentPlot && parsePolygon(currentPlot).length >= 3,
   );
@@ -4908,6 +4920,41 @@ export default function PlotMapper({
             <span><b>{mappedPlots.length}</b>/{plots.length || "—"}</span>
             <button type="button" onClick={() => selectSiblingPlot(1)} disabled={!inventoryPlots.length} aria-label="Next plot"><ChevronRight /></button>
           </div>
+          {blockMode && (
+            <section
+              aria-label={`Original measurements for Plot ${plotId}`}
+              data-testid="metro-block-legacy-measurements"
+              style={{
+                display:"flex",alignItems:"center",flexWrap:"wrap",
+                columnGap:12,rowGap:7,padding:"8px 11px",
+                background:"#0d2539",border:"1px solid #345370",borderRadius:7,
+                fontSize:12,color:"#e4f2ff",marginBottom:5,
+              }}
+            >
+              <span style={{color:"#95d9ff",fontWeight:800,whiteSpace:"nowrap"}}>Plot {plotId} · Original data (read-only)</span>
+              <span><b>Area:</b> {blockReferenceArea(currentPlot?.sqft,"sq.ft")}</span>
+              <span><b>Dimensions:</b> {String(currentPlot?.dimensions||"").trim()||"Not recorded"}</span>
+              <span><b>Road:</b> {String(currentPlot?.road||"").trim()||"Not recorded"}</span>
+              {([
+                ["front","Front","#62deb2"],
+                ["back","Back","#8dbdff"],
+                ["depthA","Depth A","#ffd28b"],
+                ...(effectiveSideLayout()==="three"?[]:[["depthB","Depth B","#c8adff"] as const]),
+              ] as const).map(([role,label,color])=>(
+                <span key={role} style={{whiteSpace:"nowrap"}}>
+                  <b style={{color}}>{label}:</b> {blockReferenceSide(role)}
+                </span>
+              ))}
+              {currentPlot?.sideDimensions && (
+                <span title={currentPlot.sideDimensions} style={{maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  <b>Original side notes:</b> {currentPlot.sideDimensions}
+                </span>
+              )}
+              {currentPlot?.status && <span><b>Status:</b> {currentPlot.status}</span>}
+              {!currentPlot && <strong style={{color:"#ffcc80"}}>Original plot record unavailable. Do not confirm a new boundary.</strong>}
+              <span style={{color:"#87abc7",fontSize:11}}>Side lengths come from the original inventory; polygon rotation/zoom cannot change them.</span>
+            </section>
+          )}
           {blockMode && blockSaveFeedback && (
             <div
               role={blockSaveFeedback.kind === "error" ? "alert" : "status"}
@@ -5750,6 +5797,7 @@ export default function PlotMapper({
                                   : groupedEdges.length === 1
                                     ? `Edge ${groupedEdges[0] + 1}`
                                     : "Select")}
+                              {blockMode && ` · ${blockReferenceSide(role)}`}
                             </small>
                           </button>
                         );
