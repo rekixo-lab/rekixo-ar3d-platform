@@ -3371,7 +3371,7 @@ export default function PlotMapper({
     } catch {
       // Local preference is optional; mapping must keep working.
     }
-    if (!completedProject) {
+    if (!completedProject && !blockMode) {
       void persistMapperSettings({ publicRotation: String(next) }).catch((error) => {
         notify(
           error instanceof Error ? error.message : "Public rotation save nahi hui",
@@ -3410,7 +3410,7 @@ export default function PlotMapper({
     zoomRef.current = 1;
     setZoom(1);
     setRotation(0);
-    if (!completedProject) {
+    if (!completedProject && !blockMode) {
       void persistMapperSettings({ publicRotation: "0" }).catch((error) => {
         notify(
           error instanceof Error ? error.message : "Public rotation reset nahi hui",
