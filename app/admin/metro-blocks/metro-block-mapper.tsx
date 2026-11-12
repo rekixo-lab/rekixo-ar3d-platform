@@ -6,7 +6,7 @@ type BlockKey="a"|"b"|"c";
 type Plot={id:string;sqft:number;status:string;dimensions:string};
 type BlockMap={plotId:string;blockKey:BlockKey;polygon:string};
 type Asset={blockKey:string;draftObjectKey:string;draftWidth:number;draftHeight:number;draftFilename:string;northAngle:number;publishedVersion:number};
-type Draft={plots:Plot[];maps:BlockMap[];assets:Asset[];state:{enabled:number;version:number}};
+type Draft={plots:Plot[];maps:BlockMap[];assets:Asset[];state:{enabled:number;version:number;draftRevision:number}};
 type Point=[number,number];
 const BLOCKS:BlockKey[]=["a","b","c"];
 const projectLink="/projects/metro-city-c024a5";
@@ -57,7 +57,7 @@ export default function MetroBlockMapper(){
   async function move(plotId:string,next:BlockKey){if(!confirm(`Move ${plotId} to Block ${next.toUpperCase()}? Its draft polygon will be cleared; live site unchanged.`))return;await send({action:"move",block:next,plotId});if(plotId===selected){setSelected("");setVerts([])}}
   async function publish(){if(!draft||!allMapped||!BLOCKS.every(b=>draft.assets.some(a=>a.blockKey===b&&a.draftObjectKey))){setMessage("All active plots need a polygon and all blocks need draft images.");return}
     if(!confirm(`Publish three complete blocks with ${draft.plots.length} plots? The current customer link will become the block selector. Continue?`))return;
-    const ok=await send({action:"publish",expectedVersion:draft.state.version,confirmation:"PUBLISH METRO BLOCKS"});if(ok)setMessage("All three blocks published and enabled. Recheck customer link, search, status and images.")}
+    const ok=await send({action:"publish",expectedVersion:draft.state.version,expectedDraftRevision:draft.state.draftRevision,confirmation:"PUBLISH METRO BLOCKS"});if(ok)setMessage("All three blocks published and enabled. Recheck customer link, search, status and images.")}
   async function restore(){if(!confirm("Restore original METRO CITY customer site? Draft and published block assets will be retained."))return;await send({action:"disable",confirmation:"RESTORE METRO LEGACY"})}
   return <main style={{background:"#07101c",color:"#eaf3ff",minHeight:"100vh",padding:18,fontFamily:"system-ui,sans-serif"}}>
     <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
