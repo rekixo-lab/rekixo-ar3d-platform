@@ -4932,7 +4932,7 @@ export default function PlotMapper({
               }}
             >
               <span style={{color:"#95d9ff",fontWeight:800,whiteSpace:"nowrap"}}>Plot {plotId} · Original data (read-only)</span>
-              <span><b>Area:</b> {blockReferenceArea(currentPlot?.sqft,"sq.ft")}</span>
+              <span><b>Area:</b> {blockReferenceArea(currentPlot?.sqft,"sq.ft")} · {blockReferenceArea(currentPlot?.sqm,"sq.m")} · {blockReferenceArea(currentPlot?.sqyd,"sq.yd")}</span>
               <span><b>Dimensions:</b> {String(currentPlot?.dimensions||"").trim()||"Not recorded"}</span>
               <span><b>Road:</b> {String(currentPlot?.road||"").trim()||"Not recorded"}</span>
               {([
