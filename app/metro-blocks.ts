@@ -25,7 +25,7 @@ export async function metroBlockState(projectId: string) {
   }
 }
 
-export type MetroPublishedMap = {plotId: string; polygon: string; blockKey: MetroBlockKey};
+export type MetroPublishedMap = {plotId: string; polygon: string; sideBindings:string; blockKey: MetroBlockKey};
 export type MetroPublishedAsset = {
   objectKey: string; width: number; height: number; version: number; northAngle: number;
 };
@@ -45,7 +45,7 @@ export async function publishedMetroBlockMap(projectId: string, block: MetroBloc
   const published = await publishedMetroBlock(projectId, block);
   if (!published) return null;
   const rows = await env.DB.prepare(
-    "SELECT plot_id AS plotId,polygon,block_key AS blockKey FROM metro_block_published_maps WHERE project_id=? AND block_key=? ORDER BY plot_id",
+    "SELECT plot_id AS plotId,polygon,side_bindings AS sideBindings,block_key AS blockKey FROM metro_block_published_maps WHERE project_id=? AND block_key=? ORDER BY plot_id",
   ).bind(projectId, block).all<MetroPublishedMap>();
   return {...published,maps:rows.results};
 }

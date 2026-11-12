@@ -131,6 +131,7 @@ type Plot = {
   notes?: string;
   featured?: boolean;
   polygon?: string;
+  blockSideRevision?: string;
 };
 
 type MapperSettings = {
@@ -1066,10 +1067,6 @@ function polygonSelfIntersects(points: MapperPoint[]) {
   return false;
 }
 
-function mappingDraftKey(projectId: string, plotId: string) {
-  return `rekixo:mapper-draft:${projectId}:${cleanPlotId(plotId)}`;
-}
-
 function dimensionPair(value: string) {
   const match = String(value || "")
     .trim()
@@ -1088,15 +1085,33 @@ export default function PlotMapper({
   notify,
   projectId,
   workspaceMode = "full",
+  blockKey,
+  onDraftChanged,
 }: {
   notify: (message: string) => void;
   projectId: string;
   workspaceMode?: "full" | "controls";
+  /** Optional METRO CITY only — never writes canonical plot geometry. */
+  blockKey?: "a" | "b" | "c";
+  onDraftChanged?: () => void;
 }) {
   const controlsWorkspace = workspaceMode === "controls";
+  const blockMode = Boolean(blockKey);
+  const mappingProjectKey = blockKey ? `${projectId}:block:${blockKey}` : projectId;
+  // Keep canonical key contract for every other project; prefix only METRO block drafts.
+  const mappingDraftKey = (projectId:string,plotId:string) =>
+    `rekixo:mapper-draft:${blockKey ? `${projectId}:block:${blockKey}` : projectId}:${cleanPlotId(plotId)}`;
+  const rotationStorageKey = blockKey
+    ? `rekixo:mapper-rotation:${mappingProjectKey}`
+    : `rekixo:mapper-rotation:${projectId}`;
+  const blockEditorUrl = blockKey
+    ? `/api/admin/metro-blocks/advanced?projectId=${encodeURIComponent(projectId)}&block=${blockKey}`
+    : `/api/super-mapper?projectId=${encodeURIComponent(projectId)}`;
   const completedProject = projectId === COMPLETED_PROJECT_ID;
   const assetUrl = (kind: string) =>
-    completedProject && kind === "masterplan"
+    blockKey && kind === "masterplan"
+      ? `/api/admin/metro-blocks/image?block=${blockKey}`
+      : completedProject && kind === "masterplan"
       ? "/project/masterplan.jpg"
       : `/api/project-asset/${kind}?projectId=${encodeURIComponent(projectId)}`;
   const masterplanAssetUrl = (
@@ -1104,6 +1119,7 @@ export default function PlotMapper({
     version = "",
     retryToken = "",
   ) => {
+    if (blockKey) return `/api/admin/metro-blocks/image?block=${blockKey}&v=${encodeURIComponent(version)}&retry=${encodeURIComponent(retryToken)}`;
     if (completedProject) return "/project/masterplan.jpg";
     const params = new URLSearchParams({ projectId, preview: "1" });
     if (quality === "preview") params.set("variant", "public");
@@ -1277,6 +1293,16 @@ export default function PlotMapper({
   }
 
   async function persistMapperSettings(next: Record<string, string>) {
+    if (blockKey) {
+      if (Object.keys(next).length!==1 || !Object.prototype.hasOwnProperty.call(next,"masterplanNorthAngle"))
+        throw new Error("METRO Block Mode permits only isolated North calibration");
+      const angle=String(next.masterplanNorthAngle||"").trim()===""?0:Number(next.masterplanNorthAngle);
+      if(!Number.isFinite(angle)||angle<0||angle>=360)throw new Error("Invalid North calibration");
+      const res=await fetch("/api/admin/metro-blocks", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"calibrate",block:blockKey,angle})});
+      await apiResult(res);
+      setSettings(current=>({...current,masterplanNorthAngle:String(angle)}));
+      return;
+    }
     const response = await fetch("/api/super-mapper", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1413,7 +1439,7 @@ export default function PlotMapper({
 
   async function reload() {
     setSettingsReady(false);
-    const response = await fetch(`/api/super-mapper?projectId=${encodeURIComponent(projectId)}`, {
+    const response = await fetch(blockEditorUrl, {
       cache: "no-store",
     });
     const data = await apiResult(response);
@@ -1498,7 +1524,7 @@ export default function PlotMapper({
     setNorthCalibrationDraftSourceAngle(null);
     // Restore this device's preferred mapping orientation for the project.
     try {
-      const saved = Number(window.localStorage.getItem(`rekixo:mapper-rotation:${projectId}`));
+      const saved = Number(window.localStorage.getItem(rotationStorageKey));
       if (saved === 0 || saved === 1 || saved === 2 || saved === 3)
         setRotation(saved as 0 | 1 | 2 | 3);
       else setRotation(0);
@@ -1515,7 +1541,7 @@ export default function PlotMapper({
     const serverRotation = normalizeQuarterTurn(settings.publicRotation);
     let localRotation: 0 | 1 | 2 | 3 | null = null;
     try {
-      const raw = window.localStorage.getItem(`rekixo:mapper-rotation:${projectId}`);
+      const raw = window.localStorage.getItem(rotationStorageKey);
       if (raw !== null) {
         const saved = Number(raw);
         if (saved === 0 || saved === 1 || saved === 2 || saved === 3) {
@@ -1530,13 +1556,13 @@ export default function PlotMapper({
     // was shared: preserve the existing non-zero mapper angle when the server is
     // still at its legacy 0° default. Once a non-zero server value exists, it wins.
     const migrateExistingLocalAngle =
-      serverRotation === 0 && localRotation !== null && localRotation !== 0;
+      !blockMode && serverRotation === 0 && localRotation !== null && localRotation !== 0;
     const nextRotation = migrateExistingLocalAngle ? localRotation! : serverRotation;
 
     setRotation(nextRotation);
     try {
       window.localStorage.setItem(
-        `rekixo:mapper-rotation:${projectId}`,
+        rotationStorageKey,
         String(nextRotation),
       );
     } catch {
@@ -2411,6 +2437,7 @@ export default function PlotMapper({
     kind: PlotSideRole,
     direction: EdgeDirection,
   ) {
+    if(blockMode)return notify("Block Mode: Bulk sides disabled; verify each plot separately");
     const selected = mappedPlots.filter((plot) => bulkSemanticIds.has(plot.id));
     if (!selected.length) return notify("Bulk side ke liye pehle plots select karein");
     const eligible =
@@ -2812,6 +2839,7 @@ export default function PlotMapper({
     kind: "masterplan" | "sourcePdf" | "sourceCad" | "plotSheet" | "measurementSheet" | "roadAccessSheet" | "sideMappingSheet" | "logo",
     options: { inventoryConfirmation?: string } = {},
   ) {
+    if(blockMode)return notify("Block Mode: use dedicated draft image uploader above");
     if (completedProject && !["sourcePdf", "logo", "measurementSheet", "roadAccessSheet", "sideMappingSheet"].includes(kind)) {
       notify("Tiyansh completed project locked है");
       return;
@@ -3342,11 +3370,11 @@ export default function PlotMapper({
     const next = ((rotation + direction + 4) % 4) as 0 | 1 | 2 | 3;
     setRotation(next);
     try {
-      window.localStorage.setItem(`rekixo:mapper-rotation:${projectId}`, String(next));
+      window.localStorage.setItem(rotationStorageKey, String(next));
     } catch {
       // Local preference is optional; mapping must keep working.
     }
-    if (!completedProject) {
+    if (!completedProject && !blockMode) {
       void persistMapperSettings({ publicRotation: String(next) }).catch((error) => {
         notify(
           error instanceof Error ? error.message : "Public rotation save nahi hui",
@@ -3385,7 +3413,7 @@ export default function PlotMapper({
     zoomRef.current = 1;
     setZoom(1);
     setRotation(0);
-    if (!completedProject) {
+    if (!completedProject && !blockMode) {
       void persistMapperSettings({ publicRotation: "0" }).catch((error) => {
         notify(
           error instanceof Error ? error.message : "Public rotation reset nahi hui",
@@ -3402,7 +3430,7 @@ export default function PlotMapper({
       });
     });
     try {
-      window.localStorage.setItem(`rekixo:mapper-rotation:${projectId}`, "0");
+      window.localStorage.setItem(rotationStorageKey, "0");
     } catch {
       // Ignore private-mode/localStorage failures.
     }
@@ -3613,7 +3641,7 @@ export default function PlotMapper({
     const expected = parsePolygon(saved);
     for (let attempt = 0; attempt < 4; attempt += 1) {
       const verifyResponse = await fetch(
-        `/api/super-mapper?projectId=${encodeURIComponent(projectId)}&verify=${Date.now()}`,
+        `${blockEditorUrl}&verify=${Date.now()}`,
         { cache: "no-store" },
       );
       const verifyData = await apiResult(verifyResponse);
@@ -3670,7 +3698,7 @@ export default function PlotMapper({
   async function verifyAllBoundariesCleared() {
     for (let attempt = 0; attempt < 4; attempt += 1) {
       const verifyResponse = await fetch(
-        `/api/super-mapper?projectId=${encodeURIComponent(projectId)}&verify=${Date.now()}`,
+        `${blockEditorUrl}&verify=${Date.now()}`,
         { cache: "no-store" },
       );
       const verifyData = await apiResult(verifyResponse);
@@ -3688,6 +3716,7 @@ export default function PlotMapper({
   }
 
   async function createInventoryPlots(rows: Array<{id:string;dimensions:string;front:number;back:number;depth:number;depth2:number;dimensionUnit:"ft";sqft:number;road:string;notes:string}>) {
+    if(blockMode)return notify("Block Mode में canonical inventory add नहीं किया जा सकता");
     setBusy(true);
     try {
       const response = await fetch("/api/super-mapper", {
@@ -3733,6 +3762,7 @@ export default function PlotMapper({
     const area = Number.isFinite(parsedArea) && parsedArea > 0
       ? parsedArea
       : Number(existing?.sqft || 0);
+    if(blockMode&&!existing)return notify("इस Block में assigned existing plot ID ही map करें");
     if (!id) return notify("Plot number जरूरी है");
     if (points.length < 3) return notify("पहले plot boundary पूरी select करें");
     if (shape === "quad" && points.length !== 4)
@@ -3919,12 +3949,17 @@ export default function PlotMapper({
       featured: existing?.featured || false,
       polygon: JSON.stringify(points),
     };
+    if(blockMode&&existing){
+      // The shared canonical physical area/dimensions/status always win; only new geometry/edge roles go to block draft.
+      const immutable=["sqft","sqm","sqyd","dimensions","road","front","back","depth","depth2","dimensionUnit","frontLabel","backLabel","depthLabel","depth2Label","sideDimensions","status","notes","featured"] as const;
+      for(const field of immutable)(plot as unknown as Record<string,unknown>)[field]=existing[field];
+    }
     setBusy(true);
     try {
-      const response = await fetch("/api/super-mapper", {
+      const response = await fetch(blockMode?"/api/admin/metro-blocks/advanced":"/api/super-mapper", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ projectId, plot }),
+        body: JSON.stringify(blockKey?{projectId,block:blockKey,action:"save",plot,expectedPolygon:existing?.polygon||"",expectedBindings:existing?.blockSideRevision||""}:{projectId,plot}),
       });
       const result = await apiResult(response);
       const saved = result.plot as Plot;
@@ -3934,6 +3969,7 @@ export default function PlotMapper({
       const verified = await verifyPlotPersistence(saved);
       setPlots(verified.plots);
       setLastVerifiedId(verified.plot.id);
+      if(blockMode)onDraftChanged?.();
       announceMapperDataUpdated();
       try {
         window.localStorage.removeItem(mappingDraftKey(projectId, verified.plot.id));
@@ -3966,10 +4002,10 @@ export default function PlotMapper({
     if (!confirm(`Plot ${plot.id} की saved clickable boundary हटाएँ? Plot details/status सुरक्षित रहेंगे।`)) return;
     setBusy(true);
     try {
-      const response = await fetch("/api/super-mapper", {
+      const response = await fetch(blockMode?"/api/admin/metro-blocks/advanced":"/api/super-mapper", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+        body: JSON.stringify(blockKey?{projectId,block:blockKey,action:"clear",plot:{id:plot.id},expectedPolygon:plot.polygon||"",expectedBindings:plot.blockSideRevision||""}:{
           projectId,
           action: "clear_plot_boundary",
           plot: { id: plot.id },
@@ -3983,6 +4019,7 @@ export default function PlotMapper({
       const verified = await verifyPlotPersistence(saved);
       setPlots(verified.plots);
       setLastVerifiedId(verified.plot.id);
+      if(blockMode)onDraftChanged?.();
       announceMapperDataUpdated();
       setPoints([]);
       setEditingId("");
@@ -4011,6 +4048,7 @@ export default function PlotMapper({
   }
 
   async function clearAllSelections() {
+    if(blockMode)return notify("Block Mode में Clear All बंद है; केवल individual plot remove करें");
     const mappedCount = mappedPlots.length;
     if (!mappedCount) {
       setClearAllConfirmOpen(false);
@@ -4080,6 +4118,7 @@ export default function PlotMapper({
   }
 
   async function saveCalibration() {
+    if(blockMode)return notify("Block Mode: CAD calibration disabled");
     if (calibrationPairs.length < 4 || !liveMatrix)
       return notify("पहले 4 दूर-दूर calibration pairs बनाएं");
     const error = calibrationPairs.length >= 4 ? calibrationError(liveMatrix, calibrationPairs) : 0;
@@ -4118,6 +4157,7 @@ export default function PlotMapper({
   }
 
   async function publishAutoMatches() {
+    if(blockMode)return notify("Block Mode: CAD Auto Publish disabled");
     const pending = acceptedAutoMatches.filter((match) => !match.plot.polygon);
     if (!pending.length) return notify("Auto-matched new plots बाकी नहीं हैं");
     if (!confirm(`${pending.length} matched plots को clickable 2D + 3D publish करें?`)) return;
@@ -4311,7 +4351,8 @@ export default function PlotMapper({
             </div>
             <small className="mapper-help">4-corner plot: Tap 1 + Tap 2 road-facing Front boundary ke dono endpoints par karein, phir same direction me clockwise baki 2 corners tap karein. Rekixo automatically Front → Depth A → Back → Depth B bind karega. Snap OFF mein exact click/drag position rahegi. Shared boundary milane ke liye toolbar se Snap ON karein.</small>
           </> : <>
-            <div className="mapper-fields guided-fields">
+            {blockMode && <p className="mapper-help">METRO BLOCK DRAFT — Area, Front/Back/Depth measurements and road details are read-only from the existing live inventory. Only polygon and edge assignments save here.</p>}
+            <fieldset className="mapper-fields guided-fields" disabled={blockMode} style={{border:0,minWidth:0,margin:0,padding:0}}>
               <label><span>Plot number</span><input value={plotId} readOnly={Boolean(currentPlot)} onChange={(event) => setPlotId(event.target.value)} /></label>
               <label><span>Dimensions (legacy/reference)</span><input value={dimensions} onChange={(event) => setDimensions(event.target.value)} placeholder="18 x 40 ft" /></label>
               <label><span>Area (sq.ft)</span><input type="number" min="0" value={sqft} onChange={(event) => setSqft(event.target.value)} /></label>
@@ -4323,8 +4364,8 @@ export default function PlotMapper({
                 <label><span>Depth B</span><input type="number" min="0" step="0.01" value={depth2} onChange={(event) => setDepth2(event.target.value)} placeholder="40" /></label>
               )}
               <label><span>Size unit</span><select value={dimensionUnit} onChange={(event) => setDimensionUnit(event.target.value === "m" ? "m" : "ft")}><option value="ft">ft (feet)</option><option value="m">m (metre)</option></select></label>
-            </div>
-            <div className="mapper-actions compact">
+            </fieldset>
+            {!blockMode && <div className="mapper-actions compact">
               <button type="button" onClick={() => {
                 const parsed = dimensionPair(dimensions);
                 if (!parsed) return notify("Dimensions me 18 x 40 ft jaisa pair nahi mila");
@@ -4334,7 +4375,7 @@ export default function PlotMapper({
                 notify("Dimensions se Front/Depth fill hua — road-facing Front edge verify karein; zarurat ho to Swap karein");
               }}>Dimensions → Front/Depth</button>
               <button type="button" disabled={!front && !depth} onClick={() => { setFront(depth); setDepth(front); }}>Swap Front ↔ Depth</button>
-            </div>
+            </div>}
             <small className="mapper-help">Normal 4-corner plot me first tapped boundary road-facing Front hai aur side roles auto-bind ho chuke hain. Irregular plot me numbered corner-range se logical sides assign karein. Triangle automatically 3-side mode use karta hai; 4+ corners par 3-side ya 4-side choose kar sakte hain. Measurements Plot Data ya AI Measurement Manifest se aati hain.</small>
             <div className="mapper-actions">
               <button
@@ -4385,7 +4426,7 @@ export default function PlotMapper({
       className={`mapper-shell auto-cad-mapper${controlsWorkspace ? " mapping-controls-workspace" : ""}`}
       onContextMenu={(event) => event.preventDefault()}
     >
-      {!controlsWorkspace && (
+      {!controlsWorkspace && !blockMode && (
       <div className="card mapper-tools mapper-v2-head">
         <div className="section-title">
           <MousePointer2 />
@@ -4730,7 +4771,7 @@ export default function PlotMapper({
       </div>
       )}
 
-      {cadGeometry && !completedProject && !controlsWorkspace && (
+      {cadGeometry && !completedProject && !controlsWorkspace && !blockMode && (
         <details className="card cad-assistant-card">
           <summary>
             <span><b>Advanced CAD Assistant</b><small>Optional auto-suggestions; normal plot mapping main image par hoti hai.</small></span>
@@ -4891,19 +4932,20 @@ export default function PlotMapper({
                 <button
                   type="button"
                   className={bulkSemanticMode ? "active" : ""}
+                  disabled={blockMode}
                   onClick={toggleBulkSidesMode}
                 >Bulk sides</button>
               </div>
             )}
 
-            <button
+            {!blockMode && <button
               className="mapper-clear-all"
               type="button"
-              disabled={busy || completedProject || mappedPlots.length === 0}
+              disabled={blockMode || busy || completedProject || mappedPlots.length === 0}
               onClick={requestClearAllSelections}
               aria-label="Clear all saved plot selections"
               title="Remove every saved clickable boundary; plot details and status stay safe"
-            ><Trash2 />Clear all selections</button>
+            ><Trash2 />Clear all selections</button>}
           </div>
 
           {settings.plotFacingEnabled === "1" && !completedProject && hasMasterplan && (
@@ -5533,6 +5575,7 @@ export default function PlotMapper({
                 <button
                   type="button"
                   className={bulkSemanticMode ? "primary" : ""}
+                  disabled={blockMode}
                   onClick={toggleBulkSidesMode}
                 >Bulk sides</button>
               </div>
@@ -5643,7 +5686,7 @@ export default function PlotMapper({
               </div>
             </div>
           )}
-          {!completedProject && bulkSemanticMode && (
+          {!completedProject && !blockMode && bulkSemanticMode && (
             <div className="mapper-actions compact">
               <span>{bulkSemanticIds.size} plots selected · visible mapper direction</span>
               {([
@@ -5706,7 +5749,7 @@ export default function PlotMapper({
         </aside>
       </div>
 
-      {!controlsWorkspace && !completedProject && liveMatrix && acceptedAutoMatches.length > 0 && (
+      {!controlsWorkspace && !completedProject && !blockMode && liveMatrix && acceptedAutoMatches.length > 0 && (
         <div className="card auto-publish-card cad-only-card">
           <div>
             <small>AUTO MATCH REVIEW</small>
