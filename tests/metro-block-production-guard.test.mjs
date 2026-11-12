@@ -24,8 +24,8 @@ test("production deploy performs private backup before D1 migration and post-che
  assert.match(post,/fingerprint/);
  assert.match(post,/cmp -s/);
  assert.match(backup,/block-fingerprint\.sha/);
- assert.match(backup,/metro-blocks\\/published\\/\\$block_version\\/\\$block/);
- assert.match(backup,/published-block-\\$block-readback/);
+ assert.ok(backup.includes("metro-blocks/published/$block_version/$block"));
+ assert.ok(backup.includes("published-block-$block-readback.bin"));
  assert.match(post,/after-block-fingerprint\.sha/);
 });
 test("Metro DB guard validates exact identity, 702 statuses and unmodified fingerprint",()=>{
