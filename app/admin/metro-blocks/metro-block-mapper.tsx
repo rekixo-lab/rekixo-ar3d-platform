@@ -30,6 +30,7 @@ export default function MetroBlockMapper(){
   }
   async function upload(event:ChangeEvent<HTMLInputElement>){
     const file=event.currentTarget.files?.[0];if(!file)return;
+    if(mapped>0&&!confirm(`Replacing Block ${block.toUpperCase()} draft masterplan will clear its ${mapped} draft polygons. Published customer site stays unchanged. Continue?`)){event.currentTarget.value="";return;}
     const url=URL.createObjectURL(file),img=new Image();img.src=url;
     try{
       await new Promise<void>((resolve,reject)=>{img.onload=()=>resolve();img.onerror=()=>reject(Error("Image cannot be opened"))});
@@ -50,7 +51,7 @@ export default function MetroBlockMapper(){
   }
   async function calibrateNorth(angle:number){await send({action:"calibrate",block,angle})}
   async function savePolygon(){if(!selected||verts.length<3){setMessage("Select a plot and mark 3 or more vertices.");return}
-    const ok=await send({action:"map",block,plotId:selected,polygon:verts});if(ok)setVerts([]); // load the saved geometry from snapshot on next selection
+    await send({action:"map",block,plotId:selected,polygon:verts}); // Keep the saved outline visible for review
   }
   async function initialize(){if(!confirm("Initialize draft block assignment from existing plot ID prefixes? Existing plots, statuses, sales and published data will not change."))return;await send({action:"initialize"})}
   async function move(plotId:string,next:BlockKey){if(!confirm(`Move ${plotId} to Block ${next.toUpperCase()}? Its draft polygon will be cleared; live site unchanged.`))return;await send({action:"move",block:next,plotId});if(plotId===selected){setSelected("");setVerts([])}}
