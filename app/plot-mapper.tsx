@@ -3634,7 +3634,7 @@ export default function PlotMapper({
     const expected = parsePolygon(saved);
     for (let attempt = 0; attempt < 4; attempt += 1) {
       const verifyResponse = await fetch(
-        `/api/super-mapper?projectId=${encodeURIComponent(projectId)}&verify=${Date.now()}`,
+        `${blockEditorUrl}&verify=${Date.now()}`,
         { cache: "no-store" },
       );
       const verifyData = await apiResult(verifyResponse);
@@ -3691,7 +3691,7 @@ export default function PlotMapper({
   async function verifyAllBoundariesCleared() {
     for (let attempt = 0; attempt < 4; attempt += 1) {
       const verifyResponse = await fetch(
-        `/api/super-mapper?projectId=${encodeURIComponent(projectId)}&verify=${Date.now()}`,
+        `${blockEditorUrl}&verify=${Date.now()}`,
         { cache: "no-store" },
       );
       const verifyData = await apiResult(verifyResponse);
@@ -3709,6 +3709,7 @@ export default function PlotMapper({
   }
 
   async function createInventoryPlots(rows: Array<{id:string;dimensions:string;front:number;back:number;depth:number;depth2:number;dimensionUnit:"ft";sqft:number;road:string;notes:string}>) {
+    if(blockMode)return notify("Block Mode में canonical inventory add नहीं किया जा सकता");
     setBusy(true);
     try {
       const response = await fetch("/api/super-mapper", {
@@ -3754,6 +3755,7 @@ export default function PlotMapper({
     const area = Number.isFinite(parsedArea) && parsedArea > 0
       ? parsedArea
       : Number(existing?.sqft || 0);
+    if(blockMode&&!existing)return notify("इस Block में assigned existing plot ID ही map करें");
     if (!id) return notify("Plot number जरूरी है");
     if (points.length < 3) return notify("पहले plot boundary पूरी select करें");
     if (shape === "quad" && points.length !== 4)
@@ -3940,12 +3942,17 @@ export default function PlotMapper({
       featured: existing?.featured || false,
       polygon: JSON.stringify(points),
     };
+    if(blockMode&&existing){
+      // The shared canonical physical area/dimensions/status always win; only new geometry/edge roles go to block draft.
+      const immutable=["sqft","sqm","sqyd","dimensions","road","front","back","depth","depth2","dimensionUnit","frontLabel","backLabel","depthLabel","depth2Label","sideDimensions","status","notes","featured"] as const;
+      for(const field of immutable)(plot as unknown as Record<string,unknown>)[field]=existing[field];
+    }
     setBusy(true);
     try {
-      const response = await fetch("/api/super-mapper", {
+      const response = await fetch(blockMode?"/api/admin/metro-blocks/advanced":"/api/super-mapper", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ projectId, plot }),
+        body: JSON.stringify(blockKey?{projectId,block:blockKey,action:"save",plot,expectedPolygon:existing?.polygon||""}:{projectId,plot}),
       });
       const result = await apiResult(response);
       const saved = result.plot as Plot;
@@ -3987,10 +3994,10 @@ export default function PlotMapper({
     if (!confirm(`Plot ${plot.id} की saved clickable boundary हटाएँ? Plot details/status सुरक्षित रहेंगे।`)) return;
     setBusy(true);
     try {
-      const response = await fetch("/api/super-mapper", {
+      const response = await fetch(blockMode?"/api/admin/metro-blocks/advanced":"/api/super-mapper", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+        body: JSON.stringify(blockKey?{projectId,block:blockKey,action:"clear",plot:{id:plot.id},expectedPolygon:plot.polygon||""}:{
           projectId,
           action: "clear_plot_boundary",
           plot: { id: plot.id },
@@ -4032,6 +4039,7 @@ export default function PlotMapper({
   }
 
   async function clearAllSelections() {
+    if(blockMode)return notify("Block Mode में Clear All बंद है; केवल individual plot remove करें");
     const mappedCount = mappedPlots.length;
     if (!mappedCount) {
       setClearAllConfirmOpen(false);
