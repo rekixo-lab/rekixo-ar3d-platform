@@ -12,7 +12,7 @@ export function safeBlockPolygon(value:unknown): string | null {
     if(!Array.isArray(point)||point.length!==2)return null;
     const x=Number(point[0]),y=Number(point[1]);
     if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>1||y<0||y>1)return null;
-    a.push([Number(x.toFixed(7)),Number(y.toFixed(7))]);
+    a.push([Number(x.toFixed(12)),Number(y.toFixed(12))]);
   }
   const cross=(p:NormalizedPoint,q:NormalizedPoint,r:NormalizedPoint)=>
     (q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0]);
@@ -57,7 +57,7 @@ export function encodeBlockSides(raw:unknown,vertices:number):string|null{
     if(n!=null&&n!==""&&(!Number.isInteger(n)||Number(n)<0||Number(n)>=vertices))return null;
     result[field]=n==null||n===""?null:Number(n);
   }
-  const semantics=r.edgeSemantics;
+  const semantics=r.edgeSemantics==null?"":r.edgeSemantics;
   if(typeof semantics!=="string"||semantics.length>6000)return null;
   if(semantics){
     let parsed:unknown;
