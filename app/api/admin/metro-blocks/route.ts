@@ -78,7 +78,7 @@ export async function POST(request:Request) {
     // Immutable published snapshots and the shared plots table are untouched.
     await env.DB.batch([
       env.DB.prepare("INSERT INTO metro_block_assets (project_id,block_key,draft_object_key,draft_width,draft_height,draft_filename,draft_north_angle,updated_at) VALUES (?,?,?,?,?,?,0,?) ON CONFLICT(project_id,block_key) DO UPDATE SET draft_object_key=excluded.draft_object_key,draft_width=excluded.draft_width,draft_height=excluded.draft_height,draft_filename=excluded.draft_filename,draft_north_angle=0,updated_at=excluded.updated_at").bind(PROJECT,block,key,width,height,file.name.slice(0,200),now),
-      env.DB.prepare("UPDATE metro_block_plot_maps SET polygon='',updated_at=? WHERE project_id=? AND block_key=?").bind(now,PROJECT,block),
+      env.DB.prepare("UPDATE metro_block_plot_maps SET polygon='',side_bindings='',updated_at=? WHERE project_id=? AND block_key=?").bind(now,PROJECT,block),
       env.DB.prepare("INSERT OR IGNORE INTO metro_block_state(project_id,public_enabled,version,draft_revision,updated_at) VALUES (?,0,0,0,?)").bind(PROJECT,now),
       env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
     ]);
@@ -125,14 +125,14 @@ export async function POST(request:Request) {
     if(body.action==="map"&&existing.blockKey!==block)return json({error:"Plot belongs to a different block; reload mapping"},409);
     if(body.action==="move") {
       await env.DB.batch([
-        env.DB.prepare("UPDATE metro_block_plot_maps SET block_key=?,polygon='',updated_at=? WHERE project_id=? AND plot_id=?").bind(block,now,PROJECT,plotId),
+        env.DB.prepare("UPDATE metro_block_plot_maps SET block_key=?,polygon='',side_bindings='',updated_at=? WHERE project_id=? AND plot_id=?").bind(block,now,PROJECT,plotId),
         env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
       ]);
     } else {
       const polygon=normalizePolygon(body.polygon);
       if(!polygon)return json({error:"Polygon invalid: minimum 3 distinct non-intersecting normalized points required"},400);
       await env.DB.batch([
-        env.DB.prepare("UPDATE metro_block_plot_maps SET polygon=?,updated_at=? WHERE project_id=? AND plot_id=? AND block_key=?").bind(polygon,now,PROJECT,plotId,block),
+        env.DB.prepare("UPDATE metro_block_plot_maps SET polygon=?,side_bindings='',updated_at=? WHERE project_id=? AND plot_id=? AND block_key=?").bind(polygon,now,PROJECT,plotId,block),
         env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
       ]);
     }
@@ -162,7 +162,7 @@ export async function POST(request:Request) {
     try {
       const stmts=[
         env.DB.prepare("DELETE FROM metro_block_published_maps WHERE project_id=?").bind(PROJECT),
-        env.DB.prepare("INSERT INTO metro_block_published_maps(project_id,plot_id,block_key,polygon) SELECT project_id,plot_id,block_key,polygon FROM metro_block_plot_maps WHERE project_id=?").bind(PROJECT),
+        env.DB.prepare("INSERT INTO metro_block_published_maps(project_id,plot_id,block_key,polygon,side_bindings) SELECT project_id,plot_id,block_key,polygon,side_bindings FROM metro_block_plot_maps WHERE project_id=?").bind(PROJECT),
         ...copies.map(c=>env.DB.prepare("UPDATE metro_block_assets SET published_object_key=?,published_width=?,published_height=?,published_north_angle=?,published_version=? WHERE project_id=? AND block_key=?").bind(c.key,c.asset.draftWidth,c.asset.draftHeight,c.asset.northAngle,version,PROJECT,c.block)),
         // An out-of-date revision produces CHECK(public_enabled IN (0,1)) failure.
         // D1 batch rolls back every published-map and asset pointer change.
