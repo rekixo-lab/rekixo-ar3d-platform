@@ -3,6 +3,8 @@ import { requireSuperAdmin, sameOrigin } from "@/modules/auth";
 import { writeAudit } from "@/modules/audit";
 import { METRO_BLOCK_KEYS, METRO_BLOCK_PROJECT_ID, metroBlockKey } from "@/app/metro-blocks";
 import {previewMetroAssignments,completeMetroAssignments} from "@/app/metro-block-assignment";
+import {createMetroBlockCheckpoint} from "@/app/metro-block-draft-backup";
+import {blockPublishSideCoverage} from "@/app/metro-block-safe-geometry";
 
 export const dynamic = "force-dynamic";
 const PROJECT = METRO_BLOCK_PROJECT_ID;
@@ -11,7 +13,7 @@ const json = (value: unknown, status=200) => Response.json(value, {status,header
 
 type PlotRow = {id:string;sqft:number;dimensions:string;status:string};
 type BlockAsset = {blockKey:string;draftObjectKey:string;draftWidth:number;draftHeight:number;draftFilename:string;northAngle:number;publishedObjectKey:string;publishedVersion:number};
-type BlockMap = {plotId:string;blockKey:string;polygon:string};
+type BlockMap = {plotId:string;blockKey:string;polygon:string;sideBindings:string};
 // Unusual plot labels are allowed only if they exactly match an existing active plot.
 const VALID_ID = /^[^\u0000-\u001f\u007f]{1,80}$/;
 function safelyNormalizeSavedPolygon(raw:string) {try{return normalizePolygon(JSON.parse(raw||"null"));}catch{return null}}
@@ -41,7 +43,7 @@ async function load() {
   const [plots,assets,maps,state] = await Promise.all([
     env.DB.prepare("SELECT id,sqft,dimensions,status FROM plots WHERE project_id=? AND inventory_active=1 ORDER BY id").bind(PROJECT).all<PlotRow>(),
     env.DB.prepare("SELECT block_key AS blockKey,draft_object_key AS draftObjectKey,draft_width AS draftWidth,draft_height AS draftHeight,draft_filename AS draftFilename,draft_north_angle AS northAngle,published_object_key AS publishedObjectKey,published_version AS publishedVersion FROM metro_block_assets WHERE project_id=? ORDER BY block_key").bind(PROJECT).all<BlockAsset>(),
-    env.DB.prepare("SELECT plot_id AS plotId,block_key AS blockKey,polygon FROM metro_block_plot_maps WHERE project_id=? ORDER BY plot_id").bind(PROJECT).all<BlockMap>(),
+    env.DB.prepare("SELECT plot_id AS plotId,block_key AS blockKey,polygon,side_bindings AS sideBindings FROM metro_block_plot_maps WHERE project_id=? ORDER BY plot_id").bind(PROJECT).all<BlockMap>(),
     env.DB.prepare("SELECT public_enabled AS enabled,version,draft_revision AS draftRevision FROM metro_block_state WHERE project_id=?").bind(PROJECT).first<{enabled:number;version:number;draftRevision:number}>(),
   ]);
   return {plots:plots.results,assets:assets.results,maps:maps.results,
@@ -72,23 +74,50 @@ export async function POST(request:Request) {
     const isWebp=String.fromCharCode(...bytes.slice(0,4))==="RIFF"&&String.fromCharCode(...bytes.slice(8,12))==="WEBP";
     if(!((file.type==="image/jpeg"&&isJpeg)||(file.type==="image/png"&&isPng)||(file.type==="image/webp"&&isWebp)))
       return json({error:"Image signature/type mismatch"},400);
+    const before=await load();
+    const mapped=before.maps.filter(m=>m.blockKey===block&&Boolean(m.polygon)).length;
+    const expectedRevision=Number(form.get("expectedDraftRevision"));
+    if(!Number.isInteger(expectedRevision)||expectedRevision!==before.state.draftRevision)
+      return json({error:"Draft revision changed. Refresh before replacing masterplan."},409);
+    let checkpointId="";
+    if(mapped>0){
+      const typed=String(form.get("confirmation")||"");
+      if(typed!==`REPLACE BLOCK ${block.toUpperCase()}`)
+        return json({error:"Mapped block image replacement requires the exact typed block confirmation and automatic private backup"},409);
+      try{
+        const backup=await createMetroBlockCheckpoint(block,"before-image-replacement",expectedRevision);
+        if(!backup.ok)return json({error:backup.error},409);
+        checkpointId=backup.id;
+      }catch(error){console.error("Private backup failed before image replacement",error);return json({error:"Private R2 backup failed; existing polygons untouched"},503)}
+    }
     const key=`projects/${PROJECT}/metro-blocks/draft/${block}/${crypto.randomUUID()}`;
     await env.BUCKET.put(key,file.stream(),{httpMetadata:{contentType:file.type}});
+    if(!await env.BUCKET.head(key))return json({error:"Replacement image upload not verified; draft unchanged"},503);
     const now=new Date().toISOString();
     // Changing image geometry must invalidate only this block's EDITABLE draft polygons.
     // Immutable published snapshots and the shared plots table are untouched.
     await env.DB.batch([
-      env.DB.prepare("INSERT INTO metro_block_assets (project_id,block_key,draft_object_key,draft_width,draft_height,draft_filename,draft_north_angle,updated_at) VALUES (?,?,?,?,?,?,0,?) ON CONFLICT(project_id,block_key) DO UPDATE SET draft_object_key=excluded.draft_object_key,draft_width=excluded.draft_width,draft_height=excluded.draft_height,draft_filename=excluded.draft_filename,draft_north_angle=0,updated_at=excluded.updated_at").bind(PROJECT,block,key,width,height,file.name.slice(0,200),now),
+      env.DB.prepare("INSERT INTO metro_block_assets (project_id,block_key,draft_object_key,draft_width,draft_height,draft_filename,draft_north_angle,draft_view_rotation,updated_at) VALUES (?,?,?,?,?,?,0,0,?) ON CONFLICT(project_id,block_key) DO UPDATE SET draft_object_key=excluded.draft_object_key,draft_width=excluded.draft_width,draft_height=excluded.draft_height,draft_filename=excluded.draft_filename,draft_north_angle=0,draft_view_rotation=0,updated_at=excluded.updated_at").bind(PROJECT,block,key,width,height,file.name.slice(0,200),now),
       env.DB.prepare("UPDATE metro_block_plot_maps SET polygon='',side_bindings='',updated_at=? WHERE project_id=? AND block_key=?").bind(now,PROJECT,block),
       env.DB.prepare("INSERT OR IGNORE INTO metro_block_state(project_id,public_enabled,version,draft_revision,updated_at) VALUES (?,0,0,0,?)").bind(PROJECT,now),
-      env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
+      env.DB.prepare("UPDATE metro_block_state SET draft_revision=CASE WHEN draft_revision=? THEN draft_revision+1 ELSE -1 END,updated_at=? WHERE project_id=?").bind(expectedRevision,now,PROJECT),
     ]);
-    await writeAudit(actor,"metro.block_image_draft_uploaded",PROJECT,block,{width,height,size:file.size,draftPolygonsReset:true});
-    return json({ok:true,block,width,height});
+    try{await writeAudit(actor,"metro.block_image_draft_uploaded",PROJECT,block,{width,height,size:file.size,draftPolygonsReset:true,privateBackupId:checkpointId})}catch(error){console.error("Optional METRO draft image audit failed",error)}
+    return json({ok:true,block,width,height,privateBackupId:checkpointId});
   }
   const body=await request.json().catch(()=>null) as null|{action?:string;block?:string;plotId?:string;polygon?:unknown;expectedVersion?:number;expectedDraftRevision?:number;confirmation?:string;assignments?:unknown};
   if(!body||!body.action)return json({error:"Action required"},400);
   const now=new Date().toISOString();
+  if(body.action==="backup") {
+    const block=metroBlockKey(body.block);
+    if(!block)return json({error:"Valid block required"},400);
+    try{
+      const checkpoint=await createMetroBlockCheckpoint(block,"manual");
+      if(!checkpoint.ok)return json({error:checkpoint.error},409);
+      try{await writeAudit(actor,"metro.block_private_checkpoint",PROJECT,block,{checkpoint:checkpoint.id,mapped:checkpoint.mapped})}catch{}
+      return json({ok:true,backupId:checkpoint.id,mapped:checkpoint.mapped,revision:checkpoint.draftRevision});
+    }catch(error){console.error("METRO checkpoint failed",error);return json({error:"Private R2 checkpoint failed; mapping untouched"},503)}
+  }
   if(body.action==="initialize") {
     // A rejected assignment never changes the live plots or draft tables.
     const d=await load();
@@ -138,24 +167,20 @@ export async function POST(request:Request) {
     await writeAudit(actor,"metro.block_north_calibrated",PROJECT,block,{angle});
     return json({ok:true,block,angle});
   }
-  if(body.action==="map"||body.action==="move") {
+  if(body.action==="map")return json({error:"Use the Advanced Block Mapper to save verified geometry and sides"},403);
+  if(body.action==="move") {
     const block=metroBlockKey(body.block);
     const plotId=String(body.plotId||"").trim();
     if(!block||!VALID_ID.test(plotId))return json({error:"Block and Plot ID required"},400);
     const existing=await env.DB.prepare("SELECT block_key AS blockKey FROM metro_block_plot_maps WHERE project_id=? AND plot_id=?").bind(PROJECT,plotId).first<{blockKey:string}>();
     if(!existing)return json({error:"Initialize and select an active plot first"},409);
-    if(body.action==="map"&&existing.blockKey!==block)return json({error:"Plot belongs to a different block; reload mapping"},409);
+    if(existing.blockKey===block)return json({ok:true,block,plotId,unchanged:true});
+    if((await env.DB.prepare("SELECT polygon FROM metro_block_plot_maps WHERE project_id=? AND plot_id=?").bind(PROJECT,plotId).first<{polygon:string}>())?.polygon)
+      return json({error:"This plot is already mapped. Export a backup and remove its polygon individually before changing blocks."},409);
     if(body.action==="move") {
       await env.DB.batch([
-        env.DB.prepare("UPDATE metro_block_plot_maps SET block_key=?,polygon='',side_bindings='',updated_at=? WHERE project_id=? AND plot_id=?").bind(block,now,PROJECT,plotId),
-        env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
-      ]);
-    } else {
-      const polygon=normalizePolygon(body.polygon);
-      if(!polygon)return json({error:"Polygon invalid: minimum 3 distinct non-intersecting normalized points required"},400);
-      await env.DB.batch([
-        env.DB.prepare("UPDATE metro_block_plot_maps SET polygon=?,side_bindings='',updated_at=? WHERE project_id=? AND plot_id=? AND block_key=?").bind(polygon,now,PROJECT,plotId,block),
-        env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
+        env.DB.prepare("UPDATE metro_block_plot_maps SET block_key=?,polygon='',side_bindings='',updated_at=? WHERE project_id=? AND plot_id=? AND polygon=''").bind(block,now,PROJECT,plotId),
+        env.DB.prepare("UPDATE metro_block_state SET draft_revision=CASE WHEN (SELECT block_key FROM metro_block_plot_maps WHERE project_id=? AND plot_id=? AND polygon='')=? THEN draft_revision+1 ELSE -1 END,updated_at=? WHERE project_id=?").bind(PROJECT,plotId,block,now,PROJECT),
       ]);
     }
     await writeAudit(actor,body.action==="move"?"metro.block_plot_moved":"metro.block_polygon_saved",PROJECT,plotId,{block});
@@ -168,6 +193,8 @@ export async function POST(request:Request) {
     if(d.maps.length!==d.plots.length)return json({error:"All active inventory plots must belong to exactly one block",total:d.plots.length,mapped:d.maps.length},409);
     const active=new Set(d.plots.map(p=>p.id));
     if(d.maps.some(m=>!active.has(m.plotId)||!safelyNormalizeSavedPolygon(m.polygon)))return json({error:"One or more block boundaries missing/invalid"},409);
+    const invalidSides=d.maps.find(m=>!blockPublishSideCoverage(m.polygon,m.sideBindings));
+    if(invalidSides)return json({error:`Plot ${invalidSides.plotId} in Block ${invalidSides.blockKey.toUpperCase()} lacks complete, non-overlapping Front/Back/Depth side assignments. Review before publish.`},409);
     if(METRO_BLOCK_KEYS.some(b=>!d.maps.some(m=>m.blockKey===b)))return json({error:"Every block must contain plots"},409);
     if(METRO_BLOCK_KEYS.some(b=>!d.assets.some(a=>a.blockKey===b&&a.draftObjectKey&&a.draftWidth>=100&&a.draftHeight>=100)))return json({error:"Upload all three block masterplans first"},409);
     const version=d.state.version+1;

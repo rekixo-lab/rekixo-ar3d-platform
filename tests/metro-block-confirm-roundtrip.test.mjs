@@ -36,6 +36,7 @@ function fixture(){
     );
     CREATE TABLE metro_block_assets(project_id TEXT,block_key TEXT,draft_object_key TEXT,
       draft_width INTEGER,draft_height INTEGER,draft_filename TEXT,draft_north_angle REAL,
+      draft_view_rotation INTEGER NOT NULL DEFAULT 0 CHECK(draft_view_rotation IN(0,1,2,3)),updated_at TEXT,
       PRIMARY KEY(project_id,block_key));
     CREATE TABLE metro_block_state(project_id TEXT PRIMARY KEY,public_enabled INTEGER NOT NULL DEFAULT 0,
       version INTEGER NOT NULL DEFAULT 0,draft_revision INTEGER NOT NULL DEFAULT 0,updated_at TEXT);
@@ -46,7 +47,7 @@ function fixture(){
   db.prepare("INSERT INTO plots(project_id,id,inventory_active,sqft,sqm,sqyd,dimensions,road,front,back,depth,depth2,dimension_unit,front_label,back_label,depth_label,depth2_label,side_dimensions,status,notes,featured,polygon) VALUES (?,?,1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .run(project,"1",2400,223,266,"40 x 60","West Road",40,40,60,60,"ft","40 ft","40 ft","60 ft","60 ft","", "booked","existing sale",0,"[[0,0],[1,0],[1,1],[0,1]]");
   db.prepare("INSERT INTO metro_block_plot_maps VALUES (?,?,?,'','','now')").run(project,"1","a");
-  db.prepare("INSERT INTO metro_block_assets VALUES (?,?,?,?,?,?,?)")
+  db.prepare("INSERT INTO metro_block_assets(project_id,block_key,draft_object_key,draft_width,draft_height,draft_filename,draft_north_angle) VALUES (?,?,?,?,?,?,?)")
     .run(project,"a","draft/object",5376,3798,"Block A.jpg",90);
   db.prepare("INSERT INTO metro_block_state VALUES (?,0,0,2,'now')").run(project);
   const env={DB:{prepare(sql){return{bind(...values){
@@ -75,6 +76,13 @@ test("METRO Block A Plot 1 confirms four corners with Front/Back/Depth roles and
   const readBefore=await (await routes.GET(new Request(url))).json();
   assert.equal(readBefore.plots.length,1);
   assert.equal(readBefore.plots[0].polygon,"");
+  assert.equal(readBefore.settings.blockViewRotation,"0");
+  const rotate=await routes.POST(request({projectId:project,block:"a",action:"rotation",rotation:1}));
+  assert.equal(rotate.status,200,await rotate.text());
+  const reloadedView=await (await routes.GET(new Request(url))).json();
+  assert.equal(reloadedView.settings.blockViewRotation,"1");
+  assert.equal(reloadedView.plots[0].polygon,"");
+  assert.equal(db.prepare("SELECT draft_revision AS revision FROM metro_block_state").get().revision,2,"rotation must not mutate mapping revision");
   const polygon=JSON.stringify([[0.12,0.2],[0.12,0.34],[0.3,0.34],[0.3,0.2]]);
   const semantics=JSON.stringify({version:1,pointCount:4,layout:"four",roles:{front:[0],depthA:[1],back:[2],depthB:[3]}});
   const input={projectId:project,block:"a",action:"save",

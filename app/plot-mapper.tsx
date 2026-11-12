@@ -135,6 +135,7 @@ type Plot = {
 };
 
 type MapperSettings = {
+  blockViewRotation?: string; // METRO A/B/C only; never changes shared publicRotation
   masterplanName?: string;
   sourcePdfName?: string;
   sourceCadName?: string;
@@ -1160,6 +1161,9 @@ export default function PlotMapper({
   // 0/1/2/3 = 0°/90°/180°/270° clockwise. Rotation is mapping-view only:
   // persistent plot geometry always remains in the original masterplan coordinate space.
   const [rotation, setRotation] = useState<0 | 1 | 2 | 3>(0);
+  const blockRotationPendingRef = useRef(false);
+  const [blockRotationSaving,setBlockRotationSaving]=useState(false);
+  const [blockRotationError,setBlockRotationError]=useState("");
   const [toolMode, setToolMode] = useState<"pan" | "select">("pan");
   const [snapEnabled, setSnapEnabled] = useState(false);
 
@@ -1557,6 +1561,13 @@ export default function PlotMapper({
       // Server setting remains authoritative when localStorage is unavailable.
     }
 
+    if (blockMode) {
+      // METRO block view must NOT be overwritten by publicRotation=0 after reload.
+      const blockView=normalizeQuarterTurn(settings.blockViewRotation);
+      setRotation(blockView);
+      try{window.localStorage.setItem(rotationStorageKey,String(blockView))}catch{}
+      return;
+    }
     // One-time compatibility bridge for projects created before public rotation
     // was shared: preserve the existing non-zero mapper angle when the server is
     // still at its legacy 0° default. Once a non-zero server value exists, it wins.
@@ -1584,7 +1595,7 @@ export default function PlotMapper({
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settingsReady, completedProject, projectId, settings.publicRotation]);
+  }, [settingsReady, completedProject, projectId, settings.publicRotation, blockKey, settings.blockViewRotation]);
 
   useEffect(() => {
     if (completedProject || !plotId || editingId || points.length) return;
@@ -3371,8 +3382,35 @@ export default function PlotMapper({
     return [x, y];
   }
 
+  async function saveBlockViewRotation(next:0|1|2|3, previous:0|1|2|3){
+    if(!blockKey)return;
+    setBlockRotationSaving(true);
+    setBlockRotationError("");
+    try{
+      const res=await fetch("/api/admin/metro-blocks/advanced",{
+        method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({projectId,block:blockKey,action:"rotation",rotation:next}),
+      });
+      const payload=await apiResult(res);
+      if(payload.ok!==true||Number(payload.rotation)!==next)throw new Error("Rotation save read-back mismatch");
+      setSettings(current=>({...current,blockViewRotation:String(next)}));
+      try{window.localStorage.setItem(rotationStorageKey,String(next))}catch{}
+    }catch(error){
+      const message=error instanceof Error?error.message:"Block orientation could not be saved";
+      setRotation(previous);
+      try{window.localStorage.setItem(rotationStorageKey,String(previous))}catch{}
+      setBlockRotationError(message);
+      notify(`Block ${blockKey.toUpperCase()} rotation NOT saved — ${message}. Retry before mapping.`);
+    }finally{
+      blockRotationPendingRef.current=false;
+      setBlockRotationSaving(false);
+    }
+  }
+
   function rotateMapperView(direction: -1 | 1) {
+    if(blockMode&&(blockRotationPendingRef.current||busy))return notify("View rotation/save in progress — finish current operation first");
     const next = ((rotation + direction + 4) % 4) as 0 | 1 | 2 | 3;
+    if(blockMode){blockRotationPendingRef.current=true;void saveBlockViewRotation(next,rotation)}
     setRotation(next);
     try {
       window.localStorage.setItem(rotationStorageKey, String(next));
@@ -3408,6 +3446,9 @@ export default function PlotMapper({
   }
 
   function resetMapperView() {
+    if(blockMode&&(blockRotationPendingRef.current||busy))return notify("View rotation/save in progress — finish current operation first");
+    const previousRotation=rotation;
+    if(blockMode){blockRotationPendingRef.current=true;void saveBlockViewRotation(0,previousRotation)}
     resetGestureFrameQueue();
     activeGesturePointersRef.current.clear();
     panGestureRef.current = null;
@@ -3761,6 +3802,8 @@ export default function PlotMapper({
   }
 
   async function confirmPlot() {
+    if(blockMode&&(blockRotationPendingRef.current||blockRotationSaving||blockRotationError))
+      return notify("Block view orientation not verified. Save or retry rotation before confirming polygon.");
     // METRO block mode must preserve the exact canonical ID, including combined
     // or whitespace-containing plot labels. Other projects retain legacy normalization.
     const id = blockMode
@@ -4280,6 +4323,7 @@ export default function PlotMapper({
   const currentCenter = points.length ? polygonCenter(points) : null;
   const shapeInvalid = points.length >= 4 && polygonSelfIntersects(points);
   const shapeReady = points.length >= 3 && (shape === "polygon" || points.length === 4) && !shapeInvalid;
+  const blockViewCanConfirm=!blockMode||(!blockRotationSaving&&!blockRotationError);
   const rotationDegrees = rotation * 90;
   const rotationSwapsAxes = rotation === 1 || rotation === 3;
   // Prefer dimensions decoded from the ACTUAL displayed mapping image. Stored
@@ -4402,7 +4446,7 @@ export default function PlotMapper({
                   setManualPhase("select");
                 }}
               ><Pencil />Boundary बदलें</button>
-              <button className="primary mapper-confirm" disabled={busy || !shapeReady} onClick={confirmPlot}><Save />{busy ? "Saving…" : controlsWorkspace ? `Update ${plotId}` : editingId ? `Update ${plotId}` : `Save shape ${plotId} & open next`}</button>
+              <button className="primary mapper-confirm" disabled={busy || !shapeReady || !blockViewCanConfirm} onClick={confirmPlot}><Save />{busy ? "Saving…" : controlsWorkspace ? `Update ${plotId}` : editingId ? `Update ${plotId}` : `Save shape ${plotId} & open next`}</button>
             </div>
             <small className="mapper-help">Legacy Dimensions / area / facing optional metadata hain. Front/Depth semantic metadata alag save hota hai. Shape independent save hoti hai; plot-sheet re-import geometry aur live Booked/Sold status preserve karta hai.</small>
             {controlsWorkspace && (
@@ -4880,6 +4924,10 @@ export default function PlotMapper({
               {blockSaveFeedback.kind==="error" && <span style={{marginLeft:8,fontWeight:400}}>Your drawn corners are kept. Do not continue to the next plot until server verification succeeds.</span>}
             </div>
           )}
+          {blockMode && <div role={blockRotationError?"alert":"status"} data-testid="metro-block-rotation-status"
+            style={{padding:"6px 10px",fontSize:12,fontWeight:700,color:blockRotationError?"#ffd0d0":"#b3e5ff"}}>
+            {blockRotationSaving?"Saving block view angle…":blockRotationError?`Block rotation NOT SAVED: ${blockRotationError} — retry rotate/reset`:`Block ${blockKey?.toUpperCase()} view ${rotation*90}° · saved separately; plotted coordinates remain original-image based`}
+          </div>}
           <div className="mapper-zoombar mapper-v4-toolbar">
             <button className={toolMode === "pan" ? "active" : ""} type="button" onClick={() => { setToolMode("pan"); setCalibrationMode(false); }}><Hand />Pan</button>
             <button className={toolMode === "select" ? "active" : ""} type="button" onClick={enableSelectMode}><Target />Select</button>
@@ -4899,7 +4947,7 @@ export default function PlotMapper({
               <button
                 type="button"
                 className="primary mapper-focus-confirm mapper-focus-primary-action"
-                disabled={busy || !shapeReady}
+                disabled={busy || !shapeReady || !blockViewCanConfirm}
                 onClick={confirmPlot}
               ><CheckCircle2 />{busy ? "Saving…" : editingId ? `Update ${plotId}` : `Confirm ${plotId}`}</button>
             )}
@@ -5618,7 +5666,7 @@ export default function PlotMapper({
                 <button
                   type="button"
                   className="primary mapper-confirm-button"
-                  disabled={busy || !shapeReady}
+                  disabled={busy || !shapeReady || !blockViewCanConfirm}
                   onClick={confirmPlot}
                 ><CheckCircle2 />{busy ? "Saving…" : editingId ? `Update ${plotId}` : `Confirm ${plotId} →`}</button>
 

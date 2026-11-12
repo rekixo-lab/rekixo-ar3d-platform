@@ -74,3 +74,41 @@ export function encodeBlockSides(raw:unknown,vertices:number):string|null{
   result.edgeSemantics=semantics;
   return JSON.stringify(result);
 }
+
+/** Publishing must never expose a clickable plot without complete logical
+ * side bindings. Irregular boundaries may assign multiple edges to one role. */
+export function blockPublishSideCoverage(polygon:unknown,rawBindings:string|null|undefined):boolean{
+  const normalized=safeBlockPolygon(polygon);
+  if(!normalized)return false;
+  const count=(JSON.parse(normalized) as NormalizedPoint[]).length;
+  const bindings=readBlockSides(rawBindings);
+  const roles=["front","back","depthA","depthB"] as const;
+  const edgeSets:Record<string,number[]>={front:[],back:[],depthA:[],depthB:[]};
+  let isThreeSide=count===3;
+  if(bindings.edgeSemantics){
+    try{
+      const semantics=JSON.parse(bindings.edgeSemantics) as {
+        version?:number;pointCount?:number;layout?:"three"|"four";roles?:Record<string,number[]>;
+      };
+      if(semantics?.version!==1||semantics.pointCount!==count||!semantics.roles)return false;
+      isThreeSide=semantics.layout==="three"||count===3;
+      for(const role of roles){
+        const indices=semantics.roles[role]||[];
+        if(!Array.isArray(indices))return false;
+        edgeSets[role]=indices;
+      }
+    }catch{return false}
+  }else{
+    if(count>4)return false;
+    edgeSets.front=bindings.frontEdgeIndex==null?[]:[bindings.frontEdgeIndex];
+    edgeSets.back=bindings.backEdgeIndex==null?[]:[bindings.backEdgeIndex];
+    edgeSets.depthA=bindings.depthEdgeIndex==null?[]:[bindings.depthEdgeIndex];
+    edgeSets.depthB=bindings.depth2EdgeIndex==null?[]:[bindings.depth2EdgeIndex];
+  }
+  if(!edgeSets.front.length||!edgeSets.back.length||!edgeSets.depthA.length)return false;
+  if(!isThreeSide&&!edgeSets.depthB.length)return false;
+  if(isThreeSide&&edgeSets.depthB.length)return false;
+  const assigned=roles.flatMap(role=>edgeSets[role]);
+  if(assigned.length!==count||new Set(assigned).size!==count)return false;
+  return assigned.every(index=>Number.isInteger(index)&&index>=0&&index<count);
+}
