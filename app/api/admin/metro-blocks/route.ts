@@ -73,19 +73,36 @@ export async function POST(request:Request) {
     const isWebp=String.fromCharCode(...bytes.slice(0,4))==="RIFF"&&String.fromCharCode(...bytes.slice(8,12))==="WEBP";
     if(!((file.type==="image/jpeg"&&isJpeg)||(file.type==="image/png"&&isPng)||(file.type==="image/webp"&&isWebp)))
       return json({error:"Image signature/type mismatch"},400);
+    const before=await load();
+    const mapped=before.maps.filter(m=>m.blockKey===block&&Boolean(m.polygon)).length;
+    const expectedRevision=Number(form.get("expectedDraftRevision"));
+    if(!Number.isInteger(expectedRevision)||expectedRevision!==before.state.draftRevision)
+      return json({error:"Draft revision changed. Refresh before replacing masterplan."},409);
+    let checkpointId="";
+    if(mapped>0){
+      const typed=String(form.get("confirmation")||"");
+      if(typed!==`REPLACE BLOCK ${block.toUpperCase()}`)
+        return json({error:"Mapped block image replacement requires the exact typed block confirmation and automatic private backup"},409);
+      try{
+        const backup=await createMetroBlockCheckpoint(block,"before-image-replacement",expectedRevision);
+        if(!backup.ok)return json({error:backup.error},409);
+        checkpointId=backup.id;
+      }catch(error){console.error("Private backup failed before image replacement",error);return json({error:"Private R2 backup failed; existing polygons untouched"},503)}
+    }
     const key=`projects/${PROJECT}/metro-blocks/draft/${block}/${crypto.randomUUID()}`;
     await env.BUCKET.put(key,file.stream(),{httpMetadata:{contentType:file.type}});
+    if(!await env.BUCKET.head(key))return json({error:"Replacement image upload not verified; draft unchanged"},503);
     const now=new Date().toISOString();
     // Changing image geometry must invalidate only this block's EDITABLE draft polygons.
     // Immutable published snapshots and the shared plots table are untouched.
     await env.DB.batch([
-      env.DB.prepare("INSERT INTO metro_block_assets (project_id,block_key,draft_object_key,draft_width,draft_height,draft_filename,draft_north_angle,updated_at) VALUES (?,?,?,?,?,?,0,?) ON CONFLICT(project_id,block_key) DO UPDATE SET draft_object_key=excluded.draft_object_key,draft_width=excluded.draft_width,draft_height=excluded.draft_height,draft_filename=excluded.draft_filename,draft_north_angle=0,updated_at=excluded.updated_at").bind(PROJECT,block,key,width,height,file.name.slice(0,200),now),
+      env.DB.prepare("INSERT INTO metro_block_assets (project_id,block_key,draft_object_key,draft_width,draft_height,draft_filename,draft_north_angle,draft_view_rotation,updated_at) VALUES (?,?,?,?,?,?,0,0,?) ON CONFLICT(project_id,block_key) DO UPDATE SET draft_object_key=excluded.draft_object_key,draft_width=excluded.draft_width,draft_height=excluded.draft_height,draft_filename=excluded.draft_filename,draft_north_angle=0,draft_view_rotation=0,updated_at=excluded.updated_at").bind(PROJECT,block,key,width,height,file.name.slice(0,200),now),
       env.DB.prepare("UPDATE metro_block_plot_maps SET polygon='',side_bindings='',updated_at=? WHERE project_id=? AND block_key=?").bind(now,PROJECT,block),
       env.DB.prepare("INSERT OR IGNORE INTO metro_block_state(project_id,public_enabled,version,draft_revision,updated_at) VALUES (?,0,0,0,?)").bind(PROJECT,now),
-      env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
+      env.DB.prepare("UPDATE metro_block_state SET draft_revision=CASE WHEN draft_revision=? THEN draft_revision+1 ELSE -1 END,updated_at=? WHERE project_id=?").bind(expectedRevision,now,PROJECT),
     ]);
-    await writeAudit(actor,"metro.block_image_draft_uploaded",PROJECT,block,{width,height,size:file.size,draftPolygonsReset:true});
-    return json({ok:true,block,width,height});
+    try{await writeAudit(actor,"metro.block_image_draft_uploaded",PROJECT,block,{width,height,size:file.size,draftPolygonsReset:true,privateBackupId:checkpointId})}catch(error){console.error("Optional METRO draft image audit failed",error)}
+    return json({ok:true,block,width,height,privateBackupId:checkpointId});
   }
   const body=await request.json().catch(()=>null) as null|{action?:string;block?:string;plotId?:string;polygon?:unknown;expectedVersion?:number;expectedDraftRevision?:number;confirmation?:string;assignments?:unknown};
   if(!body||!body.action)return json({error:"Action required"},400);
