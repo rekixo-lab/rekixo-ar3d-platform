@@ -79,7 +79,9 @@ export async function POST(request:Request) {
   if(body.action!=="save"&&body.action!=="clear")return fail("Only block-scoped plot save/clear is allowed",403);
   const id=typeof body.plot?.id==="string"?body.plot.id.trim():"";
   // Verified against the exact assigned active ID below; combined labels are allowed.
-  // Only actual C0/DEL control characters are forbidden. Do NOT match the\n  // literal digits 0/1: an earlier doubly-escaped regex rejected Plot "1".\n  if(!id||id.length>80||[...id].some(char=>char.charCodeAt(0)<32||char.charCodeAt(0)===127))return fail("Valid existing plot ID required",400);
+  // Only actual C0/DEL control characters are forbidden, not digits 0 or 1.
+  // An earlier doubly-escaped regex mistakenly rejected Plot 1.
+  if(!id||id.length>80||[...id].some(char=>char.charCodeAt(0)<32||char.charCodeAt(0)===127))return fail("Valid existing plot ID required",400);
   if(typeof body.expectedPolygon!=="string"||typeof body.expectedBindings!=="string")return fail("Expected previous polygon/side revision required; reload editor",409);
   const current=await env.DB.prepare(
     "SELECT m.polygon,m.side_bindings AS sideBindings FROM metro_block_plot_maps m JOIN plots p ON p.project_id=m.project_id AND p.id=m.plot_id AND p.inventory_active=1 WHERE m.project_id=? AND m.block_key=? AND m.plot_id=? LIMIT 1"
