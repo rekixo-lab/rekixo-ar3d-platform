@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS metro_block_state (
   project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE RESTRICT,
   public_enabled INTEGER NOT NULL DEFAULT 0 CHECK (public_enabled IN (0,1)),
   version INTEGER NOT NULL DEFAULT 0 CHECK (version >= 0),
+  draft_revision INTEGER NOT NULL DEFAULT 0 CHECK (draft_revision >= 0),
   updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS metro_block_assets (
