@@ -3756,7 +3756,11 @@ export default function PlotMapper({
   }
 
   async function confirmPlot() {
-    const id = cleanPlotId(plotId);
+    // METRO block mode must preserve the exact canonical ID, including combined
+    // or whitespace-containing plot labels. Other projects retain legacy normalization.
+    const id = blockMode
+      ? (plots.find(p=>p.id===plotId)?.id || plots.find(p=>p.id===editingId)?.id || plotId.trim())
+      : cleanPlotId(plotId);
     const existing = plots.find((plot) => plot.id === editingId || plot.id === id);
     const parsedArea = Number(sqft);
     const area = Number.isFinite(parsedArea) && parsedArea > 0
