@@ -1578,6 +1578,8 @@ if(REKIXO_PROJECT_SLUG)REKIXO_FORWARD.set('projectSlug',REKIXO_PROJECT_SLUG);
 if(REKIXO_PROJECT_SLUG==='metro-city-c024a5'&&/^[abc]$/.test(REKIXO_PARAMS.get('block')||'')){
   REKIXO_FORWARD.set('block',REKIXO_PARAMS.get('block'));
   if(/^\\d+$/.test(REKIXO_PARAMS.get('bv')||''))REKIXO_FORWARD.set('bv',REKIXO_PARAMS.get('bv'));
+  // Use a new structural cache key; previous A/B/C publish forced publicRotation=0.
+  if(REKIXO_PARAMS.get('rv')==='metro-published-turn-v1')REKIXO_FORWARD.set('rv','metro-published-turn-v1');
 }
 if(REKIXO_PARAMS.get('preview')==='1')REKIXO_FORWARD.set('preview','1');
 if(REKIXO_PARAMS.get('pv'))REKIXO_FORWARD.set('pv',REKIXO_PARAMS.get('pv'));
