@@ -21,14 +21,14 @@ export async function metroBlockState(projectId: string) {
 
 export type MetroPublishedMap = {plotId: string; polygon: string; blockKey: MetroBlockKey};
 export type MetroPublishedAsset = {
-  objectKey: string; width: number; height: number; version: number;
+  objectKey: string; width: number; height: number; version: number; northAngle: number;
 };
 
 export async function publishedMetroBlock(projectId: string, block: MetroBlockKey) {
   const state = await metroBlockState(projectId);
   if (!state) return null;
   const asset = await env.DB.prepare(
-    "SELECT published_object_key AS objectKey,published_width AS width,published_height AS height,published_version AS version FROM metro_block_assets WHERE project_id=? AND block_key=?",
+    "SELECT published_object_key AS objectKey,published_width AS width,published_height AS height,published_version AS version,published_north_angle AS northAngle FROM metro_block_assets WHERE project_id=? AND block_key=?",
   ).bind(projectId, block).first<MetroPublishedAsset>();
   if (!asset || !asset.objectKey || asset.width < 100 || asset.height < 100 || asset.version !== state.version) return null;
   return {state,asset};
