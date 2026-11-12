@@ -76,6 +76,17 @@ test("METRO Block A Plot 1 confirms four corners with Front/Back/Depth roles and
   const readBefore=await (await routes.GET(new Request(url))).json();
   assert.equal(readBefore.plots.length,1);
   assert.equal(readBefore.plots[0].polygon,"");
+  // The Block Mapper must reuse the unchanged original live inventory measurements.
+  assert.equal(readBefore.plots[0].sqft,2400);
+  assert.equal(readBefore.plots[0].dimensions,"40 x 60");
+  assert.equal(readBefore.plots[0].road,"West Road");
+  assert.equal(readBefore.plots[0].front,40);
+  assert.equal(readBefore.plots[0].back,40);
+  assert.equal(readBefore.plots[0].depth,60);
+  assert.equal(readBefore.plots[0].depth2,60);
+  assert.equal(readBefore.plots[0].frontLabel,"40 ft");
+  assert.equal(readBefore.plots[0].depthLabel,"60 ft");
+  assert.equal(readBefore.plots[0].status,"booked");
   assert.equal(readBefore.settings.blockViewRotation,"0");
   const rotate=await routes.POST(request({projectId:project,block:"a",action:"rotation",rotation:1}));
   assert.equal(rotate.status,200,await rotate.text());
@@ -103,6 +114,13 @@ test("METRO Block A Plot 1 confirms four corners with Front/Back/Depth roles and
   assert.equal(result.plot.depth2EdgeIndex,3);
   const readAfter=await (await routes.GET(new Request(url))).json();
   assert.deepEqual(readAfter.plots[0],result.plot);
+  // Changing A/B/C polygon and edge bindings cannot mutate any original size.
+  assert.equal(readAfter.plots[0].front,40);
+  assert.equal(readAfter.plots[0].back,40);
+  assert.equal(readAfter.plots[0].depth,60);
+  assert.equal(readAfter.plots[0].depth2,60);
+  assert.equal(readAfter.plots[0].sqft,2400);
+  assert.equal(readAfter.plots[0].frontLabel,"40 ft");
   assert.equal(db.prepare("SELECT status FROM plots WHERE id='1'").get().status,"booked");
   assert.equal(db.prepare("SELECT polygon FROM plots WHERE id='1'").get().polygon,"[[0,0],[1,0],[1,1],[0,1]]");
   assert.equal(db.prepare("SELECT public_enabled FROM metro_block_state").get().public_enabled,0);
