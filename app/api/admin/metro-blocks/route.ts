@@ -73,8 +73,13 @@ export async function POST(request:Request) {
     const key=`projects/${PROJECT}/metro-blocks/draft/${block}/${crypto.randomUUID()}`;
     await env.BUCKET.put(key,file.stream(),{httpMetadata:{contentType:file.type}});
     const now=new Date().toISOString();
-    await env.DB.prepare("INSERT INTO metro_block_assets (project_id,block_key,draft_object_key,draft_width,draft_height,draft_filename,updated_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(project_id,block_key) DO UPDATE SET draft_object_key=excluded.draft_object_key,draft_width=excluded.draft_width,draft_height=excluded.draft_height,draft_filename=excluded.draft_filename,updated_at=excluded.updated_at").bind(PROJECT,block,key,width,height,file.name.slice(0,200),now).run();
-    await writeAudit(actor,"metro.block_image_draft_uploaded",PROJECT,block,{width,height,size:file.size});
+    // Changing image geometry must invalidate only this block's EDITABLE draft polygons.
+    // Immutable published snapshots and the shared plots table are untouched.
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO metro_block_assets (project_id,block_key,draft_object_key,draft_width,draft_height,draft_filename,draft_north_angle,updated_at) VALUES (?,?,?,?,?,?,0,?) ON CONFLICT(project_id,block_key) DO UPDATE SET draft_object_key=excluded.draft_object_key,draft_width=excluded.draft_width,draft_height=excluded.draft_height,draft_filename=excluded.draft_filename,draft_north_angle=0,updated_at=excluded.updated_at").bind(PROJECT,block,key,width,height,file.name.slice(0,200),now),
+      env.DB.prepare("UPDATE metro_block_plot_maps SET polygon='',updated_at=? WHERE project_id=? AND block_key=?").bind(now,PROJECT,block),
+    ]);
+    await writeAudit(actor,"metro.block_image_draft_uploaded",PROJECT,block,{width,height,size:file.size,draftPolygonsReset:true});
     return json({ok:true,block,width,height});
   }
   const body=await request.json().catch(()=>null) as null|{action?:string;block?:string;plotId?:string;polygon?:unknown;expectedVersion?:number;confirmation?:string};
