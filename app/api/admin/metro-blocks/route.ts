@@ -9,7 +9,7 @@ const denied = () => Response.json({error:"Super Admin access required"}, {statu
 const json = (value: unknown, status=200) => Response.json(value, {status,headers:{"cache-control":"no-store"}});
 
 type PlotRow = {id:string;sqft:number;dimensions:string;status:string};
-type BlockAsset = {blockKey:string;draftObjectKey:string;draftWidth:number;draftHeight:number;draftFilename:string;publishedObjectKey:string;publishedVersion:number};
+type BlockAsset = {blockKey:string;draftObjectKey:string;draftWidth:number;draftHeight:number;draftFilename:string;northAngle:number;publishedObjectKey:string;publishedVersion:number};
 type BlockMap = {plotId:string;blockKey:string;polygon:string};
 const VALID_ID = /^[a-zA-Z0-9][a-zA-Z0-9 -]{0,79}$/;
 function suggestedBlock(id: string) {
@@ -40,7 +40,7 @@ async function ensureMetro() {
 async function load() {
   const [plots,assets,maps,state] = await Promise.all([
     env.DB.prepare("SELECT id,sqft,dimensions,status FROM plots WHERE project_id=? AND inventory_active=1 ORDER BY id").bind(PROJECT).all<PlotRow>(),
-    env.DB.prepare("SELECT block_key AS blockKey,draft_object_key AS draftObjectKey,draft_width AS draftWidth,draft_height AS draftHeight,draft_filename AS draftFilename,published_object_key AS publishedObjectKey,published_version AS publishedVersion FROM metro_block_assets WHERE project_id=? ORDER BY block_key").bind(PROJECT).all<BlockAsset>(),
+    env.DB.prepare("SELECT block_key AS blockKey,draft_object_key AS draftObjectKey,draft_width AS draftWidth,draft_height AS draftHeight,draft_filename AS draftFilename,draft_north_angle AS northAngle,published_object_key AS publishedObjectKey,published_version AS publishedVersion FROM metro_block_assets WHERE project_id=? ORDER BY block_key").bind(PROJECT).all<BlockAsset>(),
     env.DB.prepare("SELECT plot_id AS plotId,block_key AS blockKey,polygon FROM metro_block_plot_maps WHERE project_id=? ORDER BY plot_id").bind(PROJECT).all<BlockMap>(),
     env.DB.prepare("SELECT public_enabled AS enabled,version FROM metro_block_state WHERE project_id=?").bind(PROJECT).first<{enabled:number;version:number}>(),
   ]);
@@ -95,6 +95,14 @@ export async function POST(request:Request) {
     await writeAudit(actor,"metro.block_draft_initialized",PROJECT,null,{plots:d.plots.length,geometryPreserved:true});
     return json({ok:true,plots:d.plots.length});
   }
+  if(body.action==="calibrate") {
+    const block=metroBlockKey(body.block);
+    const angle=Number((body as {angle?:number}).angle);
+    if(!block||!Number.isFinite(angle)||angle<0||angle>=360)return json({error:"North angle must be between 0 and 359.999 degrees"},400);
+    await env.DB.prepare("UPDATE metro_block_assets SET draft_north_angle=?,updated_at=? WHERE project_id=? AND block_key=?").bind(angle,now,PROJECT,block).run();
+    await writeAudit(actor,"metro.block_north_calibrated",PROJECT,block,{angle});
+    return json({ok:true,block,angle});
+  }
   if(body.action==="map"||body.action==="move") {
     const block=metroBlockKey(body.block);
     const plotId=String(body.plotId||"").trim();
@@ -135,7 +143,7 @@ export async function POST(request:Request) {
       const stmts=[
         env.DB.prepare("DELETE FROM metro_block_published_maps WHERE project_id=?").bind(PROJECT),
         env.DB.prepare("INSERT INTO metro_block_published_maps(project_id,plot_id,block_key,polygon) SELECT project_id,plot_id,block_key,polygon FROM metro_block_plot_maps WHERE project_id=?").bind(PROJECT),
-        ...copies.map(c=>env.DB.prepare("UPDATE metro_block_assets SET published_object_key=?,published_width=?,published_height=?,published_version=? WHERE project_id=? AND block_key=?").bind(c.key,c.asset.draftWidth,c.asset.draftHeight,version,PROJECT,c.block)),
+        ...copies.map(c=>env.DB.prepare("UPDATE metro_block_assets SET published_object_key=?,published_width=?,published_height=?,published_north_angle=?,published_version=? WHERE project_id=? AND block_key=?").bind(c.key,c.asset.draftWidth,c.asset.draftHeight,c.asset.northAngle,version,PROJECT,c.block)),
         env.DB.prepare("UPDATE metro_block_state SET version=?,public_enabled=1,updated_at=? WHERE project_id=? AND version=?").bind(version,now,PROJECT,d.state.version),
       ];
       await env.DB.batch(stmts);
