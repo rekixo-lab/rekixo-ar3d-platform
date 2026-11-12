@@ -96,19 +96,23 @@ export async function POST(request:Request) {
     if(!d.plots.length)return json({error:"No active plots"},409);
     const result=completeMetroAssignments(d.plots,body.assignments||[]);
     if(!result.ok)return json({error:result.error,unknown:result.unknown,assignmentPreview:d.assignmentPreview},409);
-    // Bound, chunked VALUES avoid a large SQLite variable count.
-    // D1 batch is transactional; every active ID is assigned exactly once.
+    // One JSON1 set-based insert for the validated 702 original IDs.
+    // Only 3 D1 statements: safe for Worker query limits, fully transactional.
     const statements=[
       env.DB.prepare("INSERT OR IGNORE INTO metro_block_state (project_id,public_enabled,version,draft_revision,updated_at) VALUES (?,0,0,0,?)").bind(PROJECT,now),
+      env.DB.prepare(
+        "INSERT INTO metro_block_plot_maps (project_id,plot_id,block_key,polygon,side_bindings,updated_at) "+
+        "SELECT ?,json_extract(item.value,'$.plotId'),json_extract(item.value,'$.block'),'','',? FROM json_each(?) AS item"
+      ).bind(PROJECT,now,JSON.stringify(result.assignments)),
+      // If active inventory changes during initialization, a CHECK failure
+      // rolls back the entire batch rather than leaving partial assignments.
+      env.DB.prepare(
+        "UPDATE metro_block_state SET draft_revision=CASE WHEN "+
+        "(SELECT COUNT(*) FROM plots WHERE project_id=? AND inventory_active=1)="+
+        "(SELECT COUNT(*) FROM metro_block_plot_maps WHERE project_id=?) "+
+        "THEN draft_revision+1 ELSE -1 END, updated_at=? WHERE project_id=?"
+      ).bind(PROJECT,PROJECT,now,PROJECT),
     ];
-    const CHUNK=12; // 12 x 4 = 48 bind parameters / statement
-    for(let i=0;i<result.assignments.length;i+=CHUNK){
-      const group=result.assignments.slice(i,i+CHUNK);
-      const sql="INSERT INTO metro_block_plot_maps (project_id,plot_id,block_key,polygon,side_bindings,updated_at) VALUES "+
-        group.map(()=>"(?,?,?,'','',?)").join(",");
-      statements.push(env.DB.prepare(sql).bind(...group.flatMap(item=>[PROJECT,item.plotId,item.block,now])));
-    }
-    statements.push(env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT));
     try{
       await env.DB.batch(statements);
     }catch(error){
