@@ -7,6 +7,8 @@ import { FUTURE_INVEST_REALTY_ID } from "@/app/customer-direction-policy";
 import { panelMode } from "@/modules/auth";
 import { isPlatformAccessHost, projectBySlug } from "@/modules/public-project";
 import { publicSiteEnabled } from "@/modules/public-site-access";
+import {METRO_BLOCK_PROJECT_ID,metroBlockState} from "@/app/metro-blocks";
+import MetroBlockSelector from "@/app/metro-block-selector";
 
 export const dynamic = "force-dynamic";
 
@@ -109,6 +111,10 @@ export default async function SharedProjectPage({
         </section>
       </main>
     );
+  }
+
+  if(project.id === METRO_BLOCK_PROJECT_ID && await metroBlockState(project.id)) {
+    return <MetroBlockSelector />;
   }
 
   return (
