@@ -84,7 +84,7 @@ test("UI prevents initialization until unusual plot IDs are explicitly reviewed"
  const editor=read("app/plot-mapper.tsx");
  assert.ok(editor.includes("plots.find(p=>p.id===plotId)?.id"));
  assert.ok(advanced.includes("id.length>80"));
- assert.ok(advanced.includes("Combined labels"));
+ assert.ok(advanced.includes("combined labels are allowed"));
  assert.ok(api.includes("FROM json_each(?) AS item"));
  assert.ok(api.includes("THEN draft_revision+1 ELSE -1 END"));
  assert.doesNotMatch(api,/(?:UPDATE|DELETE FROM|INSERT INTO)\s+(?:plots|published_plots|property_sales|plot_admin_details)\b/i);
