@@ -81,7 +81,7 @@ test("METRO Block A Plot 1 confirms four corners with Front/Back/Depth roles and
     expectedPolygon:"",expectedBindings:"",
     plot:{id:"1",polygon,frontEdgeIndex:0,backEdgeIndex:2,depthEdgeIndex:1,depth2EdgeIndex:3,edgeSemantics:semantics}
   };
-  const controlId={...input,plot:{...input.plot,id:"1\\n"}};
+  const controlId={...input,plot:{...input.plot,id:"1"+String.fromCharCode(1)}};
   const rejected=await routes.POST(request(controlId));
   assert.equal(rejected.status,400,"Actual control characters must still be rejected");
   const response=await routes.POST(request(input));
