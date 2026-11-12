@@ -4344,7 +4344,8 @@ export default function PlotMapper({
             </div>
             <small className="mapper-help">4-corner plot: Tap 1 + Tap 2 road-facing Front boundary ke dono endpoints par karein, phir same direction me clockwise baki 2 corners tap karein. Rekixo automatically Front → Depth A → Back → Depth B bind karega. Snap OFF mein exact click/drag position rahegi. Shared boundary milane ke liye toolbar se Snap ON karein.</small>
           </> : <>
-            <div className="mapper-fields guided-fields">
+            {blockMode && <p className="mapper-help">METRO BLOCK DRAFT — Area, Front/Back/Depth measurements and road details are read-only from the existing live inventory. Only polygon and edge assignments save here.</p>}
+            <fieldset className="mapper-fields guided-fields" disabled={blockMode} style={{border:0,minWidth:0,margin:0,padding:0}}>
               <label><span>Plot number</span><input value={plotId} readOnly={Boolean(currentPlot)} onChange={(event) => setPlotId(event.target.value)} /></label>
               <label><span>Dimensions (legacy/reference)</span><input value={dimensions} onChange={(event) => setDimensions(event.target.value)} placeholder="18 x 40 ft" /></label>
               <label><span>Area (sq.ft)</span><input type="number" min="0" value={sqft} onChange={(event) => setSqft(event.target.value)} /></label>
@@ -4356,8 +4357,8 @@ export default function PlotMapper({
                 <label><span>Depth B</span><input type="number" min="0" step="0.01" value={depth2} onChange={(event) => setDepth2(event.target.value)} placeholder="40" /></label>
               )}
               <label><span>Size unit</span><select value={dimensionUnit} onChange={(event) => setDimensionUnit(event.target.value === "m" ? "m" : "ft")}><option value="ft">ft (feet)</option><option value="m">m (metre)</option></select></label>
-            </div>
-            <div className="mapper-actions compact">
+            </fieldset>
+            {!blockMode && <div className="mapper-actions compact">
               <button type="button" onClick={() => {
                 const parsed = dimensionPair(dimensions);
                 if (!parsed) return notify("Dimensions me 18 x 40 ft jaisa pair nahi mila");
@@ -4367,7 +4368,7 @@ export default function PlotMapper({
                 notify("Dimensions se Front/Depth fill hua — road-facing Front edge verify karein; zarurat ho to Swap karein");
               }}>Dimensions → Front/Depth</button>
               <button type="button" disabled={!front && !depth} onClick={() => { setFront(depth); setDepth(front); }}>Swap Front ↔ Depth</button>
-            </div>
+            </div>}
             <small className="mapper-help">Normal 4-corner plot me first tapped boundary road-facing Front hai aur side roles auto-bind ho chuke hain. Irregular plot me numbered corner-range se logical sides assign karein. Triangle automatically 3-side mode use karta hai; 4+ corners par 3-side ya 4-side choose kar sakte hain. Measurements Plot Data ya AI Measurement Manifest se aati hain.</small>
             <div className="mapper-actions">
               <button
@@ -4924,19 +4925,20 @@ export default function PlotMapper({
                 <button
                   type="button"
                   className={bulkSemanticMode ? "active" : ""}
+                  disabled={blockMode}
                   onClick={toggleBulkSidesMode}
                 >Bulk sides</button>
               </div>
             )}
 
-            <button
+            {!blockMode && <button
               className="mapper-clear-all"
               type="button"
               disabled={blockMode || busy || completedProject || mappedPlots.length === 0}
               onClick={requestClearAllSelections}
               aria-label="Clear all saved plot selections"
               title="Remove every saved clickable boundary; plot details and status stay safe"
-            ><Trash2 />Clear all selections</button>
+            ><Trash2 />Clear all selections</button>}
           </div>
 
           {settings.plotFacingEnabled === "1" && !completedProject && hasMasterplan && (
@@ -5566,6 +5568,7 @@ export default function PlotMapper({
                 <button
                   type="button"
                   className={bulkSemanticMode ? "primary" : ""}
+                  disabled={blockMode}
                   onClick={toggleBulkSidesMode}
                 >Bulk sides</button>
               </div>
