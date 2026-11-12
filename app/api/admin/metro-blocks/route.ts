@@ -86,9 +86,12 @@ export async function POST(request:Request) {
     if(!d.plots.length)return json({error:"No active plots"},409);
     const unknown=d.plots.filter(p=>!suggestedBlock(p.id));
     if(unknown.length)return json({error:"Some plots need explicit block assignment",unknown:unknown.map(p=>p.id).slice(0,100)},409);
-    const statements=d.plots.map(p=>env.DB.prepare("INSERT INTO metro_block_plot_maps (project_id,plot_id,block_key,polygon,updated_at) VALUES (?,?,?,?,?)").bind(PROJECT,p.id,suggestedBlock(p.id),"",now));
-    statements.unshift(env.DB.prepare("INSERT OR IGNORE INTO metro_block_state (project_id,public_enabled,version,updated_at) VALUES (?,0,0,?)").bind(PROJECT,now));
-    await env.DB.batch(statements);
+    // One set-based statement instead of 700+ per-plot D1 queries.
+    // All existing plot IDs are validated above before any insertion.
+    await env.DB.batch([
+      env.DB.prepare("INSERT OR IGNORE INTO metro_block_state (project_id,public_enabled,version,updated_at) VALUES (?,0,0,?)").bind(PROJECT,now),
+      env.DB.prepare("INSERT INTO metro_block_plot_maps (project_id,plot_id,block_key,polygon,updated_at) SELECT project_id,id,CASE WHEN UPPER(id) LIKE 'B-%' OR UPPER(id) GLOB 'B[0-9]*' THEN 'b' WHEN UPPER(id) LIKE 'C-%' OR UPPER(id) GLOB 'C[0-9]*' THEN 'c' ELSE 'a' END,'',? FROM plots WHERE project_id=? AND inventory_active=1").bind(now,PROJECT),
+    ]);
     await writeAudit(actor,"metro.block_draft_initialized",PROJECT,null,{plots:d.plots.length,geometryPreserved:true});
     return json({ok:true,plots:d.plots.length});
   }
