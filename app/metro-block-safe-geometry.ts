@@ -84,12 +84,14 @@ export function blockPublishSideCoverage(polygon:unknown,rawBindings:string|null
   const bindings=readBlockSides(rawBindings);
   const roles=["front","back","depthA","depthB"] as const;
   const edgeSets:Record<string,number[]>={front:[],back:[],depthA:[],depthB:[]};
+  let isThreeSide=count===3;
   if(bindings.edgeSemantics){
     try{
       const semantics=JSON.parse(bindings.edgeSemantics) as {
-        version?:number;pointCount?:number;roles?:Record<string,number[]>;
+        version?:number;pointCount?:number;layout?:"three"|"four";roles?:Record<string,number[]>;
       };
       if(semantics?.version!==1||semantics.pointCount!==count||!semantics.roles)return false;
+      isThreeSide=semantics.layout==="three"||count===3;
       for(const role of roles){
         const indices=semantics.roles[role]||[];
         if(!Array.isArray(indices))return false;
@@ -104,7 +106,8 @@ export function blockPublishSideCoverage(polygon:unknown,rawBindings:string|null
     edgeSets.depthB=bindings.depth2EdgeIndex==null?[]:[bindings.depth2EdgeIndex];
   }
   if(!edgeSets.front.length||!edgeSets.back.length||!edgeSets.depthA.length)return false;
-  if(count!==3&&!edgeSets.depthB.length)return false;
+  if(!isThreeSide&&!edgeSets.depthB.length)return false;
+  if(isThreeSide&&edgeSets.depthB.length)return false;
   const assigned=roles.flatMap(role=>edgeSets[role]);
   if(assigned.length!==count||new Set(assigned).size!==count)return false;
   return assigned.every(index=>Number.isInteger(index)&&index>=0&&index<count);
