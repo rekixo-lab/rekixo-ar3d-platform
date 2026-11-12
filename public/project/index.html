@@ -1548,6 +1548,11 @@ window.REKIXO_GENERIC_BOOT=REKIXO_GENERIC_BOOT;
 const REKIXO_FORWARD=new URLSearchParams();
 if(REKIXO_PROJECT_PARAM)REKIXO_FORWARD.set('projectId',REKIXO_PROJECT_PARAM);
 if(REKIXO_PROJECT_SLUG)REKIXO_FORWARD.set('projectSlug',REKIXO_PROJECT_SLUG);
+// Block scope is forwarded only for Metro City customer routes.
+if(REKIXO_PROJECT_SLUG==='metro-city-c024a5'&&/^[abc]$/.test(REKIXO_PARAMS.get('block')||'')){
+  REKIXO_FORWARD.set('block',REKIXO_PARAMS.get('block'));
+  if(/^\\d+$/.test(REKIXO_PARAMS.get('bv')||''))REKIXO_FORWARD.set('bv',REKIXO_PARAMS.get('bv'));
+}
 if(REKIXO_PARAMS.get('preview')==='1')REKIXO_FORWARD.set('preview','1');
 if(REKIXO_PARAMS.get('pv'))REKIXO_FORWARD.set('pv',REKIXO_PARAMS.get('pv'));
 // Bust only the Future Invest customer's immutable structural cache.
@@ -1590,6 +1595,9 @@ function rekixoWarmPublishedOriginal(data,run){
   params.set('projectId',String(data.projectId));
   params.set('variant','original');
   params.set('v',version);
+  // Warm up the exact block image, never the legacy combined masterplan.
+  if(REKIXO_FORWARD.has('block'))params.set('block',REKIXO_FORWARD.get('block'));
+  if(REKIXO_FORWARD.has('bv'))params.set('bv',REKIXO_FORWARD.get('bv'));
   params.set('fidelity','original-v2');
   const src='/api/project-asset/masterplan?'+params.toString();
   const warm={src,run,preload:null,probePromise:null};
@@ -3370,6 +3378,10 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     // reusing a stale/short id from an old preview tab.
     const canonicalForward=new URLSearchParams();
     if(ACTIVE_PROJECT_ID)canonicalForward.set('projectId',ACTIVE_PROJECT_ID);
+    if(ACTIVE_PROJECT_ID==='c024a562-634d-4e49-b647-43209f6e450b' && REKIXO_FORWARD.has('block')){
+      canonicalForward.set('block',REKIXO_FORWARD.get('block'));
+      if(REKIXO_FORWARD.has('bv'))canonicalForward.set('bv',REKIXO_FORWARD.get('bv'));
+    }
     if(data&&data.preview){
       canonicalForward.set('preview','1');
       canonicalForward.set('assetRev',String(Date.now()));
