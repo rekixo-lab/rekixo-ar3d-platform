@@ -39,6 +39,7 @@ test("Metro DB guard validates exact identity, 702 statuses and unmodified finge
    assert.equal(run("preflight",{...healthy,snapshotVersion:7}).status,1);
    assert.equal(run("fingerprint",{id:"1",status:"sold",polygon:"[]"}).status,0);
    assert.equal(run("postflight",{...healthy,blockEnabled:0,blockPublishedMaps:0,tableCount:4}).status,0);
+   assert.equal(run("postflight",{...healthy,blockEnabled:-1,blockPublishedMaps:0,tableCount:4}).status,0);
    assert.equal(run("postflight",{...healthy,blockEnabled:1,blockPublishedMaps:1,tableCount:4}).status,1);
  }finally{rmSync(dir,{recursive:true,force:true})}
 });
