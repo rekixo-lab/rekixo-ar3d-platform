@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { requireSuperAdmin, sameOrigin } from "@/modules/auth";
 import { writeAudit } from "@/modules/audit";
 import { METRO_BLOCK_KEYS, METRO_BLOCK_PROJECT_ID, metroBlockKey } from "@/app/metro-blocks";
+import {previewMetroAssignments,completeMetroAssignments} from "@/app/metro-block-assignment";
 
 export const dynamic = "force-dynamic";
 const PROJECT = METRO_BLOCK_PROJECT_ID;
@@ -11,10 +12,8 @@ const json = (value: unknown, status=200) => Response.json(value, {status,header
 type PlotRow = {id:string;sqft:number;dimensions:string;status:string};
 type BlockAsset = {blockKey:string;draftObjectKey:string;draftWidth:number;draftHeight:number;draftFilename:string;northAngle:number;publishedObjectKey:string;publishedVersion:number};
 type BlockMap = {plotId:string;blockKey:string;polygon:string};
-const VALID_ID = /^[a-zA-Z0-9][a-zA-Z0-9 -]{0,79}$/;
-function suggestedBlock(id: string) {
-  return /^B[-\s]?\d+$/i.test(id) ? "b" : /^C[-\s]?\d+$/i.test(id) ? "c" : /^(?:A[-\s]?)?\d+$/i.test(id) ? "a" : null;
-}
+// Unusual plot labels are allowed only if they exactly match an existing active plot.
+const VALID_ID = /^[^\u0000-\u001f\u007f]{1,80}$/;
 function safelyNormalizeSavedPolygon(raw:string) {try{return normalizePolygon(JSON.parse(raw||"null"));}catch{return null}}
 function normalizePolygon(raw: unknown) {
   if (!Array.isArray(raw) || raw.length < 3 || raw.length > 80) return null;
@@ -45,7 +44,9 @@ async function load() {
     env.DB.prepare("SELECT plot_id AS plotId,block_key AS blockKey,polygon FROM metro_block_plot_maps WHERE project_id=? ORDER BY plot_id").bind(PROJECT).all<BlockMap>(),
     env.DB.prepare("SELECT public_enabled AS enabled,version,draft_revision AS draftRevision FROM metro_block_state WHERE project_id=?").bind(PROJECT).first<{enabled:number;version:number;draftRevision:number}>(),
   ]);
-  return {plots:plots.results,assets:assets.results,maps:maps.results,state:state||{enabled:0,version:0,draftRevision:0}};
+  return {plots:plots.results,assets:assets.results,maps:maps.results,
+    assignmentPreview:previewMetroAssignments(plots.results),
+    state:state||{enabled:0,version:0,draftRevision:0}};
 }
 export async function GET() {
   const actor=await requireSuperAdmin();
@@ -85,24 +86,41 @@ export async function POST(request:Request) {
     await writeAudit(actor,"metro.block_image_draft_uploaded",PROJECT,block,{width,height,size:file.size,draftPolygonsReset:true});
     return json({ok:true,block,width,height});
   }
-  const body=await request.json().catch(()=>null) as null|{action?:string;block?:string;plotId?:string;polygon?:unknown;expectedVersion?:number;expectedDraftRevision?:number;confirmation?:string};
+  const body=await request.json().catch(()=>null) as null|{action?:string;block?:string;plotId?:string;polygon?:unknown;expectedVersion?:number;expectedDraftRevision?:number;confirmation?:string;assignments?:unknown};
   if(!body||!body.action)return json({error:"Action required"},400);
   const now=new Date().toISOString();
   if(body.action==="initialize") {
+    // A rejected assignment never changes the live plots or draft tables.
     const d=await load();
     if(d.maps.length)return json({error:"Draft mapping already initialized; no automatic overwrite allowed"},409);
     if(!d.plots.length)return json({error:"No active plots"},409);
-    const unknown=d.plots.filter(p=>!suggestedBlock(p.id));
-    if(unknown.length)return json({error:"Some plots need explicit block assignment",unknown:unknown.map(p=>p.id).slice(0,100)},409);
-    // One set-based statement instead of 700+ per-plot D1 queries.
-    // All existing plot IDs are validated above before any insertion.
-    await env.DB.batch([
-      env.DB.prepare("INSERT OR IGNORE INTO metro_block_state (project_id,public_enabled,version,updated_at) VALUES (?,0,0,?)").bind(PROJECT,now),
-      env.DB.prepare("INSERT INTO metro_block_plot_maps (project_id,plot_id,block_key,polygon,updated_at) SELECT project_id,id,CASE WHEN UPPER(id) LIKE 'B-%' OR UPPER(id) GLOB 'B[0-9]*' THEN 'b' WHEN UPPER(id) LIKE 'C-%' OR UPPER(id) GLOB 'C[0-9]*' THEN 'c' ELSE 'a' END,'',? FROM plots WHERE project_id=? AND inventory_active=1").bind(now,PROJECT),
-      env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT),
-    ]);
-    await writeAudit(actor,"metro.block_draft_initialized",PROJECT,null,{plots:d.plots.length,geometryPreserved:true});
-    return json({ok:true,plots:d.plots.length});
+    const result=completeMetroAssignments(d.plots,body.assignments||[]);
+    if(!result.ok)return json({error:result.error,unknown:result.unknown,assignmentPreview:d.assignmentPreview},409);
+    // Bound, chunked VALUES avoid a large SQLite variable count.
+    // D1 batch is transactional; every active ID is assigned exactly once.
+    const statements=[
+      env.DB.prepare("INSERT OR IGNORE INTO metro_block_state (project_id,public_enabled,version,draft_revision,updated_at) VALUES (?,0,0,0,?)").bind(PROJECT,now),
+    ];
+    const CHUNK=12; // 12 x 4 = 48 bind parameters / statement
+    for(let i=0;i<result.assignments.length;i+=CHUNK){
+      const group=result.assignments.slice(i,i+CHUNK);
+      const sql="INSERT INTO metro_block_plot_maps (project_id,plot_id,block_key,polygon,side_bindings,updated_at) VALUES "+
+        group.map(()=>"(?,?,?,'','',?)").join(",");
+      statements.push(env.DB.prepare(sql).bind(...group.flatMap(item=>[PROJECT,item.plotId,item.block,now])));
+    }
+    statements.push(env.DB.prepare("UPDATE metro_block_state SET draft_revision=draft_revision+1,updated_at=? WHERE project_id=?").bind(now,PROJECT));
+    try{
+      await env.DB.batch(statements);
+    }catch(error){
+      console.error("METRO draft assignment transaction rejected",error);
+      return json({error:"Draft assignment could not be initialized. No live plots were changed. Refresh and retry."},409);
+    }
+    try{await writeAudit(actor,"metro.block_draft_initialized",PROJECT,null,{
+      plots:result.assignments.length,counts:result.counts,
+      explicitlyAssigned:d.assignmentPreview.unknown.length,
+      geometryPreserved:true,
+    })}catch(error){console.error("METRO draft assignment audit unavailable",error)}
+    return json({ok:true,plots:result.assignments.length,counts:result.counts});
   }
   if(body.action==="calibrate") {
     const block=metroBlockKey(body.block);
