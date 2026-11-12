@@ -12,9 +12,11 @@ CREATE TABLE IF NOT EXISTS metro_block_assets (
   draft_width INTEGER NOT NULL DEFAULT 0,
   draft_height INTEGER NOT NULL DEFAULT 0,
   draft_filename TEXT NOT NULL DEFAULT '',
+  draft_north_angle REAL NOT NULL DEFAULT 0,
   published_object_key TEXT NOT NULL DEFAULT '',
   published_width INTEGER NOT NULL DEFAULT 0,
   published_height INTEGER NOT NULL DEFAULT 0,
+  published_north_angle REAL NOT NULL DEFAULT 0,
   published_version INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL,
   PRIMARY KEY (project_id,block_key)
