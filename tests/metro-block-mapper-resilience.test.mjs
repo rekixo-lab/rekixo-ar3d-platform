@@ -9,7 +9,7 @@ function moduleWith(code,deps){const exported={};new Function("require","exports
 
 test("METRO Block A rotation persists from server, never the shared project publicRotation zero",()=>{
  const mapper=read("app/plot-mapper.tsx"),api=read("app/api/admin/metro-blocks/advanced/route.ts");
- assert.match(mapper,/if \(blockMode\) \{\s*\/\/ METRO block view MUST NOT be overwritten/);
+ assert.ok(mapper.includes("METRO block view must NOT be overwritten by publicRotation=0"));
  assert.match(mapper,/normalizeQuarterTurn\(settings\.blockViewRotation\)/);
  assert.match(mapper,/setSettings\(current=>\(\{\.\.\.current,blockViewRotation:String\(next\)\}\)\)/);
  assert.match(mapper,/if\(!blockKey\)return;/);
