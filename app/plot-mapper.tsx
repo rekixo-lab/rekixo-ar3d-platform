@@ -4903,6 +4903,7 @@ export default function PlotMapper({
           onContextMenu={(event) => event.preventDefault()}
           onDragStart={(event) => event.preventDefault()}
         >
+          <div className={blockMode ? "metro-block-sticky-header" : "mapper-default-header-group"}>
           <div className="mapper-v4-current">
             <button type="button" onClick={() => selectSiblingPlot(-1)} disabled={!inventoryPlots.length} aria-label="Previous plot"><ChevronLeft /></button>
             <label>
@@ -5073,6 +5074,7 @@ export default function PlotMapper({
               title="Remove every saved clickable boundary; plot details and status stay safe"
             ><Trash2 />Clear all selections</button>}
           </div>
+          </div>{/* End METRO sticky header group; ordinary mapper uses display:contents. */}
 
           {settings.plotFacingEnabled === "1" && !completedProject && hasMasterplan && (
             <div className="mapper-north-calibration-layer" aria-label="Masterplan North calibration">
