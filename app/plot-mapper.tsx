@@ -1066,10 +1066,6 @@ function polygonSelfIntersects(points: MapperPoint[]) {
   return false;
 }
 
-function mappingDraftKey(projectId: string, plotId: string) {
-  return `rekixo:mapper-draft:${projectId}:${cleanPlotId(plotId)}`;
-}
-
 function dimensionPair(value: string) {
   const match = String(value || "")
     .trim()
@@ -1101,6 +1097,12 @@ export default function PlotMapper({
   const controlsWorkspace = workspaceMode === "controls";
   const blockMode = Boolean(blockKey);
   const mappingProjectKey = blockKey ? `${projectId}:block:${blockKey}` : projectId;
+  // Keep canonical key contract for every other project; prefix only METRO block drafts.
+  const mappingDraftKey = (projectId:string,plotId:string) =>
+    `rekixo:mapper-draft:${blockKey ? `${projectId}:block:${blockKey}` : projectId}:${cleanPlotId(plotId)}`;
+  const rotationStorageKey = blockKey
+    ? `rekixo:mapper-rotation:${mappingProjectKey}`
+    : `rekixo:mapper-rotation:${projectId}`;
   const blockEditorUrl = blockKey
     ? `/api/admin/metro-blocks/advanced?projectId=${encodeURIComponent(projectId)}&block=${blockKey}`
     : `/api/super-mapper?projectId=${encodeURIComponent(projectId)}`;
@@ -1521,7 +1523,7 @@ export default function PlotMapper({
     setNorthCalibrationDraftSourceAngle(null);
     // Restore this device's preferred mapping orientation for the project.
     try {
-      const saved = Number(window.localStorage.getItem(`rekixo:mapper-rotation:${mappingProjectKey}`));
+      const saved = Number(window.localStorage.getItem(rotationStorageKey));
       if (saved === 0 || saved === 1 || saved === 2 || saved === 3)
         setRotation(saved as 0 | 1 | 2 | 3);
       else setRotation(0);
@@ -1538,7 +1540,7 @@ export default function PlotMapper({
     const serverRotation = normalizeQuarterTurn(settings.publicRotation);
     let localRotation: 0 | 1 | 2 | 3 | null = null;
     try {
-      const raw = window.localStorage.getItem(`rekixo:mapper-rotation:${mappingProjectKey}`);
+      const raw = window.localStorage.getItem(rotationStorageKey);
       if (raw !== null) {
         const saved = Number(raw);
         if (saved === 0 || saved === 1 || saved === 2 || saved === 3) {
@@ -1559,7 +1561,7 @@ export default function PlotMapper({
     setRotation(nextRotation);
     try {
       window.localStorage.setItem(
-        `rekixo:mapper-rotation:${mappingProjectKey}`,
+        rotationStorageKey,
         String(nextRotation),
       );
     } catch {
@@ -1581,7 +1583,7 @@ export default function PlotMapper({
   useEffect(() => {
     if (completedProject || !plotId || editingId || points.length) return;
     try {
-      const raw = window.localStorage.getItem(mappingDraftKey(mappingProjectKey, plotId));
+      const raw = window.localStorage.getItem(mappingDraftKey(projectId, plotId));
       if (!raw) return;
       const draft = JSON.parse(raw) as {
         points?: MapperPoint[];
@@ -1643,7 +1645,7 @@ export default function PlotMapper({
     if (completedProject || !plotId || !points.length) return;
     try {
       window.localStorage.setItem(
-        mappingDraftKey(mappingProjectKey, plotId),
+        mappingDraftKey(projectId, plotId),
         JSON.stringify({ points, shape, manualPhase, edgeSemanticsDraft, sideLayout }),
       );
     } catch {
@@ -2600,7 +2602,7 @@ export default function PlotMapper({
     setSideLayout("four");
     setToolMode("select");
     try {
-      window.localStorage.removeItem(mappingDraftKey(mappingProjectKey, plotId));
+      window.localStorage.removeItem(mappingDraftKey(projectId, plotId));
     } catch {
       // Ignore local storage failures.
     }
@@ -3367,7 +3369,7 @@ export default function PlotMapper({
     const next = ((rotation + direction + 4) % 4) as 0 | 1 | 2 | 3;
     setRotation(next);
     try {
-      window.localStorage.setItem(`rekixo:mapper-rotation:${mappingProjectKey}`, String(next));
+      window.localStorage.setItem(rotationStorageKey, String(next));
     } catch {
       // Local preference is optional; mapping must keep working.
     }
@@ -3427,7 +3429,7 @@ export default function PlotMapper({
       });
     });
     try {
-      window.localStorage.setItem(`rekixo:mapper-rotation:${mappingProjectKey}`, "0");
+      window.localStorage.setItem(rotationStorageKey, "0");
     } catch {
       // Ignore private-mode/localStorage failures.
     }
@@ -3969,7 +3971,7 @@ export default function PlotMapper({
       if(blockMode)onDraftChanged?.();
       announceMapperDataUpdated();
       try {
-        window.localStorage.removeItem(mappingDraftKey(mappingProjectKey, verified.plot.id));
+        window.localStorage.removeItem(mappingDraftKey(projectId, verified.plot.id));
       } catch {
         // Ignore local draft cleanup failures.
       }
@@ -4023,7 +4025,7 @@ export default function PlotMapper({
       setManualPhase("select");
       setToolMode("select");
       try {
-        window.localStorage.removeItem(mappingDraftKey(mappingProjectKey, verified.plot.id));
+        window.localStorage.removeItem(mappingDraftKey(projectId, verified.plot.id));
       } catch {
         // Local draft cleanup is best-effort; server data is already verified.
       }
@@ -4077,9 +4079,9 @@ export default function PlotMapper({
       announceMapperDataUpdated();
       try {
         for (const plot of plots) {
-          window.localStorage.removeItem(mappingDraftKey(mappingProjectKey, plot.id));
+          window.localStorage.removeItem(mappingDraftKey(projectId, plot.id));
         }
-        window.localStorage.removeItem(mappingDraftKey(mappingProjectKey, plotId));
+        window.localStorage.removeItem(mappingDraftKey(projectId, plotId));
       } catch {
         // Local draft cleanup is best-effort; the server clear is already verified.
       }
