@@ -12,7 +12,7 @@ const denied = () => Response.json({error:"Super Admin access required"}, {statu
 const json = (value: unknown, status=200) => Response.json(value, {status,headers:{"cache-control":"no-store"}});
 
 type PlotRow = {id:string;sqft:number;dimensions:string;status:string};
-type BlockAsset = {blockKey:string;draftObjectKey:string;draftWidth:number;draftHeight:number;draftFilename:string;northAngle:number;publishedObjectKey:string;publishedVersion:number};
+type BlockAsset = {blockKey:string;draftObjectKey:string;draftWidth:number;draftHeight:number;draftFilename:string;northAngle:number;viewRotation:number;publishedObjectKey:string;publishedVersion:number};
 type BlockMap = {plotId:string;blockKey:string;polygon:string;sideBindings:string};
 // Unusual plot labels are allowed only if they exactly match an existing active plot.
 const VALID_ID = /^[^\u0000-\u001f\u007f]{1,80}$/;
@@ -42,7 +42,7 @@ async function ensureMetro() {
 async function load() {
   const [plots,assets,maps,state] = await Promise.all([
     env.DB.prepare("SELECT id,sqft,dimensions,status FROM plots WHERE project_id=? AND inventory_active=1 ORDER BY id").bind(PROJECT).all<PlotRow>(),
-    env.DB.prepare("SELECT block_key AS blockKey,draft_object_key AS draftObjectKey,draft_width AS draftWidth,draft_height AS draftHeight,draft_filename AS draftFilename,draft_north_angle AS northAngle,published_object_key AS publishedObjectKey,published_version AS publishedVersion FROM metro_block_assets WHERE project_id=? ORDER BY block_key").bind(PROJECT).all<BlockAsset>(),
+    env.DB.prepare("SELECT block_key AS blockKey,draft_object_key AS draftObjectKey,draft_width AS draftWidth,draft_height AS draftHeight,draft_filename AS draftFilename,draft_north_angle AS northAngle,draft_view_rotation AS viewRotation,published_object_key AS publishedObjectKey,published_version AS publishedVersion FROM metro_block_assets WHERE project_id=? ORDER BY block_key").bind(PROJECT).all<BlockAsset>(),
     env.DB.prepare("SELECT plot_id AS plotId,block_key AS blockKey,polygon,side_bindings AS sideBindings FROM metro_block_plot_maps WHERE project_id=? ORDER BY plot_id").bind(PROJECT).all<BlockMap>(),
     env.DB.prepare("SELECT public_enabled AS enabled,version,draft_revision AS draftRevision FROM metro_block_state WHERE project_id=?").bind(PROJECT).first<{enabled:number;version:number;draftRevision:number}>(),
   ]);
@@ -212,7 +212,7 @@ export async function POST(request:Request) {
       const stmts=[
         env.DB.prepare("DELETE FROM metro_block_published_maps WHERE project_id=?").bind(PROJECT),
         env.DB.prepare("INSERT INTO metro_block_published_maps(project_id,plot_id,block_key,polygon,side_bindings) SELECT project_id,plot_id,block_key,polygon,side_bindings FROM metro_block_plot_maps WHERE project_id=?").bind(PROJECT),
-        ...copies.map(c=>env.DB.prepare("UPDATE metro_block_assets SET published_object_key=?,published_width=?,published_height=?,published_north_angle=?,published_version=? WHERE project_id=? AND block_key=?").bind(c.key,c.asset.draftWidth,c.asset.draftHeight,c.asset.northAngle,version,PROJECT,c.block)),
+        ...copies.map(c=>env.DB.prepare("UPDATE metro_block_assets SET published_object_key=?,published_width=?,published_height=?,published_north_angle=?,published_view_rotation=?,published_version=? WHERE project_id=? AND block_key=?").bind(c.key,c.asset.draftWidth,c.asset.draftHeight,c.asset.northAngle,c.asset.viewRotation,version,PROJECT,c.block)),
         // An out-of-date revision produces CHECK(public_enabled IN (0,1)) failure.
         // D1 batch rolls back every published-map and asset pointer change.
         env.DB.prepare("UPDATE metro_block_state SET public_enabled=CASE WHEN draft_revision=? AND version=? THEN 1 ELSE -1 END,version=?,updated_at=? WHERE project_id=?").bind(d.state.draftRevision,d.state.version,version,now,PROJECT),

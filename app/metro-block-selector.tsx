@@ -1,20 +1,44 @@
 import {env} from "cloudflare:workers";
 import Link from "next/link";
-import {METRO_BLOCK_PROJECT_ID, METRO_BLOCK_KEYS, publishedMetroBlock} from "./metro-blocks";
+import {LayoutDashboard,Phone} from "lucide-react";
+import {METRO_BLOCK_PROJECT_ID, METRO_BLOCK_KEYS, METRO_BLOCK_SLUG, publishedMetroBlock} from "./metro-blocks";
 
 type Totals={blockKey:string;total:number;available:number;booked:number;registered:number};
 export default async function MetroBlockSelector() {
-  const counts=await env.DB.prepare(
-    "SELECT m.block_key AS blockKey,COUNT(*) AS total,SUM(CASE WHEN p.status='available' THEN 1 ELSE 0 END) AS available,SUM(CASE WHEN p.status='booked' THEN 1 ELSE 0 END) AS booked,SUM(CASE WHEN p.status='sold' THEN 1 ELSE 0 END) AS registered FROM metro_block_published_maps m JOIN plots p ON p.project_id=m.project_id AND p.id=m.plot_id AND p.inventory_active=1 WHERE m.project_id=? GROUP BY m.block_key"
-  ).bind(METRO_BLOCK_PROJECT_ID).all<Totals>();
+  const [counts,branding,liveContact]=await Promise.all([
+    env.DB.prepare(
+      "SELECT m.block_key AS blockKey,COUNT(*) AS total,SUM(CASE WHEN p.status='available' THEN 1 ELSE 0 END) AS available,SUM(CASE WHEN p.status='booked' THEN 1 ELSE 0 END) AS booked,SUM(CASE WHEN p.status='sold' THEN 1 ELSE 0 END) AS registered FROM metro_block_published_maps m JOIN plots p ON p.project_id=m.project_id AND p.id=m.plot_id AND p.inventory_active=1 WHERE m.project_id=? GROUP BY m.block_key"
+    ).bind(METRO_BLOCK_PROJECT_ID).all<Totals>(),
+    env.DB.prepare("SELECT key,value FROM published_settings WHERE project_id=? AND key IN ('logoName','logoVersion','phone1','phone2','customerCallEnabled')")
+      .bind(METRO_BLOCK_PROJECT_ID).all<{key:string;value:string}>(),
+    // Match the customer site's live contact behavior without exposing admin data.
+    env.DB.prepare("SELECT key,value FROM settings WHERE project_id=? AND key IN ('phone1','phone2','customerCallEnabled')")
+      .bind(METRO_BLOCK_PROJECT_ID).all<{key:string;value:string}>(),
+  ]);
   const byBlock=new Map(counts.results.map(x=>[x.blockKey,x]));
+  const settings=Object.fromEntries(branding.results.map(row=>[row.key,row.value]));
+  const contact={...settings,...Object.fromEntries(liveContact.results.map(row=>[row.key,row.value]))};
+  const callNumber=String(contact.phone1||contact.phone2||"").replace(/\D/g,"").slice(0,15);
+  const callingAllowed=contact.customerCallEnabled!=="0" && callNumber.length>=7;
+  const logoUrl=settings.logoName
+    ? `/api/project-asset/logo?projectSlug=${encodeURIComponent(METRO_BLOCK_SLUG)}&variant=public&v=${encodeURIComponent(settings.logoVersion||settings.logoName)}`
+    : "";
   const assets=await Promise.all(METRO_BLOCK_KEYS.map(b=>publishedMetroBlock(METRO_BLOCK_PROJECT_ID,b)));
   if(assets.some(x=>!x))return <main style={{minHeight:"100vh",display:"grid",placeItems:"center",background:"#070f1c",color:"white"}}>Project Block Viewer temporarily unavailable.</main>;
-  const total=counts.results.reduce((n,r)=>n+r.total,0);
-  return <main style={{minHeight:"100vh",background:"linear-gradient(150deg,#080f1f,#0d2035 55%,#091321)",color:"#f6f9ff",fontFamily:"system-ui,sans-serif",padding:"clamp(20px,4vw,55px)"}}>
-    <header style={{maxWidth:1260,margin:"0 auto",display:"flex",justifyContent:"space-between",gap:18,alignItems:"center",flexWrap:"wrap",borderBottom:"1px solid #263954",paddingBottom:22}}>
-      <div><div style={{fontSize:12,letterSpacing:3,color:"#e5c474",fontWeight:700}}>WELCOME TO</div><h1 style={{fontSize:"clamp(28px,4vw,52px)",margin:"3px 0",fontWeight:800}}>METRO CITY</h1><p style={{margin:0,color:"#a8bcd5"}}>Gaura, Naubatpur, Patna · Explore your preferred block</p></div>
-      <div style={{textAlign:"right",color:"#b7c9df",fontSize:13}}><b style={{color:"#f3d37a",fontSize:24}}>{total}</b><div>Residential plots across 3 blocks</div></div>
+  const iconStyle={display:"grid",placeItems:"center",width:44,height:44,flexShrink:0,border:"1px solid #36506d",borderRadius:12,background:"#11253b",color:"#eef6ff",textDecoration:"none"} as const;
+  return <main style={{minHeight:"100vh",background:"linear-gradient(150deg,#080f1f,#0d2035 55%,#091321)",color:"#f6f9ff",fontFamily:"system-ui,sans-serif",padding:"clamp(16px,4vw,55px)"}}>
+    <header style={{maxWidth:1260,margin:"0 auto",display:"flex",justifyContent:"space-between",gap:14,alignItems:"center",flexWrap:"wrap",borderBottom:"1px solid #263954",paddingBottom:22}}>
+      <div style={{display:"flex",alignItems:"center",gap:14,minWidth:0}}>
+        <div style={{width:"clamp(50px,7vw,74px)",height:"clamp(50px,7vw,74px)",flexShrink:0,borderRadius:"50%",border:"2px solid #d8b767",background:"#fff",display:"grid",placeItems:"center",overflow:"hidden"}}>
+          {logoUrl?<img src={logoUrl} alt="Metro City project logo" width={74} height={74} style={{width:"100%",height:"100%",objectFit:"contain"}}/>:<strong style={{fontSize:20,color:"#10233e"}}>MC</strong>}
+        </div>
+        <div style={{minWidth:0}}><div style={{fontSize:11,letterSpacing:3,color:"#e5c474",fontWeight:700}}>WELCOME TO</div><h1 style={{fontSize:"clamp(26px,4vw,52px)",margin:"3px 0",fontWeight:800}}>METRO CITY</h1><p style={{margin:0,color:"#a8bcd5",fontSize:13}}>Gaura, Naubatpur, Patna · Explore your preferred block</p></div>
+      </div>
+      <nav aria-label="Metro City contact and administration" style={{display:"flex",alignItems:"center",gap:9,marginLeft:"auto"}}>
+        {callingAllowed?<a href={`tel:+${callNumber}`} aria-label="Call Metro City" title="Call Metro City" style={iconStyle}><Phone size={21} strokeWidth={2}/></a>:
+          <span role="img" aria-label="Calling not configured" title="Calling not configured" style={{...iconStyle,opacity:.45}}><Phone size={21} strokeWidth={2}/></span>}
+        <Link href={`/projects/${METRO_BLOCK_SLUG}/admin-login`} aria-label="Open Metro City admin panel" title="Admin panel" style={iconStyle}><LayoutDashboard size={21} strokeWidth={2}/></Link>
+      </nav>
     </header>
     <section style={{maxWidth:1260,margin:"36px auto"}}>
       <h2 style={{fontSize:"clamp(20px,2.6vw,29px)",margin:"0 0 6px"}}>Explore a Block</h2>
@@ -33,6 +57,5 @@ export default async function MetroBlockSelector() {
       </Link>})}
       </div>
     </section>
-    <footer style={{maxWidth:1260,margin:"0 auto",fontSize:12,color:"#8198b4"}}>Single METRO CITY project · Three interactive block layouts · Shared inventory and admin</footer>
   </main>;
 }

@@ -1079,6 +1079,31 @@ body.dungar-compact-header .head-actions{flex:0 0 auto;flex-shrink:0;z-index:3}
   body.dungar-compact-header .brand{min-width:0;overflow:hidden}
   body.dungar-compact-header .head-actions{gap:6px}
 }
+
+/* METRO live block HUD only. The button sits immediately beside the compass
+   inside the customer map and cannot overlay the separate 3D control below. */
+.metro-all-blocks-link[hidden]{display:none!important}
+.metro-all-blocks-link{
+  position:absolute;z-index:8;
+  top:39px;left:104px;
+  display:flex;align-items:center;justify-content:center;
+  min-height:38px;padding:0 13px;box-sizing:border-box;
+  border-radius:22px;border:1px solid #476083;
+  background:rgba(7,21,45,.94);color:#f5f9ff;
+  font:800 12px/1.2 Inter,system-ui,sans-serif;
+  text-decoration:none;white-space:nowrap;
+  box-shadow:0 8px 22px rgba(0,0,0,.4);backdrop-filter:blur(8px);
+}
+.metro-all-blocks-link:hover,.metro-all-blocks-link:focus-visible{
+  border-color:#9acaf8;outline:2px solid transparent;background:#193b61;
+}
+@media(max-width:700px){
+  .metro-all-blocks-link{
+    top:18px;left:calc(var(--rekixo-hud-left,12px) + 58px);
+    min-height:36px;padding:0 10px;font-size:11px;
+    max-width:calc(100vw - 145px);
+  }
+}
 </style>
 
 <style id="metro-agreement-public-style">
@@ -1293,6 +1318,7 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
       <span class="fi-threeway-hub"></span>
     </div>
   </div>
+  <a class="metro-all-blocks-link" id="metroAllBlocksLink" href="/projects/metro-city-c024a5" aria-label="View all METRO CITY blocks" hidden>← All Blocks</a>
   <button class="map-badge view-mode" id="view3d">3D</button>
   <div class="map-badge mini-logo" aria-label="TPS 3D"><strong>TPS</strong><span>3D</span></div>
 
@@ -1552,11 +1578,16 @@ if(REKIXO_PROJECT_SLUG)REKIXO_FORWARD.set('projectSlug',REKIXO_PROJECT_SLUG);
 if(REKIXO_PROJECT_SLUG==='metro-city-c024a5'&&/^[abc]$/.test(REKIXO_PARAMS.get('block')||'')){
   REKIXO_FORWARD.set('block',REKIXO_PARAMS.get('block'));
   if(/^\\d+$/.test(REKIXO_PARAMS.get('bv')||''))REKIXO_FORWARD.set('bv',REKIXO_PARAMS.get('bv'));
+  // Use a new structural cache key; previous A/B/C publish forced publicRotation=0.
+  if(REKIXO_PARAMS.get('rv')==='metro-published-turn-v1')REKIXO_FORWARD.set('rv','metro-published-turn-v1');
 }
 if(REKIXO_PARAMS.get('preview')==='1')REKIXO_FORWARD.set('preview','1');
 if(REKIXO_PARAMS.get('pv'))REKIXO_FORWARD.set('pv',REKIXO_PARAMS.get('pv'));
 // Bust only the Future Invest customer's immutable structural cache.
 if(REKIXO_PARAMS.get('displayPolicy')==='hide-south-v1')REKIXO_FORWARD.set('displayPolicy','hide-south-v1');
+// The back link belongs to the map HUD next to the compass, never above 3D.
+const metroAllBlocksLink=document.getElementById('metroAllBlocksLink');
+if(metroAllBlocksLink)metroAllBlocksLink.hidden=!(REKIXO_PROJECT_SLUG==='metro-city-c024a5'&&REKIXO_FORWARD.has('block'));
 const REKIXO_PROJECT_QUERY=REKIXO_FORWARD.toString()?'?'+REKIXO_FORWARD.toString():'';
 window.REKIXO_PROJECT_QUERY=REKIXO_PROJECT_QUERY;
 // REKIXO_PUBLIC_BOOT_RESILIENCE_V2
