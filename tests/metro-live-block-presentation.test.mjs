@@ -61,6 +61,8 @@ test("All Blocks is located beside compass inside map viewport; never covers 3D,
  assert.match(ui,/\.metro-all-blocks-link\{[\s\S]*?left:104px;/);
  assert.match(ui,/@media\(max-width:700px\)\{\s*\.metro-all-blocks-link\{/);
  assert.match(ui,/\.metro-all-blocks-link\[hidden\]\{display:none!important\}/);
+ assert.match(outer,/rv=metro-published-turn-v1/);
+ assert.match(ui,/REKIXO_FORWARD\.set\('rv','metro-published-turn-v1'\)/);
 });
 
 test("main block selector renders existing published project logo, live call and client admin icon, without unwanted copy",()=>{
