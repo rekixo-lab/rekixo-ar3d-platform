@@ -35,12 +35,10 @@ export default async function MetroBlockSelector() {
         <div className={styles.brandHeading}>
           <div className={styles.welcome}>WELCOME TO</div>
           <h1 className={styles.projectName}>METRO CITY</h1>
+          <p className={styles.subtitleFull}>Gaura, Naubatpur, Patna · Explore your preferred block</p>
         </div>
       </div>
-      <p className={styles.subtitle}>
-        <span className={styles.subtitleFull}>Gaura, Naubatpur, Patna · Explore your preferred block</span>
-        <span className={styles.subtitleCompact}>Gaura, Naubatpur, Patna</span>
-      </p>
+      <p className={styles.subtitleCompact}>Gaura, Naubatpur, Patna</p>
       <nav aria-label="Metro City contact and administration" className={styles.actions}>
         {callingAllowed?<a href={`tel:+${callNumber}`} aria-label="Call Metro City" title="Call Metro City" className={styles.iconButton}><Phone size={21} strokeWidth={2}/></a>:
           <span role="img" aria-label="Calling not configured" title="Calling not configured" className={styles.iconDisabled}><Phone size={21} strokeWidth={2}/></span>}
