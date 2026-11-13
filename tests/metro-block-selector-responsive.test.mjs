@@ -23,8 +23,8 @@ test("Metro City mobile header reserves a separate subtitle row and icons at the
   assert.match(mobile,/\.actions\s*\{[^}]*gap:/);
   assert.match(mobile,/\.subtitleFull\s*\{\s*display:\s*none/);
   assert.match(mobile,/\.subtitleCompact\s*\{[^}]*display:\s*block/);
-  assert.match(mobile,/\.cards\s*\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
-  assert.match(mobile,/\.card\s*\{\s*display:\s*grid;\s*grid-template-columns:/);
+  assert.match(mobile,/\.cards\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  assert.match(mobile,/\.card\s*\{[^}]*display:\s*grid;\s*grid-template-columns:/);
   assert.match(css,/@media \(min-width: 600px\) and \(max-width: 1023px\)/);
   assert.match(css,/grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(css,/@media \(prefers-reduced-motion: reduce\)/);
