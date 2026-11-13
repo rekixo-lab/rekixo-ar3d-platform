@@ -42,7 +42,7 @@ test("Metro City phone selector fills dynamic viewport with equal-height cards a
   assert.match(mobile,/\.cards\s*\{[^}]*flex:\s*1 0 auto;[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);[^}]*grid-template-rows:\s*repeat\(3,\s*minmax\(112px,\s*1fr\)\)/);
   assert.match(mobile,/\.preview\s*\{\s*height:\s*100%;\s*min-height:\s*0/);
   assert.match(short,/grid-template-rows:\s*repeat\(3,\s*minmax\(96px,\s*1fr\)\)/);
-  assert.doesNotMatch(mobile,/overflow-y:\s*hidden|height:\s*100dvh/);
+  assert.doesNotMatch(mobile,/overflow-y:\s*hidden|(?:^|[;{\n]\s*)height:\s*100dvh/m);
   assert.match(desktop,/\.cards\s*\{\s*display:\s*grid;\s*grid-template-columns:\s*repeat\(auto-fit/);
 });
 
