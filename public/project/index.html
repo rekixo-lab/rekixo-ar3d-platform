@@ -1104,6 +1104,35 @@ body.dungar-compact-header .head-actions{flex:0 0 auto;flex-shrink:0;z-index:3}
     max-width:calc(100vw - 145px);
   }
 }
+
+/* TRUESOIL_ONLY_GEO_HIGHLIGHTS_V1: hidden until verified API tenant slug matches. */
+.truesoil-highlights-btn[hidden],.truesoil-highlights-modal[hidden]{display:none!important}
+.truesoil-highlights-btn:before{background:#78b5ff;box-shadow:0 0 12px #78b5ff88}
+.truesoil-highlights-btn svg{flex:none;width:15px;height:15px;fill:none;stroke:#98cbff;stroke-width:1.9}
+.truesoil-highlights-modal{position:fixed;inset:0;z-index:151;display:flex;align-items:center;justify-content:center;padding:18px;background:#020714e8;backdrop-filter:blur(10px)}
+.truesoil-highlights-panel{position:relative;width:min(740px,100%);max-height:calc(100dvh - 36px);overflow-y:auto;overscroll-behavior:contain;padding:26px;border:1px solid #355470;border-radius:22px;background:linear-gradient(150deg,#122942,#091829 70%);box-shadow:0 26px 85px #000b;color:#f5f9ff}
+.truesoil-highlights-panel:before{content:"";position:absolute;top:0;left:20px;right:20px;height:3px;border-radius:6px;background:linear-gradient(90deg,#24d99a,#83b9ff)}
+.truesoil-highlights-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.truesoil-highlights-head small{display:block;color:#71e7b6;font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase}
+.truesoil-highlights-head h2{margin:9px 0 0;font-size:clamp(22px,4vw,30px);line-height:1.13}
+.truesoil-highlights-close{width:43px;height:43px;flex:none;border:1px solid #42617f;border-radius:50%;background:#162f49;color:white;font-size:27px;cursor:pointer}
+.truesoil-highlights-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:21px}
+.truesoil-highlight-card{min-width:0;min-height:145px;padding:18px;border:1px solid #294963;border-radius:17px;background:linear-gradient(140deg,#1a3651c9,#08182bdc)}
+.truesoil-highlight-card .number{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;border:1px solid #34826d;background:#113e39;color:#8ceccc;font-size:12px;font-weight:900}
+.truesoil-highlight-card h3{font-size:17px;line-height:1.25;color:#fff;margin:12px 0 5px}
+.truesoil-highlight-card p{font-size:12px;line-height:1.5;color:#b0c3d6;margin:0}
+.truesoil-highlights-note{margin:18px 0 0;color:#98b0c5;font-size:11px;line-height:1.5}
+@media(max-width:560px){
+ .truesoil-highlights-modal{padding:12px}
+ .truesoil-highlights-panel{max-height:calc(100dvh - 24px);padding:18px 15px}
+ .truesoil-highlights-grid{grid-template-columns:1fr;gap:9px;margin-top:16px}
+ .truesoil-highlight-card{min-height:0;display:grid;grid-template-columns:34px minmax(0,1fr);gap:2px 11px;padding:12px}
+ .truesoil-highlight-card .number{grid-row:span 2}
+ .truesoil-highlight-card h3{font-size:15px;margin:0}
+ .truesoil-highlight-card p{font-size:11px}
+}
+@media(max-height:490px){body.truesoil-farms-project .bottom-links{max-height:calc(100% - 130px);overflow-y:auto;scrollbar-width:none}body.truesoil-farms-project .bottom-links .pill{flex:none}}
+@media(prefers-reduced-motion:no-preference){.truesoil-highlights-modal:not([hidden]) .truesoil-highlights-panel{animation:truesoilHighlightEnter .22s ease-out both}@keyframes truesoilHighlightEnter{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}}
 </style>
 
 <style id="metro-agreement-public-style">
@@ -1337,6 +1366,7 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
     <button type="button" class="pill" id="amenitiesBtn" aria-label="Open amenities" title="Amenities"><svg class="gallery" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-6h6v6"/><path d="M7 10h10"/></svg> AMENITIES</button>
     <button type="button" class="pill" id="galleryBtn" aria-label="Open gallery" title="Gallery"><svg class="gallery" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h6"/><path d="M19 2v6"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg> GALLERY</button>
     <button type="button" class="pill" id="locationBtn" aria-label="Open location in Google Maps" title="Google Maps"><svg class="pin" viewBox="0 0 24 30" aria-hidden="true"><path fill="#34a853" d="M12 29C9 25.2 2 18.5 2 11.5A10 10 0 0 1 12 1l4.1 10.5Z"/><path fill="#4285f4" d="M12 1a10 10 0 0 1 10 10.5c0 2.6-1 5.2-2.5 7.6L12 11.5Z"/><path fill="#fbbc04" d="m12 29 7.5-9.9-7.5-7.6-4.1 7.3Z"/><path fill="#ea4335" d="M2 11.5A10 10 0 0 1 12 1v10.5l-4.1 7.3C4.7 15.8 2 13.7 2 11.5Z"/><circle cx="12" cy="11.5" r="4" fill="#fff"/></svg> LOCATION</button>
+    <button type="button" class="pill truesoil-highlights-btn" id="truesoilHighlightsBtn" aria-label="Open Truesoil Farms highlights" title="Project Highlights" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2Z"/></svg> HIGHLIGHTS</button>
   </div>
 
   <div class="controls">
@@ -1437,6 +1467,18 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
     <div class="amenities-note" id="amenitiesNote">Amenities shown here are configured specifically for Mangal Raj Park.</div>
     <div class="amenities-image-grid" id="amenitiesImageGrid" hidden aria-live="polite"></div>
   </div>
+</section>
+<section class="truesoil-highlights-modal" id="truesoilHighlightsModal" aria-hidden="true" aria-labelledby="truesoilHighlightsTitle" hidden>
+ <div class="truesoil-highlights-panel" role="dialog" aria-modal="true" aria-labelledby="truesoilHighlightsTitle">
+  <div class="truesoil-highlights-head"><div><small>Truesoil Farms</small><h2 id="truesoilHighlightsTitle">Project Highlights</h2></div><button type="button" class="truesoil-highlights-close" id="truesoilHighlightsClose" aria-label="Close project highlights">×</button></div>
+  <div class="truesoil-highlights-grid">
+   <article class="truesoil-highlight-card"><span class="number">01</span><h3>270° Aravalli View</h3><p>Panoramic Aravalli surroundings</p></article>
+   <article class="truesoil-highlight-card"><span class="number">02</span><h3>90 Minutes</h3><p>From Delhi NCR</p></article>
+   <article class="truesoil-highlight-card"><span class="number">03</span><h3>Pure Living</h3><p>Breathe Pure · Drink Pure · Grow Pure</p></article>
+   <article class="truesoil-highlight-card"><span class="number">04</span><h3>Delhi–Mumbai Expressway</h3><p>Expressway connectivity</p></article>
+  </div>
+  <p class="truesoil-highlights-note">Project highlights are developer-provided. Travel time depends on route and traffic.</p>
+ </div>
 </section>
 <section class="gallery-modal" id="galleryModal" aria-hidden="true" aria-labelledby="galleryTitle">
   <div class="gallery-panel" role="dialog" aria-modal="true">
@@ -1567,6 +1609,8 @@ body[data-metro-four-status="1"] .plot-peek[data-metro-visual="agreement"] .plot
 const REKIXO_PARAMS=new URLSearchParams(location.search);
 const REKIXO_PROJECT_PARAM=REKIXO_PARAMS.get('projectId')||'';
 const REKIXO_PROJECT_SLUG=REKIXO_PARAMS.get('projectSlug')||'';
+const TRUESOIL_PROJECT_SLUG='truesoil-farms-1c2440';
+const TRUESOIL_GEO_URL='https://ar3dstudio.in/3Dprojects/truesoil-farms-3d-8a7cf13c/geo';
 // The shared HTML is used by every tenant; opt in only for the exact Dungar slug.
 if(REKIXO_PROJECT_SLUG==='hree-dungar-residency-9176ee')document.body.classList.add('dungar-compact-header');
 const REKIXO_GENERIC_BOOT=true;
@@ -3367,6 +3411,33 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   amenitiesModal.addEventListener('click',e=>{if(e.target===amenitiesModal)closeAmenities()});
   q('#galleryBtn').onclick=openGallery;q('#galleryClose').onclick=closeGallery;q('#lightboxClose').onclick=closeFullImage;galleryModal.addEventListener('click',e=>{if(e.target===galleryModal)closeGallery()});imageLightbox.addEventListener('click',e=>{if(e.target===imageLightbox||e.target.classList.contains('lightbox-figure'))closeFullImage()});document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(imageLightbox.classList.contains('open'))closeFullImage();else if(galleryModal.classList.contains('open'))closeGallery();else if(amenitiesModal.classList.contains('open'))closeAmenities()});q('#locationBtn').onclick=()=>MAP_URL?window.open(MAP_URL,'_blank','noopener,noreferrer'):toast('Location link not configured');
 
+  const truesoilHighlightsButton=q('#truesoilHighlightsBtn');
+  const truesoilHighlightsModal=q('#truesoilHighlightsModal');
+  const truesoilHighlightsClose=q('#truesoilHighlightsClose');
+  let truesoilHighlightsPreviousFocus=null;
+  function closeTruesoilHighlights(){
+    if(truesoilHighlightsModal.hidden)return;
+    truesoilHighlightsModal.hidden=true;
+    truesoilHighlightsModal.setAttribute('aria-hidden','true');
+    truesoilHighlightsPreviousFocus?.focus?.();
+    truesoilHighlightsPreviousFocus=null;
+  }
+  truesoilHighlightsButton.onclick=()=>{
+    if(truesoilHighlightsButton.hidden)return;
+    truesoilHighlightsPreviousFocus=document.activeElement;
+    truesoilHighlightsModal.hidden=false;
+    truesoilHighlightsModal.setAttribute('aria-hidden','false');
+    truesoilHighlightsClose.focus();
+  };
+  truesoilHighlightsClose.onclick=closeTruesoilHighlights;
+  truesoilHighlightsModal.addEventListener('click',e=>{if(e.target===truesoilHighlightsModal)closeTruesoilHighlights()});
+  document.addEventListener('keydown',e=>{
+    if(truesoilHighlightsModal.hidden)return;
+    if(e.key==='Escape'){e.preventDefault();closeTruesoilHighlights()}
+    else if(e.key==='Tab'){e.preventDefault();truesoilHighlightsClose.focus()}
+  });
+
+
   function onResize(){if(resizeRaf)return;resizeRaf=requestAnimationFrame(()=>{resizeRaf=0;updateMetroCanvasMode();if(mode3D){engine3D?.resize();return}if(publicInitialViewMode==='plots'&&!presentationUserAdjusted){reset();return}const oldFit=fit||1,z=scale/oldFit;calcFit();scale=clamp(fit*z,minFit,fit*4.5);render()})}
   window.addEventListener('resize',onResize);
   window.visualViewport?.addEventListener('resize',onResize);
@@ -3457,7 +3528,14 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
     });
     plots.forEach(p=>{const row=live.get(p.id);if(row){const shape={points:p.points,center:p.center,path:p.path};Object.assign(p,row,shape)}const el=svg.querySelector(`[data-plot-id="${p.id}"]`);if(el)el.dataset.status=plotStatus(p)});
     applyContactChannels(s);
-    MAP_URL=s.mapUrl||'';
+    // Never opt in by query string or display name; canonical server data owns tenant identity.
+    const truesoilEnabled=String(data.slug||'').trim()===TRUESOIL_PROJECT_SLUG;
+    document.body.classList.toggle('truesoil-farms-project',truesoilEnabled);
+    MAP_URL=truesoilEnabled?TRUESOIL_GEO_URL:(s.mapUrl||'');
+    const locationAction=q('#locationBtn');
+    locationAction.title=truesoilEnabled?'View 3D Geo Map':'Google Maps';
+    locationAction.setAttribute('aria-label',truesoilEnabled?'View Truesoil Farms 3D Geo Map':'Open location in Google Maps');
+    q('#truesoilHighlightsBtn').hidden=!truesoilEnabled;
     // Recheck from canonical tenant data as well as the iframe URL (custom-domain safe).
     document.body.classList.toggle('dungar-compact-header',
       String(data.slug||REKIXO_PROJECT_SLUG||'').trim()==='hree-dungar-residency-9176ee');
@@ -3811,7 +3889,7 @@ window.REKIXO_PUBLIC_BOOT_PROMISE=rekixoStartPublicBoot();
   }
 
   function setSmallActionClass(){
-    [document.getElementById('amenitiesBtn'), document.getElementById('galleryBtn'), document.getElementById('locationBtn')].forEach((node)=>{
+    [document.getElementById('amenitiesBtn'), document.getElementById('galleryBtn'), document.getElementById('locationBtn'), document.getElementById('truesoilHighlightsBtn')].forEach((node)=>{
       if(node) node.classList.add('rekixo-small-action');
     });
   }
